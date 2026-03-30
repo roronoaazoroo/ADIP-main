@@ -3,6 +3,8 @@ const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential } = require('@azure/identity')
 const { getBaseline } = require('../services/cosmosService')
 const { getResourceConfig } = require('../services/azureResourceService')
+const { getApiVersion } = require('../services/azureResourceService')
+const { sendDriftAlert } = require('../services/alertService')
 const { diff } = require('deep-diff')
 
 const VOLATILE = ['etag', 'changedTime', 'createdTime', 'provisioningState', 'lastModifiedAt', 'systemData', '_ts', '_etag', '_rid', '_self', 'id']
@@ -25,13 +27,21 @@ router.post('/remediate', async (req, res) => {
       return res.status(404).json({ error: 'No golden baseline found for this resource' })
 
     const baselineState = strip(baseline.resourceState)
+    const liveRaw       = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+    const liveState     = strip(liveRaw)
+    const differences   = diff(liveState, baselineState) || []
 
-    // Use shared getResourceConfig which has dynamic API version resolution
-    const liveRaw   = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
-    const liveState = strip(liveRaw)
-    const differences = diff(liveState, baselineState) || []
+    // Send alert email BEFORE applying the change
+    await sendDriftAlert({
+      resourceId,
+      resourceGroup:  resourceGroupId,
+      subscriptionId,
+      severity:       'critical',   // remediation is always a critical action
+      changeCount:    differences.length,
+      detectedAt:     new Date().toISOString(),
+      note:           'Remediation applied — resource reverted to golden baseline',
+    })
 
-    // Apply baseline back to Azure — use same dynamic version resolution
     const credential = new DefaultAzureCredential()
     const armClient  = new ResourceManagementClient(credential, subscriptionId)
     const parts      = resourceId.split('/')
@@ -39,9 +49,6 @@ router.post('/remediate', async (req, res) => {
     const type       = parts[7]
     const name       = parts[8]
     const rgName     = parts[4]
-
-    // Import getApiVersion from azureResourceService
-    const { getApiVersion } = require('../services/azureResourceService')
     const apiVersion = await getApiVersion(subscriptionId, provider, type)
 
     await armClient.resources.beginCreateOrUpdateAndWait(

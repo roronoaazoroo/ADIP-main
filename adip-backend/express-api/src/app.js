@@ -4,6 +4,7 @@ const cors = require('cors')
 const http = require('http')
 const { Server } = require('socket.io')
 const { startQueuePoller } = require('./services/queuePoller')
+const { sendDriftAlert }   = require('./services/alertService')
 
 const app = express()
 const server = http.createServer(app)
@@ -34,6 +35,13 @@ app.use('/api', require('./routes/remediate'))
 app.use('/api', require('./routes/seed'))
 app.use('/api', require('./routes/policy'))
 
+// Alert email endpoint — called by Logic App or directly
+app.post('/api/alert/email', express.json(), async (req, res) => {
+  const { sendDriftAlert } = require('./services/alertService')
+  await sendDriftAlert(req.body).catch(() => {})
+  res.json({ sent: true })
+})
+
 // SignalR webhook — Function App posts drift events here
 app.post('/internal/drift-event', express.json(), (req, res) => {
   const event = req.body
@@ -42,6 +50,7 @@ app.post('/internal/drift-event', express.json(), (req, res) => {
       ? `${event.subscriptionId}:${event.resourceGroup}`
       : event.subscriptionId
     io.to(room).emit('driftEvent', event)
+    sendDriftAlert(event).catch(err => console.error('[Alert]', err.message))
   }
   res.sendStatus(200)
 })

@@ -1,0 +1,69 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "triggers": {
+      "HTTP_Drift_Alert": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "resourceId":     { "type": "string" },
+              "resourceGroup":  { "type": "string" },
+              "severity":       { "type": "string" },
+              "changeCount":    { "type": "integer" },
+              "detectedAt":     { "type": "string" },
+              "subscriptionId": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "Condition_High_Or_Critical": {
+        "type": "If",
+        "expression": {
+          "or": [
+            { "equals": ["@triggerBody()?['severity']", "critical"] },
+            { "equals": ["@triggerBody()?['severity']", "high"] }
+          ]
+        },
+        "actions": {
+          "Forward_To_Express_Email": {
+            "type": "Http",
+            "inputs": {
+              "method": "POST",
+              "uri": "@{concat(parameters('expressApiUrl'), '/alert/email')}",
+              "headers": { "Content-Type": "application/json" },
+              "body": "@triggerBody()"
+            },
+            "runAfter": {}
+          },
+          "Return_Sent": {
+            "type": "Response",
+            "inputs": { "statusCode": 200, "body": { "alerted": true } },
+            "runAfter": { "Forward_To_Express_Email": ["Succeeded", "Failed"] }
+          }
+        },
+        "else": {
+          "actions": {
+            "Return_Skipped": {
+              "type": "Response",
+              "inputs": { "statusCode": 200, "body": { "alerted": false } },
+              "runAfter": {}
+            }
+          }
+        },
+        "runAfter": {}
+      }
+    },
+    "parameters": {
+      "expressApiUrl": { "type": "string", "defaultValue": "http://localhost:3001/api" }
+    }
+  },
+  "parameters": {
+    "expressApiUrl": { "value": "http://localhost:3001/api" }
+  }
+}

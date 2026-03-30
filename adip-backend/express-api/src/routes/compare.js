@@ -3,6 +3,7 @@ const { diff } = require('deep-diff')
 const { getResourceConfig } = require('../services/azureResourceService')
 const { getBaseline, saveDriftRecord } = require('../services/cosmosService')
 const { broadcastDriftEvent } = require('../services/signalrService')
+const { sendDriftAlert } = require('../services/alertService')
 
 const VOLATILE = ['etag', 'changedTime', 'createdTime', 'provisioningState', 'lastModifiedAt', 'systemData', '_ts', '_etag']
 const CRITICAL_PATHS = ['properties.networkAcls', 'properties.accessPolicies', 'properties.securityRules', 'sku', 'location', 'identity', 'properties.encryption']
@@ -47,6 +48,8 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
   if (differences.length > 0) {
     await saveDriftRecord(record)
     broadcastDriftEvent(record)
+    // Non-blocking alert — runs in background, logs errors
+    sendDriftAlert(record).catch(err => console.error('[Alert]', err.message))
   }
   return record
 }
