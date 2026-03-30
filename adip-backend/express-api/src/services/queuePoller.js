@@ -34,6 +34,26 @@ function parseMessage(msg) {
   }
 }
 
+// Deduplication cache: key → timestamp of last broadcast
+// Prevents duplicate events for the same resource within DEDUP_WINDOW_MS
+const dedupCache = {}
+const DEDUP_WINDOW_MS = 5000
+
+function isDuplicate(event) {
+  const key  = `${event.resourceId}:${event.operationName}`
+  const now  = Date.now()
+  const last = dedupCache[key]
+  if (last && now - last < DEDUP_WINDOW_MS) return true
+  dedupCache[key] = now
+  // Prune stale entries every 100 events to prevent memory growth
+  if (Object.keys(dedupCache).length > 100) {
+    for (const k of Object.keys(dedupCache)) {
+      if (now - dedupCache[k] > DEDUP_WINDOW_MS * 2) delete dedupCache[k]
+    }
+  }
+  return false
+}
+
 // Start polling the queue and emit change events via Socket.IO
 function startQueuePoller() {
   const interval = parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '5000', 10)
@@ -41,23 +61,21 @@ function startQueuePoller() {
 
   setInterval(async () => {
     try {
-      // Dequeue up to 32 messages at once
       const response = await client.receiveMessages({ numberOfMessages: 32, visibilityTimeout: 30 })
       for (const msg of response.receivedMessageItems) {
         const event = parseMessage(msg)
-        if (event) {
-          // Broadcast to all rooms matching subscriptionId or resourceGroup
+        if (event && !isDuplicate(event)) {
           if (global.io) {
             const rooms = [event.subscriptionId, `${event.subscriptionId}:${event.resourceGroup}`].filter(Boolean)
             rooms.forEach(room => global.io.to(room).emit('resourceChange', event))
           }
-          // Delete processed message from queue
+          await client.deleteMessage(msg.messageId, msg.popReceipt)
+        } else if (event) {
+          // Duplicate — still delete from queue so it doesn't reappear
           await client.deleteMessage(msg.messageId, msg.popReceipt)
         }
       }
-    } catch (err) {
-      // Queue not ready yet or connection issue — retry next interval
-    }
+    } catch (err) {}
   }, interval)
 
   console.log(`Queue poller started — polling every ${interval}ms`)

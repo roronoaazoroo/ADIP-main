@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import JsonTree from '../components/JsonTree'
@@ -84,6 +84,7 @@ export default function DashboardPage() {
     resource,      setResource,
     isScanning,    setIsScanning,
     isMonitoring,  setIsMonitoring,
+    isSubmitted,   setIsSubmitted,
     configData,    setConfigData,
     liveEvents,    setLiveEvents,
     scanProgress,  setScanProgress,
@@ -104,7 +105,16 @@ export default function DashboardPage() {
   )
 
 
-  const { driftEvents, socketConnected, clearDriftEvents } = useDriftSocket(scope, isMonitoring)
+  // Task 4: re-fetch live config from ARM when a resource change event arrives
+  const handleConfigUpdate = useCallback((event) => {
+    if (!event.resourceId && !event.resourceGroup) return
+    // Re-fetch the full live configuration for the currently displayed scope
+    fetchResourceConfiguration(subscription, resourceGroup, resource || null)
+      .then(cfg => { if (cfg) setConfigData(cfg) })
+      .catch(() => {})
+  }, [subscription, resourceGroup, resource, setConfigData])
+
+  const { driftEvents, socketConnected, clearDriftEvents } = useDriftSocket(scope, isSubmitted, handleConfigUpdate)
   const liveLogRef = useRef(null)  // local UI ref only
 
   // ── Auto-scroll live log ───────────────────────────────────────────────
@@ -129,6 +139,7 @@ export default function DashboardPage() {
   const handleSubmit = () => {
     if (!subscription || !resourceGroup || isScanning) return
     setIsScanning(true)
+    setIsSubmitted(false)
     setConfigData(null)
     setLiveEvents([])
     setScanProgress(0)
@@ -152,6 +163,7 @@ export default function DashboardPage() {
         configPromise
           .then(cfg => {
             if (cfg) {
+              setIsSubmitted(true)
               setConfigData(cfg)
               // Start real-time monitoring after config loads
               if (!isDemoMode) {
@@ -182,22 +194,22 @@ export default function DashboardPage() {
   const handleStop = () => {
     // Stop animation interval
     if (scanInterval.current) clearInterval(scanInterval.current)
-    setIsScanning(false)
 
-    // Stop real-time monitoring on backend
+    // Stop backend monitoring session
     if (isMonitoring && monitorScope.current) {
       const { subscriptionId, resourceGroupId, resourceId } = monitorScope.current
       stopMonitoring(subscriptionId, resourceGroupId, resourceId).catch(() => {})
       monitorScope.current = null
-      setIsMonitoring(false)
     }
 
-    setLiveEvents(prev => [...prev, {
-      type: 'stop', icon: 'stop',
-      message: isMonitoring ? 'Real-time monitoring stopped.' : 'Operation stopped by user.',
-      timestamp: new Date().toLocaleTimeString(),
-      id: Date.now(),
-    }])
+    // Task 5: Full state reset
+    setIsScanning(false)
+    setIsMonitoring(false)
+    setIsSubmitted(false)
+    setConfigData(null)
+    setLiveEvents([])
+    setScanProgress(0)
+    clearDriftEvents()
   }
 
   // ── Navigate to comparison page with current live state ───────────────

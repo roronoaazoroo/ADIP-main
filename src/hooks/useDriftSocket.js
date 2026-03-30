@@ -5,11 +5,15 @@ const SOCKET_URL =
   import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ??
   null
 
-export function useDriftSocket(scope, isMonitoring = false) {
+export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null) {
   const [changeEvents, setChangeEvents]       = useState([])
   const [socketConnected, setSocketConnected] = useState(false)
-  const socketRef  = useRef(null)
-  const mountedRef = useRef(true)
+  const socketRef      = useRef(null)
+  const mountedRef     = useRef(true)
+  const isSubmittedRef = useRef(isSubmitted)
+
+  // Keep ref in sync so the socket handler always sees latest value
+  useEffect(() => { isSubmittedRef.current = isSubmitted }, [isSubmitted])
 
   const addEvent = useCallback((event) => {
     setChangeEvents(prev =>
@@ -33,27 +37,38 @@ export function useDriftSocket(scope, isMonitoring = false) {
         socket.on('connect', () => {
           if (!mountedRef.current) return
           setSocketConnected(true)
-          // Subscribe to the selected scope room
           socket.emit('subscribe', {
             subscriptionId: scope.subscriptionId,
             resourceGroup:  scope.resourceGroup ?? null,
           })
         })
-
-        socket.on('disconnect', () => { if (mountedRef.current) setSocketConnected(false) })
+        socket.on('disconnect',    () => { if (mountedRef.current) setSocketConnected(false) })
         socket.on('connect_error', () => { if (mountedRef.current) setSocketConnected(false) })
 
-        // Real-time resource change events from Event Grid → Queue → Express → Socket.IO
         socket.on('resourceChange', (event) => {
           if (!mountedRef.current) return
-          // Filter to selected scope
+
+          // Task 3: Gate — drop events until user has pressed Submit
+          if (!isSubmittedRef.current) return
+
           const matchesSub = event.subscriptionId === scope.subscriptionId
           const matchesRG  = !scope.resourceGroup || event.resourceGroup === scope.resourceGroup
-          if (matchesSub && matchesRG) addEvent(event)
+          // If a specific resource is selected, only show events for that resource
+          const matchesRes = !scope.resourceId ||
+            event.resourceId?.toLowerCase() === scope.resourceId?.toLowerCase() ||
+            event.resourceId?.toLowerCase().endsWith(`/${scope.resourceId?.split('/').pop()?.toLowerCase()}`)
+          if (!matchesSub || !matchesRG || !matchesRes) return
+
+          addEvent(event)
+
+          // Task 4: Live config update — merge changed resource into configData
+          if (onConfigUpdate && event.resourceId) {
+            onConfigUpdate(event)
+          }
         })
       })
       .catch(() => {})
-  }, [scope?.subscriptionId, scope?.resourceGroup, addEvent])
+  }, [scope?.subscriptionId, scope?.resourceGroup, addEvent, onConfigUpdate])
 
   useEffect(() => {
     mountedRef.current = true

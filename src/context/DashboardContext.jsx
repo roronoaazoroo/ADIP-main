@@ -8,6 +8,7 @@ export function DashboardProvider({ children }) {
   const [resource,      setResource]      = useState('')
   const [isScanning,    setIsScanning]    = useState(false)
   const [isMonitoring,  setIsMonitoring]  = useState(false)
+  const [isSubmitted,   setIsSubmitted]   = useState(false)
   const [configData,    setConfigData]    = useState(null)
   const [liveEvents,    setLiveEvents]    = useState([])
   const [scanProgress,  setScanProgress]  = useState(0)
@@ -22,6 +23,7 @@ export function DashboardProvider({ children }) {
       resource,      setResource,
       isScanning,    setIsScanning,
       isMonitoring,  setIsMonitoring,
+      isSubmitted,   setIsSubmitted,
       configData,    setConfigData,
       liveEvents,    setLiveEvents,
       scanProgress,  setScanProgress,
