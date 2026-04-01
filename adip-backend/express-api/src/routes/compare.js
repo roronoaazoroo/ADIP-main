@@ -4,6 +4,7 @@ const { getResourceConfig } = require('../services/azureResourceService')
 const { getBaseline, saveDriftRecord } = require('../services/cosmosService')
 const { broadcastDriftEvent } = require('../services/signalrService')
 const { sendDriftAlert } = require('../services/alertService')
+const { explainDrift, reclassifySeverity } = require('../services/aiService')
 
 const VOLATILE = ['etag', 'changedTime', 'createdTime', 'provisioningState', 'lastModifiedAt', 'systemData', '_ts', '_etag']
 const CRITICAL_PATHS = ['properties.networkAcls', 'properties.accessPolicies', 'properties.securityRules', 'sku', 'location', 'identity', 'properties.encryption']
@@ -46,9 +47,25 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     detectedAt: new Date().toISOString(),
   }
   if (differences.length > 0) {
+    // Run AI explanation and re-classification in parallel (non-blocking)
+    const [aiExplanation, aiSeverity] = await Promise.all([
+      explainDrift(record),
+      reclassifySeverity(record),
+    ]).catch(() => [null, null])
+
+    if (aiExplanation) record.aiExplanation = aiExplanation
+    if (aiSeverity) {
+      record.aiSeverity  = aiSeverity.severity
+      record.aiReasoning = aiSeverity.reasoning
+      // Use AI severity if it's more severe than rule-based
+      const order = ['none','low','medium','high','critical']
+      if (order.indexOf(aiSeverity.severity) > order.indexOf(record.severity)) {
+        record.severity = aiSeverity.severity
+      }
+    }
+
     await saveDriftRecord(record)
     broadcastDriftEvent(record)
-    // Non-blocking alert — runs in background, logs errors
     sendDriftAlert(record).catch(err => console.error('[Alert]', err.message))
   }
   return record

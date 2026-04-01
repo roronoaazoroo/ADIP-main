@@ -13,6 +13,7 @@ export function DashboardProvider({ children }) {
   const [liveEvents,    setLiveEvents]    = useState([])
   const [scanProgress,  setScanProgress]  = useState(0)
   const [policyData,    setPolicyData]    = useState(null)
+  const [anomalies,     setAnomalies]     = useState([])
   const scanInterval = useRef(null)
   const monitorScope = useRef(null)
   const jsonTreeRef  = useRef(null)
@@ -29,6 +30,7 @@ export function DashboardProvider({ children }) {
       liveEvents,    setLiveEvents,
       scanProgress,  setScanProgress,
       policyData,    setPolicyData,
+      anomalies,     setAnomalies,
       scanInterval,  monitorScope,  jsonTreeRef,
     }}>
       {children}

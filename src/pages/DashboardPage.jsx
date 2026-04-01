@@ -4,7 +4,7 @@ import Sidebar from '../components/Sidebar'
 import JsonTree from '../components/JsonTree'
 import { useAzureScope } from '../hooks/useAzureScope'
 import { useDriftSocket } from '../hooks/useDriftSocket'
-import { fetchResourceConfiguration, stopMonitoring, fetchPolicyCompliance, cacheState } from '../services/api'
+import { fetchResourceConfiguration, stopMonitoring, fetchPolicyCompliance, cacheState, fetchAnomalies } from '../services/api'
 import './DashboardPage.css'
 import { useDashboard } from '../context/DashboardContext'
 
@@ -89,6 +89,7 @@ export default function DashboardPage() {
     liveEvents,    setLiveEvents,
     scanProgress,  setScanProgress,
     policyData,    setPolicyData,
+    anomalies,     setAnomalies,
     scanInterval,  monitorScope,  jsonTreeRef,
   } = useDashboard()
 
@@ -169,6 +170,12 @@ export default function DashboardPage() {
               // Fetch policy compliance in parallel
               fetchPolicyCompliance(subscription, resourceGroup, resource || null)
                 .then(p => setPolicyData(p)).catch(() => setPolicyData(null))
+              // Feature 5: AI anomaly detection on drift history
+              if (!isDemoMode) {
+                fetchAnomalies(subscription)
+                  .then(r => setAnomalies(r?.anomalies || []))
+                  .catch(() => {})
+              }
               // Task 1: seed backend live state cache so first change shows a diff
               if (!isDemoMode && cfg) {
                 const toCache = cfg.resources
@@ -221,6 +228,7 @@ export default function DashboardPage() {
     setLiveEvents([])
     setScanProgress(0)
     setPolicyData(null)
+    setAnomalies([])
     clearDriftEvents()
   }
 
@@ -367,6 +375,21 @@ export default function DashboardPage() {
                 </select>
               </div>
             </div>
+
+            {/* Feature 5: AI Anomaly Alerts */}
+            {anomalies?.length > 0 && (
+              <div style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#818cf8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>🤖</span> AI Anomalies Detected
+                </div>
+                {anomalies.map((a, i) => (
+                  <div key={i} style={{ padding: '10px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#fca5a5', marginBottom: 3 }}>{a.title}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>{a.description}</div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="sidebar-actions">

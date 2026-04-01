@@ -51,9 +51,15 @@ router.post('/remediate', async (req, res) => {
     const rgName     = parts[4]
     const apiVersion = await getApiVersion(subscriptionId, provider, type)
 
+    // location is required by ARM — use baseline's, fall back to live resource's location
+    let location = baseline.resourceState?.location
+    if (!location) {
+      try { location = liveRaw.location } catch { location = 'westus2' }
+    }
+
     await armClient.resources.beginCreateOrUpdateAndWait(
       rgName, provider, '', type, name, apiVersion,
-      { ...baselineState, location: baseline.resourceState.location }
+      { ...baselineState, location }
     )
 
     res.json({ remediated: true, resourceId, changeCount: differences.length,

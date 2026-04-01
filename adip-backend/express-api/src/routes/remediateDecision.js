@@ -51,9 +51,18 @@ router.get('/remediate-decision', async (req, res) => {
       const rgName        = parts[4], provider = parts[6], type = parts[7], name = parts[8]
       const apiVersion    = await getApiVersion(subscriptionId, provider, type)
 
+      // location is required by ARM — use baseline's, fall back to live resource's location
+      let location = baseline.resourceState?.location
+      if (!location) {
+        try {
+          const live = await armClient.resources.get(rgName, provider, '', type, name, apiVersion)
+          location = live.location
+        } catch { location = 'westus2' }
+      }
+
       await armClient.resources.beginCreateOrUpdateAndWait(
         rgName, provider, '', type, name, apiVersion,
-        { ...baselineState, location: baseline.resourceState.location }
+        { ...baselineState, location }
       )
 
       return res.send(html('✓ Remediation Applied',

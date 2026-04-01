@@ -222,6 +222,17 @@ export async function remediateToBaseline(subscriptionId, resourceGroupId, resou
   })
 }
 
+export async function requestRemediation(payload) {
+  return apiRequest('/remediate-request', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function uploadBaseline(subscriptionId, resourceGroupId, resourceId, baselineData) {
+  return apiRequest('/baselines/upload', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, baselineData }),
+  })
+}
+
 // ============================
 // Real-time Monitoring
 // ============================
@@ -266,4 +277,24 @@ export async function fetchPolicyCompliance(subscriptionId, resourceGroupId, res
   const params = new URLSearchParams({ subscriptionId, resourceGroupId })
   if (resourceId) params.set('resourceId', resourceId)
   return apiRequest(`/policy/compliance?${params}`)
+}
+
+// ============================
+// AI Features
+// ============================
+
+export async function fetchAiExplanation(record) {
+  return apiRequest('/ai/explain', { method: 'POST', body: JSON.stringify(record) })
+}
+
+export async function fetchAiSeverity(record) {
+  return apiRequest('/ai/severity', { method: 'POST', body: JSON.stringify(record) })
+}
+
+export async function fetchAiRecommendation(record) {
+  return apiRequest('/ai/recommend', { method: 'POST', body: JSON.stringify(record) })
+}
+
+export async function fetchAnomalies(subscriptionId) {
+  return apiRequest(`/ai/anomalies?subscriptionId=${subscriptionId}`)
 }

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { diff as deepDiff } from 'deep-diff'
 import Sidebar from '../components/Sidebar'
 import JsonTree from '../components/JsonTree'
-import { fetchBaseline, remediateToBaseline, fetchPolicyCompliance } from '../services/api'
+import { fetchBaseline, remediateToBaseline, fetchPolicyCompliance, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
 import './ComparisonPage.css'
 
 // ── Severity classifier ────────────────────────────────────────────────────
@@ -74,6 +74,13 @@ export default function ComparisonPage() {
   const [remediateErr,   setRemediateErr]   = useState(null)
   const [remediateDiff,  setRemediateDiff]  = useState(null)
   const [policyData,     setPolicyData]     = useState(null)
+  const [aiExplanation,  setAiExplanation]  = useState(null)
+  const [aiRecommend,    setAiRecommend]    = useState(null)
+  const [aiLoading,      setAiLoading]      = useState(false)
+  const [uploading,      setUploading]      = useState(false)
+  const [uploadMsg,      setUploadMsg]      = useState(null)
+  const [requesting,     setRequesting]     = useState(false)
+  const [requestMsg,     setRequestMsg]     = useState(null)
 
   const baselineTreeRef = useRef(null)
   const liveTreeRef     = useRef(null)
@@ -95,6 +102,16 @@ export default function ComparisonPage() {
           const fmtDiff = formatDifferences(rawDiff)
           setDifferences(fmtDiff)
           setSeverity(classifySeverity(fmtDiff))
+          // Feature 1: AI explanation (non-blocking)
+          if (fmtDiff.length > 0) {
+            setAiLoading(true)
+            fetchAiExplanation({
+              resourceId, resourceGroup: resourceGroupId,
+              subscriptionId, severity: classifySeverity(fmtDiff),
+              differences: fmtDiff, changes: fmtDiff,
+            }).then(r => { setAiExplanation(r?.explanation || null) })
+              .catch(() => {}).finally(() => setAiLoading(false))
+          }
         } else {
           setNoBaseline(true)
         }
@@ -111,6 +128,10 @@ export default function ComparisonPage() {
     setRemediating(true)
     setRemediateErr(null)
     setRemediateDiff(null)
+    // Feature 3: fetch AI recommendation before applying remediation
+    fetchAiRecommendation({ resourceId, resourceGroup: resourceGroupId, subscriptionId,
+      severity, differences, changes: differences })
+      .then(r => setAiRecommend(r?.recommendation || null)).catch(() => {})
     try {
       // Show what will be reverted: diff is baseline → live (what changed FROM baseline)
       // We display this as "these fields will be reset to baseline values"
@@ -119,7 +140,12 @@ export default function ComparisonPage() {
       const rawDiff      = deepDiff(normBaseline || {}, normLive) || []
       setRemediateDiff(formatDifferences(rawDiff))
 
-      await remediateToBaseline(subscriptionId, resourceGroupId, resourceId)
+      // Send approval email — admin must click Approve to actually apply the change
+      await requestRemediation({
+        subscriptionId, resourceGroupId, resourceId,
+        differences, changes: differences, severity,
+        caller: 'dashboard-user',
+      })
       setRemediated(true)
     } catch (err) {
       setRemediateErr(err.message)
@@ -127,6 +153,49 @@ export default function ComparisonPage() {
       setRemediating(false)
     }
   }
+
+  // Task 1: file upload handler with client-side JSON validation
+  const handleUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.name.endsWith('.json')) {
+      setUploadMsg({ ok: false, text: 'Only .json files are accepted.' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      let parsed
+      try { parsed = JSON.parse(ev.target.result) }
+      catch { setUploadMsg({ ok: false, text: 'Invalid JSON — file could not be parsed.' }); return }
+
+      setUploading(true)
+      setUploadMsg(null)
+      try {
+        await uploadBaseline(subscriptionId, resourceGroupId, resourceId, parsed)
+        setUploadMsg({ ok: true, text: 'Golden baseline uploaded. Reloading comparison...' })
+        // Re-fetch baseline and recompute diff so the page reflects the new baseline immediately
+        const fresh = await fetchBaseline(subscriptionId, resourceId)
+        if (fresh?.resourceState) {
+          const normBaseline = normaliseState(fresh.resourceState)
+          const normLive     = normaliseState(passedLive)
+          setBaseline(normBaseline)
+          setNoBaseline(false)
+          const rawDiff = deepDiff(normBaseline, normLive) || []
+          const fmtDiff = formatDifferences(rawDiff)
+          setDifferences(fmtDiff)
+          setSeverity(classifySeverity(fmtDiff))
+          setUploadMsg({ ok: true, text: 'Golden baseline uploaded and applied. Comparison updated.' })
+        }
+      } catch (err) {
+        setUploadMsg({ ok: false, text: `Upload failed: ${err.message}` })
+      } finally {
+        setUploading(false)
+        e.target.value = ''  // reset file input
+      }
+    }
+    reader.readAsText(file)
+  }
+
 
   const expandAll  = useCallback(() => { baselineTreeRef.current?.expandAll();  liveTreeRef.current?.expandAll()  }, [])
   const collapseAll = useCallback(() => { baselineTreeRef.current?.collapseAll(); liveTreeRef.current?.collapseAll() }, [])
@@ -187,6 +256,18 @@ export default function ComparisonPage() {
                 {policyData.nonCompliant > 0 ? `POLICY: ${policyData.nonCompliant} VIOLATION(S)` : 'POLICY: COMPLIANT'}
               </span>
             )}
+            {/* Upload Golden Baseline button */}
+            <label style={{ cursor: 'pointer' }}>
+              <input type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
+              <span className="btn btn-primary" style={{ width: 'auto', padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, opacity: uploading ? 0.6 : 1 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {uploading ? 'Uploading...' : 'Upload Baseline'}
+              </span>
+            </label>
+
             {differences.length > 0 && !noBaseline && (
               <button
                 className="btn btn-promote"
@@ -194,9 +275,9 @@ export default function ComparisonPage() {
                 disabled={remediating || remediated}
               >
                 {remediating ? (
-                  <><div className="btn-spinner btn-spinner--dark" /><span>Remediating...</span></>
+                  <><div className="btn-spinner btn-spinner--dark" /><span>Sending request...</span></>
                 ) : remediated ? (
-                  <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg><span>Remediated!</span></>
+                  <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg><span>Request Sent!</span></>
                 ) : (
                   <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 14l-4-4 4-4"/><path d="M5 10h11a4 4 0 0 1 0 8h-1"/></svg><span>Remediate to Baseline</span></>
                 )}
@@ -208,6 +289,13 @@ export default function ComparisonPage() {
         {/* Body */}
         <div className="comparison-body">
 
+          {/* Upload feedback */}
+          {uploadMsg && (
+            <div className={`comparison-alert comparison-alert--${uploadMsg.ok ? 'success' : 'error'}`}>
+              {uploadMsg.text}
+            </div>
+          )}
+
           {/* Promote error */}
           {remediateErr && (
             <div className="comparison-alert comparison-alert--error">
@@ -215,15 +303,47 @@ export default function ComparisonPage() {
             </div>
           )}
 
+          {/* Auto Remediate feedback */}
+          {requestMsg && (
+            <div className={`comparison-alert comparison-alert--${requestMsg.ok ? 'success' : 'error'}`}>
+              {requestMsg.text}
+            </div>
+          )}
+
+          {/* Feature 1: AI Explanation */}
+          {(aiLoading || aiExplanation) && (
+            <div style={{ margin: '0 0 16px', padding: '14px 18px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 18 }}>🤖</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#818cf8', marginBottom: 4 }}>AI Security Analysis</div>
+                {aiLoading
+                  ? <div style={{ fontSize: 13, color: '#94a3b8' }}>Analysing drift with Azure OpenAI...</div>
+                  : <div style={{ fontSize: 13, color: '#000', lineHeight: 1.6 }}>{aiExplanation}</div>
+                }
+              </div>
+            </div>
+          )}
+
+          {/* Feature 3: AI Remediation Recommendation */}
+          {aiRecommend && (
+            <div style={{ margin: '0 0 16px', padding: '14px 18px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 18 }}>💡</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#10b981', marginBottom: 4 }}>AI Remediation Recommendation</div>
+                <div style={{ fontSize: 13, color: '#000', lineHeight: 1.6 }}>{aiRecommend}</div>
+              </div>
+            </div>
+          )}
+
           {/* Promote diff output */}
           {remediated && remediateDiff !== null && (
             <div className="comparison-alert comparison-alert--success">
-              <strong>✓ Remediated — live resource reverted to golden baseline.</strong>
+              <strong>✓ Approval request sent — an email has been dispatched to the administrator.</strong>
               {remediateDiff.length === 0 ? (
-                <span> Live state already matched the golden baseline — no changes needed.</span>
+                <span> No changes detected — resource already matches the baseline.</span>
               ) : (
                 <>
-                  <span> {remediateDiff.length} field(s) reverted to golden baseline values:</span>
+                  <span> Approval email sent for {remediateDiff.length} field change(s). Remediation will apply once approved.</span>
                   <div className="changes-list" style={{ marginTop: 8 }}>
                     {remediateDiff.map((d, i) => (
                       <div key={i} className={`change-entry change-entry--${d.type}`}>

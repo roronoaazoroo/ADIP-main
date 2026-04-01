@@ -58,4 +58,27 @@ async function saveDriftRecord(record) {
   await driftContainer().items.create({ id: safeId, ...record })
 }
 
-module.exports = { getDriftRecords, getBaseline, saveBaseline, saveDriftRecord }
+// Task 3: Upsert — insert if new, fully replace if exists (1 write RU either way)
+// Uses a deterministic id so the same resourceId always maps to the same document
+async function upsertBaseline(subscriptionId, resourceGroupId, resourceId, resourceState) {
+  // Deactivate all existing baselines for this resource first
+  const { resources: existing } = await baselineContainer().items
+    .query({ query: 'SELECT * FROM c WHERE c.resourceId = @rid', parameters: [{ name: '@rid', value: resourceId }] })
+    .fetchAll()
+  for (const doc of existing) {
+    await baselineContainer().item(doc.id, doc.resourceId).replace({ ...doc, active: false })
+  }
+  // Upsert with deterministic id — insert if new, full replace if same upload exists
+  const deterministicId = `baseline-upload-${Buffer.from(resourceId).toString('base64').replace(/[/+=]/g, '_')}`
+  const doc = {
+    id: deterministicId,
+    subscriptionId, resourceGroupId, resourceId,
+    resourceState, active: true,
+    promotedAt: new Date().toISOString(),
+    source: 'manual-upload',
+  }
+  const { resource } = await baselineContainer().items.upsert(doc)
+  return resource
+}
+
+module.exports = { getDriftRecords, getBaseline, saveBaseline, saveDriftRecord, upsertBaseline }
