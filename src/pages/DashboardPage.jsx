@@ -550,7 +550,8 @@ export default function DashboardPage() {
                   </div>
                 )}
                 {driftEvents.map(ev => {
-                  const user         = ev.caller && ev.caller !== 'unknown' ? ev.caller : 'Unknown user'
+                  const _sessionUser = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
+                  const user         = (ev.caller && ev.caller !== 'unknown' && ev.caller !== 'Unknown user') ? ev.caller : (_sessionUser.name || _sessionUser.username || 'Unknown user')
                   const resourceName = ev.resourceId?.split('/').pop() ?? ev.subject ?? 'resource'
                   const isDelete     = ev.eventType?.includes('Delete')
                   // Task 3: format Azure eventTime, not frontend render time

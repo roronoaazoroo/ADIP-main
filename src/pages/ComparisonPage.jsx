@@ -144,7 +144,7 @@ export default function ComparisonPage() {
       await requestRemediation({
         subscriptionId, resourceGroupId, resourceId,
         differences, changes: differences, severity,
-        caller: 'dashboard-user',
+        caller: (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })().name || (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })().username || 'Dashboard User',
       })
       setRemediated(true)
     } catch (err) {

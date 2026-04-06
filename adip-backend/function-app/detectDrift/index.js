@@ -2,6 +2,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')
 const { BlobServiceClient } = require('@azure/storage-blob')
+const { EmailClient }       = require('@azure/communication-email')
 const fetch                 = require('node-fetch')
 
 // ── Blob Storage — initialised once at module load ────────────────────────────
@@ -46,8 +47,6 @@ function classifySeverity(diffs) {
   return 'low'
 }
 
-// ── Task 2: Hardened recursive diff engine ────────────────────────────────────
-// Replaces deep-diff library — handles nested objects, arrays, null transitions
 function safeStr(val) {
   if (val === null || val === undefined) return 'null'
   if (typeof val === 'object') return JSON.stringify(val)
@@ -55,10 +54,8 @@ function safeStr(val) {
 }
 
 function computeDiff(prev, curr, path, results) {
-  // Task 2c: Null/undefined safe traversal
   if (prev === null || prev === undefined) {
     if (curr !== null && curr !== undefined) {
-      // Task 2a: Recursively expand new nested objects instead of [object Object]
       if (typeof curr === 'object' && !Array.isArray(curr)) {
         for (const k of Object.keys(curr)) {
           computeDiff(undefined, curr[k], `${path} → ${k}`, results)
@@ -76,7 +73,6 @@ function computeDiff(prev, curr, path, results) {
     return
   }
 
-  // Task 2b: Array handling — detect push vs full replacement
   if (Array.isArray(prev) && Array.isArray(curr)) {
     if (JSON.stringify(prev) !== JSON.stringify(curr)) {
       const added   = curr.filter(c => !prev.some(p => JSON.stringify(p) === JSON.stringify(c)))
@@ -94,7 +90,6 @@ function computeDiff(prev, curr, path, results) {
     return
   }
 
-  // Task 2a: Recurse into nested objects
   if (typeof prev === 'object' && typeof curr === 'object') {
     const allKeys = new Set([...Object.keys(prev), ...Object.keys(curr)])
     for (const k of allKeys) {
@@ -103,7 +98,6 @@ function computeDiff(prev, curr, path, results) {
     return
   }
 
-  // Primitive comparison
   if (prev !== curr) {
     const field = path.split(' → ').pop()
     const isTag = path.includes('tags')
@@ -120,6 +114,36 @@ function diffObjects(prev, curr) {
   const results = []
   computeDiff(prev, curr, '', results)
   return results.filter(r => r.path !== '')
+}
+
+// ── Direct email alert (no Express dependency) ────────────────────────────────
+async function sendAlertEmail(record) {
+  const connStr    = process.env.COMMS_CONNECTION_STRING
+  const recipients = (process.env.ALERT_RECIPIENT_EMAIL || '').split(',').map(e => e.trim()).filter(Boolean)
+  if (!connStr || !recipients.length || !['critical', 'high'].includes(record.severity)) return
+  try {
+    const client       = new EmailClient(connStr)
+    const resourceName = record.resourceId?.split('/').pop() ?? record.resourceId
+    const changes      = (record.differences || []).slice(0, 10).map(c => `- ${c.sentence || c.path}`).join('\n')
+    const baseUrl      = process.env.EXPRESS_PUBLIC_URL || 'http://localhost:3001'
+    const token        = Buffer.from(JSON.stringify({
+      resourceId: record.resourceId, resourceGroup: record.resourceGroup,
+      subscriptionId: record.subscriptionId, detectedAt: record.detectedAt,
+    })).toString('base64url')
+    const approveUrl = `${baseUrl}/api/remediate-decision?action=approve&token=${token}`
+    const rejectUrl  = `${baseUrl}/api/remediate-decision?action=reject&token=${token}`
+    const color      = record.severity === 'critical' ? '#dc2626' : '#d97706'
+    const poller = await client.beginSend({
+      senderAddress: process.env.SENDER_ADDRESS,
+      recipients:    { to: recipients.map(address => ({ address })) },
+      content: {
+        subject:   `[ADIP] ${record.severity.toUpperCase()} Drift - ${resourceName} - Action Required`,
+        html:      `<div style="font-family:Segoe UI,Arial,sans-serif;max-width:600px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden"><div style="background:${color};padding:20px 24px"><h2 style="color:#fff;margin:0">Azure Drift Alert - ${record.severity.toUpperCase()}</h2></div><div style="padding:24px"><p><strong>Resource:</strong> ${resourceName}</p><p><strong>Group:</strong> ${record.resourceGroup}</p><p><strong>Changes:</strong> ${record.differences?.length || 0}</p><pre style="background:#f9fafb;padding:12px;font-size:12px">${changes}</pre><div style="margin-top:20px"><a href="${approveUrl}" style="padding:10px 20px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;margin-right:12px">Approve Remediation</a><a href="${rejectUrl}" style="padding:10px 20px;background:#6b7280;color:#fff;text-decoration:none;border-radius:6px">Reject</a></div></div></div>`,
+        plainText: `ADIP Drift Alert\nSeverity: ${record.severity.toUpperCase()}\nResource: ${resourceName}\nChanges: ${record.differences?.length || 0}\n\n${changes}`,
+      },
+    })
+    await poller.pollUntilDone()
+  } catch (_) { /* non-fatal */ }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -159,15 +183,12 @@ module.exports = async function (context, req) {
     const liveRaw = await armClient.resources.get(rgName, provider, '', type, name, apiVersion)
     const live    = strip(liveRaw)
 
-    // ── Blob read — O(1), equivalent to Cosmos point read ───────────────────────
     const baseline = await readBlob(baselineCtr, blobKey(resourceId))
 
-    // ── Task 2: Use hardened diff engine ─────────────────────────────────────
     const baseState = baseline ? strip(baseline.resourceState) : null
     const changes   = baseState ? diffObjects(baseState, live) : []
     const severity  = classifySeverity(changes)
 
-    // ── Task 3: Only write to Cosmos DB if true delta detected ────────────────
     if (changes.length === 0) {
       context.res = { status: 200, body: { drifted: false, changeCount: 0 } }
       return
@@ -190,6 +211,10 @@ module.exports = async function (context, req) {
     await driftCtr.getBlockBlobClient(driftKey(resourceId, detectedAt))
       .upload(driftBody, Buffer.byteLength(driftBody), { blobHTTPHeaders: { blobContentType: 'application/json' } })
 
+    // Send alert email directly (no Express dependency)
+    sendAlertEmail(record).catch(() => {})
+
+    // Also notify Express API if configured (for real-time Socket.IO feed)
     const apiUrl = process.env.EXPRESS_API_URL
     if (apiUrl) {
       await fetch(`${apiUrl}/internal/drift-event`, {
