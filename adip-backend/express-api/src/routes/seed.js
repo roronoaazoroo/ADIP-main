@@ -1,37 +1,17 @@
 const router = require('express').Router()
 const { saveBaseline } = require('../services/blobService')
+const { getResourceConfig } = require('../services/azureResourceService')
 
-const DUMMY_BASELINE = {
-  name: 'adipstore001',
-  type: 'Microsoft.Storage/storageAccounts',
-  location: 'westus2',
-  sku: { name: 'Standard_LRS', tier: 'Standard' },
-  kind: 'StorageV2',
-  properties: {
-    minimumTlsVersion: 'TLS1_2',
-    allowBlobPublicAccess: false,
-    allowSharedKeyAccess: true,
-    networkAcls: { defaultAction: 'Allow', bypass: 'AzureServices', ipRules: [], virtualNetworkRules: [] },
-    supportsHttpsTrafficOnly: true,
-    encryption: {
-      services: {
-        blob: { enabled: true, keyType: 'Account' },
-        file: { enabled: true, keyType: 'Account' },
-      },
-      keySource: 'Microsoft.Storage',
-    },
-    accessTier: 'Hot',
-  },
-  tags: { environment: 'production', team: 'platform', costCenter: 'CC-1001' },
-}
-
+// POST /api/seed-baseline
+// Seeds the ACTUAL live config as the golden baseline (no hardcoded dummy data)
 router.post('/seed-baseline', async (req, res) => {
-  const subscriptionId  = req.body.subscriptionId  || '8f461bb6-e3a4-468b-b134-8b1269337ac7'
-  const resourceId      = req.body.resourceId      || '/subscriptions/8f461bb6-e3a4-468b-b134-8b1269337ac7/resourceGroups/rg-adip/providers/Microsoft.Storage/storageAccounts/adipstore001'
-  const resourceGroupId = req.body.resourceGroupId || 'rg-adip'
+  const { subscriptionId, resourceGroupId, resourceId } = req.body
+  if (!subscriptionId || !resourceGroupId || !resourceId)
+    return res.status(400).json({ error: 'subscriptionId, resourceGroupId and resourceId required' })
   try {
-    const saved = await saveBaseline(subscriptionId, resourceGroupId, resourceId, DUMMY_BASELINE)
-    res.json({ message: 'Golden baseline seeded', baseline: saved })
+    const liveConfig = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+    const saved = await saveBaseline(subscriptionId, resourceGroupId, resourceId, liveConfig)
+    res.json({ message: 'Golden baseline seeded from live config', baseline: saved })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -284,6 +284,18 @@ export default function DashboardPage() {
     })
   }
 
+  const handleGenome = () => {
+    if (!resource) return
+    navigate('/genome', {
+      state: {
+        subscriptionId: subscription,
+        resourceGroupId: resourceGroup,
+        resourceId: resource,
+        resourceName: resources.find(r => r.id === resource)?.name,
+      },
+    })
+  }
+
   // ── Icon renderer (unchanged) ─────────────────────────────────────────
   const getEventIcon = (icon) => {
     switch (icon) {
@@ -515,6 +527,12 @@ export default function DashboardPage() {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                         <span>Compare</span>
                       </button>
+                      {resource && (
+                        <button className="panel-action-btn" onClick={handleGenome} title="Configuration Genome">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                          <span>Genome</span>
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

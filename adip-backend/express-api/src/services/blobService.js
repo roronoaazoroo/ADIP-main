@@ -110,4 +110,31 @@ async function getDriftHistory({ subscriptionId, startDate, endDate, resourceId,
   return results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
 }
 
-module.exports = { getBaseline, saveBaseline, upsertBaseline, saveDriftRecord, getDriftRecords, getDriftHistory }
+// ── Configuration Genome (versioned snapshots) ────────────────────────────────
+
+async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, label = '') {
+  const ts  = new Date().toISOString()
+  const key = `${ts.replace(/[:.]/g, '-')}_${Buffer.from(resourceId).toString('base64url')}.json`
+  const doc = { subscriptionId, resourceId, resourceState, label, savedAt: ts }
+  await writeBlob('baseline-genome', key, doc)
+  return { ...doc, _blobKey: key }
+}
+
+async function listGenomeSnapshots(subscriptionId, resourceId, limit = 50) {
+  const results = []
+  for await (const blob of container('baseline-genome').listBlobsFlat()) {
+    if (results.length >= limit) break
+    const doc = await readBlob('baseline-genome', blob.name)
+    if (!doc) continue
+    if (doc.subscriptionId !== subscriptionId) continue
+    if (resourceId && doc.resourceId !== resourceId) continue
+    results.push({ ...doc, _blobKey: blob.name })
+  }
+  return results.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))
+}
+
+async function getGenomeSnapshot(blobKey) {
+  return readBlob('baseline-genome', blobKey)
+}
+
+module.exports = { getBaseline, saveBaseline, upsertBaseline, saveDriftRecord, getDriftRecords, getDriftHistory, saveGenomeSnapshot, listGenomeSnapshots, getGenomeSnapshot }

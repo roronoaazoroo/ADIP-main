@@ -148,6 +148,15 @@ async function enrichWithDiff(event) {
     // Always update cache after fetching
     liveStateCache[event.resourceId] = current
 
+    // Auto-save to genome on every real change event
+    if (changes.length > 0) {
+      try {
+        const { saveGenomeSnapshot } = require('./blobService')
+        const label = `auto: ${changes.length} change(s) by ${event.caller || 'system'}`
+        saveGenomeSnapshot(event.subscriptionId, event.resourceId, current, label).catch(() => {})
+      } catch (_) {}
+    }
+
     return {
       ...event,
       liveState:   current,

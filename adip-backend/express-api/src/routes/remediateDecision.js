@@ -57,7 +57,7 @@ router.get('/remediate-decision', async (req, res) => {
         try {
           const live = await armClient.resources.get(rgName, provider, '', type, name, apiVersion)
           location = live.location
-        } catch { location = 'westus2' }
+        } catch { location = liveRaw?.location || baseline.resourceState?.location || 'eastus' }
       }
 
       await armClient.resources.beginCreateOrUpdateAndWait(

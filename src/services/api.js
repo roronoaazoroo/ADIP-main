@@ -298,3 +298,25 @@ export async function fetchAiRecommendation(record) {
 export async function fetchAnomalies(subscriptionId) {
   return apiRequest(`/ai/anomalies?subscriptionId=${subscriptionId}`)
 }
+
+// ============================
+// Configuration Genome
+// ============================
+
+export async function fetchGenomeSnapshots(subscriptionId, resourceId, limit = 50) {
+  const params = new URLSearchParams({ subscriptionId, limit })
+  if (resourceId) params.set('resourceId', resourceId)
+  return apiRequest(`/genome?${params}`)
+}
+
+export async function saveGenomeSnapshot(subscriptionId, resourceGroupId, resourceId, label = '') {
+  return apiRequest('/genome/save', { method: 'POST', body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, label }) })
+}
+
+export async function promoteGenomeSnapshot(subscriptionId, resourceGroupId, resourceId, blobKey) {
+  return apiRequest('/genome/promote', { method: 'POST', body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, blobKey }) })
+}
+
+export async function rollbackToSnapshot(subscriptionId, resourceGroupId, resourceId, blobKey) {
+  return apiRequest('/genome/rollback', { method: 'POST', body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, blobKey }) })
+}
