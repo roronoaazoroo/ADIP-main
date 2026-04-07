@@ -487,7 +487,7 @@ export default function DashboardPage() {
                   <div className="stat-number" style={{ fontSize: 12 }}>{statsRegion}</div>
                   <div className="stat-label">Region</div>
                 </div>
-                {policyData && (
+                {/* {policyData && (
                   <div className={`stat-card ${policyData.nonCompliant > 0 ? 'stat-danger' : 'stat-success'}`}
                     title={policyData.nonCompliant > 0 ? `${policyData.nonCompliant} policy violation(s)` : 'All policies compliant'}
                   >
@@ -496,7 +496,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="stat-label">Policy</div>
                   </div>
-                )}
+                )} */}
               </div>
             )}
           </aside>

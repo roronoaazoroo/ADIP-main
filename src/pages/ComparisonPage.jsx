@@ -281,9 +281,9 @@ export default function ComparisonPage() {
               </span>
             )}
             {policyData && policyData.summary !== 'no-policies' && (
-              <span className={`severity-badge severity-badge--${policyData.nonCompliant > 0 ? 'critical' : 'none'}`}
-                title={policyData.nonCompliant > 0 ? `${policyData.nonCompliant} policy violation(s)` : 'Policy compliant'}>
-                {policyData.nonCompliant > 0 ? `POLICY: ${policyData.nonCompliant} VIOLATION(S)` : 'POLICY: COMPLIANT'}
+              <span className={`severity-badge severity-badge--${policyData.nonCompliant > 0 ? 'critical' : ' '}`}
+                title={policyData.nonCompliant > 0 ? `${policyData.nonCompliant} policy violation(s)` : ' '}>
+                {policyData.nonCompliant > 0 ? `POLICY: ${policyData.nonCompliant} VIOLATION(S)` : ' '}
               </span>
             )}
             {/* Upload Golden Baseline button */}
@@ -398,7 +398,7 @@ export default function ComparisonPage() {
           {loading && (
             <div className="comparison-loading">
               <div className="scanning-ring" style={{ width: 32, height: 32, border: '2px solid rgba(25,149,255,0.15)', borderTopColor: 'var(--ct-coral-blue)' }} />
-              <span>Loading golden baseline from Cosmos DB...</span>
+              <span>Loading golden baseline...</span>
             </div>
           )}
 
@@ -481,7 +481,7 @@ export default function ComparisonPage() {
                     <h3>Golden Baseline</h3>
                   </div>
                   {baseline && (
-                    <span className="panel-badge panel-badge--baseline">Cosmos DB</span>
+                    <span className="panel-badge panel-badge--live">ARM</span>
                   )}
                 </div>
                 <div className="panel-body panel-body-json">

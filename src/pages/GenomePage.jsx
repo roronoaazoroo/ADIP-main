@@ -112,7 +112,7 @@ export default function GenomePage() {
               value={label}
               onChange={e => setLabel(e.target.value)}
               placeholder="Snapshot label (optional)"
-              style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#e2e8f0', width: 220 }}
+              style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(15, 64, 198, 0.12)', background: 'rgba(255,255,255,0.06)', color: '#020a14', width: 220 }}
             />
             <button className="btn btn-primary" style={{ width: 'auto', padding: '6px 14px', fontSize: 12 }} onClick={handleSave} disabled={saving}>
               {saving ? 'Saving...' : '+ Save Snapshot'}
