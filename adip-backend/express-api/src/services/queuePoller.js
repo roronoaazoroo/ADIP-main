@@ -11,6 +11,25 @@ function getQueueClient() {
   return queueClient
 }
 
+// Identity cache: resolves object IDs to display names via Azure AD
+const _identityCache = {}
+async function resolveIdentity(caller) {
+  if (!caller) return null
+  // Already a human-readable name (contains space or @)
+  if (caller.includes(' ') || caller.includes('@')) return caller
+  // GUID object ID — look up in Azure AD
+  if (_identityCache[caller] !== undefined) return _identityCache[caller]
+  try {
+    const { execSync } = require('child_process')
+    // Try user first, then service principal
+    let name = null
+    try { name = execSync(`az ad user show --id ${caller} --query displayName -o tsv 2>/dev/null`, { timeout: 5000 }).toString().trim() } catch {}
+    if (!name) try { name = execSync(`az ad sp show --id ${caller} --query displayName -o tsv 2>/dev/null`, { timeout: 5000 }).toString().trim() } catch {}
+    _identityCache[caller] = name || caller
+    return _identityCache[caller]
+  } catch { _identityCache[caller] = caller; return caller }
+}
+
 function parseMessage(msg) {
   try {
     const decoded     = Buffer.from(msg.messageText, 'base64').toString('utf-8')
@@ -23,10 +42,18 @@ function parseMessage(msg) {
     const parts = resourceUri.split('/')
     const resourceGroup = parts.length >= 5 ? parts[4] : (event.data?.resourceGroupName || '')
 
-    // Extract caller: prefer display name from claims, fall back to email/UPN
+    // Extract caller: try all known claim paths for display name
     const claims = event.data?.claims || {}
-    const caller  = claims.name || claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name']
-                 || event.data?.caller || 'Unknown user'
+    const givenName = claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname'] || ''
+    const surname   = claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname'] || ''
+    const fullName  = givenName && surname ? `${givenName} ${surname}` : ''
+    const caller    = claims.name
+                   || claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name']
+                   || claims.unique_name
+                   || claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn']
+                   || fullName
+                   || event.data?.caller
+                   || ''
 
     return {
       eventId:        event.id,
@@ -122,17 +149,55 @@ function formatDiff(prev, curr) {
   return results.filter(r => r.path !== '')
 }
 
-// Task 1: in-memory cache of last known live state per resourceId
-// Exported so the /api/cache-state endpoint can pre-seed it on Submit
-const liveStateCache = {}
+// liveStateCache — persisted to Azure Table Storage so restarts don't lose state
+// Falls back to in-memory if Table Storage is unavailable
+const { TableClient } = require('@azure/data-tables')
+const _memCache = {}
+
+function getTableClient() {
+  try { return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'liveStateCache') }
+  catch { return null }
+}
+
+// Safe base64 key from resourceId (table row keys can't have / \ # ?)
+function cacheKey(resourceId) { return Buffer.from(resourceId).toString('base64').replace(/[/\\#?]/g, '_') }
+
+async function cacheGet(resourceId) {
+  if (_memCache[resourceId]) return _memCache[resourceId]
+  try {
+    const client = getTableClient()
+    if (!client) return null
+    const entity = await client.getEntity('state', cacheKey(resourceId))
+    const val = JSON.parse(entity.stateJson)
+    _memCache[resourceId] = val
+    return val
+  } catch { return null }
+}
+
+async function cacheSet(resourceId, state) {
+  _memCache[resourceId] = state
+  try {
+    const client = getTableClient()
+    if (!client) return
+    await client.upsertEntity({ partitionKey: 'state', rowKey: cacheKey(resourceId), stateJson: JSON.stringify(state) }, 'Replace')
+  } catch { /* non-fatal — mem cache still works */ }
+}
+
+// Proxy object so existing code using liveStateCache[id] = x still works
+const liveStateCache = new Proxy(_memCache, {
+  set(target, key, value) { target[key] = value; cacheSet(key, value).catch(() => {}); return true },
+  get(target, key) { return target[key] }
+})
 
 async function enrichWithDiff(event) {
   if (!event.resourceId || !event.subscriptionId || !event.resourceGroup) return event
+  // Resolve caller identity (GUID -> display name) in parallel with config fetch
+  const callerPromise = resolveIdentity(event.caller)
   try {
     const liveRaw = await getResourceConfig(event.subscriptionId, event.resourceGroup, event.resourceId)
     const current = strip(liveRaw)
 
-    let previous = liveStateCache[event.resourceId] || null
+    let previous = await cacheGet(event.resourceId) || null
 
     // If no cached previous state, fall back to stored baseline so we always show a diff
     if (!previous) {
@@ -157,8 +222,10 @@ async function enrichWithDiff(event) {
       } catch (_) {}
     }
 
+    const resolvedCaller = await callerPromise
     return {
       ...event,
+      caller:      resolvedCaller || event.caller || 'System',
       liveState:   current,
       changes,
       changeCount: changes.length,
@@ -168,16 +235,16 @@ async function enrichWithDiff(event) {
     return event
   }
 }
-// Deduplication keyed on eventId
-const dedupCache = new Set()
+// Deduplication: same resource + operation within 10s = same change event
+const dedupCache = new Map() // key -> timestamp
 function isDuplicate(event) {
-  const key = event.eventId || `${event.resourceId}:${event.eventTime}`
+  const bucket = Math.floor(new Date(event.eventTime).getTime() / 10000) // 10s buckets
+  const key    = `${event.resourceId}:${event.operationName}:${bucket}`
   if (dedupCache.has(key)) return true
-  dedupCache.add(key)
-  if (dedupCache.size > 500) {
-    const iter = dedupCache.values()
-    for (let i = 0; i < 100; i++) dedupCache.delete(iter.next().value)
-  }
+  dedupCache.set(key, Date.now())
+  // Evict entries older than 60s
+  const cutoff = Date.now() - 60000
+  for (const [k, ts] of dedupCache) { if (ts < cutoff) dedupCache.delete(k) }
   return false
 }
 
@@ -207,4 +274,4 @@ function startQueuePoller() {
   console.log(`Queue poller started — polling every ${interval}ms`)
 }
 
-module.exports = { startQueuePoller, liveStateCache }
+module.exports = { startQueuePoller, liveStateCache, cacheSet }

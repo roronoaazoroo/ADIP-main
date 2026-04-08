@@ -17,11 +17,11 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
 
   const addEvent = useCallback((event) => {
     setChangeEvents(prev =>
-      [{
+      [...prev, {
         ...event,
         _clientId:   `${event.eventId ?? Date.now()}-${Math.random()}`,
         _receivedAt: new Date().toLocaleTimeString(),
-      }, ...prev].slice(0, 200)
+      }].slice(-200)
     )
   }, [])
 
@@ -39,7 +39,7 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
           setSocketConnected(true)
           socket.emit('subscribe', {
             subscriptionId: scope.subscriptionId,
-            resourceGroup:  scope.resourceGroup ?? null,
+            resourceGroup:  scope.resourceGroup || null,
           })
         })
         socket.on('disconnect',    () => { if (mountedRef.current) setSocketConnected(false) })

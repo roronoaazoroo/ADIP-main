@@ -119,8 +119,17 @@ export default function DashboardPage() {
   const { driftEvents, socketConnected, clearDriftEvents } = useDriftSocket(scope, isSubmitted, handleConfigUpdate)
   const [userFilter, setUserFilter] = useState('')
   const liveLogRef = useRef(null)  // local UI ref only
-  const _su = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
-  const resolveUser = (ev) => (ev.caller && ev.caller !== 'unknown' && ev.caller !== 'Unknown user') ? ev.caller : (_su.name || _su.username || 'Unknown user')
+  const resolveUser = (ev) => {
+    // Backend resolves GUIDs to display names. Only fall back to session user if caller is empty.
+    if (ev.caller && ev.caller !== 'unknown' && ev.caller !== 'Unknown user' && ev.caller !== 'System') return ev.caller
+    if (ev.caller === 'System' || !ev.caller) {
+      // Automated/system change — show service principal app name if available
+      const op = ev.operationName || ''
+      const svc = op.split('/')[0]?.replace('Microsoft.', '') || 'System'
+      return `System (${svc})`
+    }
+    try { const u = JSON.parse(sessionStorage.getItem('user') || '{}'); return u.name || u.username || 'Unknown user' } catch { return 'Unknown user' }
+  }
   const uniqueUsers = useMemo(() => [...new Set(driftEvents.map(resolveUser))].sort(), [driftEvents])
   const filteredDriftEvents = useMemo(() => userFilter ? driftEvents.filter(ev => resolveUser(ev) === userFilter) : driftEvents, [driftEvents, userFilter])
 
@@ -158,7 +167,7 @@ export default function DashboardPage() {
   // ── Auto-scroll live log ───────────────────────────────────────────────
   useEffect(() => {
     if (liveLogRef.current) liveLogRef.current.scrollTop = liveLogRef.current.scrollHeight
-  }, [liveEvents])
+  }, [liveEvents, driftEvents])
 
   useEffect(() => () => { if (scanInterval.current) clearInterval(scanInterval.current) }, [])
 

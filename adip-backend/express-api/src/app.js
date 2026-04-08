@@ -52,7 +52,7 @@ app.post('/api/alert/email', express.json(), async (req, res) => {
 app.post('/api/cache-state', express.json(), (req, res) => {
   const { resourceId, state } = req.body
   if (!resourceId || !state) return res.status(400).json({ error: 'resourceId and state required' })
-  const { liveStateCache } = require('./services/queuePoller')
+  const { liveStateCache, cacheSet } = require('./services/queuePoller')
   const VOLATILE = ['etag','changedTime','createdTime','provisioningState','lastModifiedAt','systemData','_ts','_etag']
   function strip(obj) {
     if (Array.isArray(obj)) return obj.map(strip)
@@ -60,7 +60,9 @@ app.post('/api/cache-state', express.json(), (req, res) => {
       return Object.fromEntries(Object.entries(obj).filter(([k]) => !VOLATILE.includes(k)).map(([k,v]) => [k, strip(v)]))
     return obj
   }
-  liveStateCache[resourceId] = strip(state)
+  const stripped = strip(state)
+  liveStateCache[resourceId] = stripped
+  cacheSet(resourceId, stripped).catch(() => {})
   res.json({ cached: true, resourceId })
 })
 

@@ -1,11 +1,16 @@
 const { BlobServiceClient } = require('@azure/storage-blob')
 
-const blobService = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+// Lazy-initialize so module can be required before dotenv loads
+let _blobService = null
+function getBlobService() {
+  if (!_blobService) _blobService = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+  return _blobService
+}
 
 // Container handles — lazy, reused across calls
 const containers = {}
 function container(name) {
-  if (!containers[name]) containers[name] = blobService.getContainerClient(name)
+  if (!containers[name]) containers[name] = getBlobService().getContainerClient(name)
   return containers[name]
 }
 
