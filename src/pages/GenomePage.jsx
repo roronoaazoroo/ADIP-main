@@ -61,7 +61,10 @@ export default function GenomePage() {
   }
 
   const handleRollback = async (snap) => {
-    if (!window.confirm(`Rollback ${resourceName || resourceId?.split('/').pop()} to snapshot from ${new Date(snap.savedAt).toLocaleString()}?\n\nThis will apply the snapshot config via ARM PUT.`)) return
+    const confirmMsg = isRgLevel
+      ? `Rollback ALL resources in ${resourceName || resourceId} to snapshot from ${new Date(snap.savedAt).toLocaleString()}?\n\nThis will apply each resource's config via ARM PUT. Some resources may fail if their type doesn't support it.`
+      : `Rollback ${resourceName || resourceId?.split('/').pop()} to snapshot from ${new Date(snap.savedAt).toLocaleString()}?\n\nThis will apply the snapshot config via ARM PUT.`
+    if (!window.confirm(confirmMsg)) return
     setActing(snap._blobKey)
     setActionMsg(null)
     try {
@@ -88,7 +91,9 @@ export default function GenomePage() {
     )
   }
 
-  const displayName = resourceName || resourceId?.split('/').pop()
+  const isArmId     = (id) => id && id.startsWith('/subscriptions/')
+  const isRgLevel    = !isArmId(resourceId)
+  const displayName  = resourceName || resourceId?.split('/').pop()
 
   return (
     <div className="dashboard">
@@ -157,9 +162,10 @@ export default function GenomePage() {
                   <button
                     onClick={e => { e.stopPropagation(); handleRollback(snap) }}
                     disabled={acting === snap._blobKey}
+                    title={isRgLevel ? 'Rollback all resources in group to this snapshot' : 'Rollback resource to this snapshot'}
                     style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer' }}
                   >
-                    {acting === snap._blobKey ? '...' : '↩ Rollback'}
+                    {acting === snap._blobKey ? '...' : isRgLevel ? '↩ Rollback All' : '↩ Rollback'}
                   </button>
                 </div>
               </div>

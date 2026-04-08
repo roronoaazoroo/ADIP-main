@@ -1,36 +1,40 @@
+'use strict'
 const router = require('express').Router()
 const { saveGenomeSnapshot, listGenomeSnapshots, getGenomeSnapshot, saveBaseline } = require('../services/blobService')
 const { getResourceConfig, getApiVersion } = require('../services/azureResourceService')
+const { strip } = require('../shared/diff')
 const { ResourceManagementClient } = require('@azure/arm-resources')
-const { DefaultAzureCredential } = require('@azure/identity')
+const { DefaultAzureCredential }   = require('@azure/identity')
+
+// Is this a full ARM resource ID or just a resource group name?
+const isArmId = (id) => id && id.startsWith('/subscriptions/')
 
 // GET /api/genome?subscriptionId=&resourceId=&limit=
 router.get('/genome', async (req, res) => {
   const { subscriptionId, resourceId, limit } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   try {
-    const snapshots = await listGenomeSnapshots(subscriptionId, resourceId, Number(limit) || 50)
-    res.json(snapshots)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+    res.json(await listGenomeSnapshots(subscriptionId, resourceId, Number(limit) || 50))
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// POST /api/genome/save — save current live state as a genome snapshot
+// POST /api/genome/save
 router.post('/genome/save', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId, label } = req.body
   if (!subscriptionId || !resourceGroupId || !resourceId)
     return res.status(400).json({ error: 'subscriptionId, resourceGroupId and resourceId required' })
   try {
-    const liveConfig = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+    // For full ARM IDs fetch the specific resource; for RG-level fetch the whole group
+    const liveConfig = isArmId(resourceId)
+      ? await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+      : await getResourceConfig(subscriptionId, resourceGroupId, null)
+
     const snapshot = await saveGenomeSnapshot(subscriptionId, resourceId, liveConfig, label || '')
     res.json(snapshot)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// POST /api/genome/promote — promote a snapshot to golden baseline
+// POST /api/genome/promote — make snapshot the golden baseline
 router.post('/genome/promote', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId, blobKey } = req.body
   if (!subscriptionId || !resourceId || !blobKey)
@@ -40,45 +44,56 @@ router.post('/genome/promote', async (req, res) => {
     if (!snapshot?.resourceState) return res.status(404).json({ error: 'Snapshot not found' })
     await saveBaseline(subscriptionId, resourceGroupId || '', resourceId, snapshot.resourceState)
     res.json({ promoted: true, resourceId, blobKey })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
-// POST /api/genome/rollback — revert resource to a snapshot via ARM PUT
+// POST /api/genome/rollback — revert resource to snapshot via ARM PUT
 router.post('/genome/rollback', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId, blobKey } = req.body
   if (!subscriptionId || !resourceGroupId || !resourceId || !blobKey)
     return res.status(400).json({ error: 'subscriptionId, resourceGroupId, resourceId and blobKey required' })
+
   try {
     const snapshot = await getGenomeSnapshot(blobKey)
     if (!snapshot?.resourceState) return res.status(404).json({ error: 'Snapshot not found' })
 
-    const VOLATILE = ['etag','changedTime','createdTime','provisioningState','lastModifiedAt','systemData','_ts','_etag','_childConfig']
-    function strip(obj) {
-      if (Array.isArray(obj)) return obj.map(strip)
-      if (obj && typeof obj === 'object')
-        return Object.fromEntries(Object.entries(obj).filter(([k]) => !VOLATILE.includes(k)).map(([k,v]) => [k, strip(v)]))
-      return obj
-    }
-
-    const state      = strip(snapshot.resourceState)
     const credential = new DefaultAzureCredential()
     const armClient  = new ResourceManagementClient(credential, subscriptionId)
-    const parts      = resourceId.split('/')
-    const rgName     = parts[4], provider = parts[6], type = parts[7], name = parts[8]
-    const apiVersion = await getApiVersion(subscriptionId, provider, type)
 
-    let location = state.location
-    if (!location) {
-      try { const live = await armClient.resources.get(rgName, provider, '', type, name, apiVersion); location = live.location } catch { location = 'eastus' }
+    // Resource group snapshot: rollback each resource individually
+    if (!isArmId(resourceId) && snapshot.resourceState.resources) {
+      const results = []
+      for (const r of snapshot.resourceState.resources) {
+        if (!r.id) continue
+        try {
+          const state    = strip(r)
+          const parts    = r.id.split('/')
+          const rgName   = parts[4], provider = parts[6], type = parts[7], name = parts[8]
+          if (!rgName || !provider || !type || !name) continue
+          const apiVersion = await getApiVersion(subscriptionId, provider, type)
+          const location   = state.location || (await armClient.resources.get(rgName, provider, '', type, name, apiVersion).catch(() => ({}))).location || 'eastus'
+          await armClient.resources.beginCreateOrUpdateAndWait(rgName, provider, '', type, name, apiVersion, { ...state, location })
+          results.push({ resourceId: r.id, status: 'rolledBack' })
+        } catch (e) {
+          results.push({ resourceId: r.id, status: 'failed', error: e.message })
+        }
+      }
+      return res.json({ rolledBack: true, resourceId, blobKey, savedAt: snapshot.savedAt, results })
     }
 
+    // Single resource rollback
+    const state      = strip(snapshot.resourceState)
+    const parts      = resourceId.split('/')
+    const rgName = parts[4], provider = parts[6], type = parts[7], name = parts[8]
+    const apiVersion = await getApiVersion(subscriptionId, provider, type)
+    let location = state.location
+    if (!location) {
+      try { location = (await armClient.resources.get(rgName, provider, '', type, name, apiVersion)).location }
+      catch { location = 'eastus' }
+    }
     await armClient.resources.beginCreateOrUpdateAndWait(rgName, provider, '', type, name, apiVersion, { ...state, location })
     res.json({ rolledBack: true, resourceId, blobKey, savedAt: snapshot.savedAt })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 module.exports = router

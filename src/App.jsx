@@ -1,19 +1,24 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { DashboardProvider } from './context/DashboardContext'
-import LoginPage from './pages/LoginPage'
-import DashboardPage from './pages/DashboardPage'
+import LoginPage      from './pages/LoginPage'
+import DashboardPage  from './pages/DashboardPage'
 import ComparisonPage from './pages/ComparisonPage'
-import GenomePage from './pages/GenomePage'
+import GenomePage     from './pages/GenomePage'
+import AzureChatbot   from './components/AzureChatbot'
 
 function App() {
+  const location = useLocation()
+  const showChat = location.pathname !== '/'
+
   return (
     <DashboardProvider>
       <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/"           element={<LoginPage />} />
+        <Route path="/dashboard"  element={<DashboardPage />} />
         <Route path="/comparison" element={<ComparisonPage />} />
-        <Route path="/genome" element={<GenomePage />} />
+        <Route path="/genome"     element={<GenomePage />} />
       </Routes>
+      {showChat && <AzureChatbot />}
     </DashboardProvider>
   )
 }

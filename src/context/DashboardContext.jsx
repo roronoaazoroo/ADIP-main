@@ -2,10 +2,17 @@ import { createContext, useContext, useState, useRef } from 'react'
 
 const DashboardContext = createContext(null)
 
+function usePersisted(key, defaultVal) {
+  const init = (() => { try { const v = sessionStorage.getItem(key); return v !== null ? JSON.parse(v) : defaultVal } catch { return defaultVal } })()
+  const [val, setVal] = useState(init)
+  const set = (v) => { setVal(v); try { sessionStorage.setItem(key, JSON.stringify(v)) } catch {} }
+  return [val, set]
+}
+
 export function DashboardProvider({ children }) {
-  const [subscription,  setSubscription]  = useState('')
-  const [resourceGroup, setResourceGroup] = useState('')
-  const [resource,      setResource]      = useState('')
+  const [subscription,  setSubscription]  = usePersisted('adip.sub', '')
+  const [resourceGroup, setResourceGroup] = usePersisted('adip.rg', '')
+  const [resource,      setResource]      = usePersisted('adip.resource', '')
   const [isScanning,    setIsScanning]    = useState(false)
   const [isMonitoring,  setIsMonitoring]  = useState(false)
   const [isSubmitted,   setIsSubmitted]   = useState(false)
@@ -31,13 +38,11 @@ export function DashboardProvider({ children }) {
       scanProgress,  setScanProgress,
       policyData,    setPolicyData,
       anomalies,     setAnomalies,
-      scanInterval,  monitorScope,  jsonTreeRef,
+      scanInterval,  monitorScope, jsonTreeRef,
     }}>
       {children}
     </DashboardContext.Provider>
   )
 }
 
-export function useDashboard() {
-  return useContext(DashboardContext)
-}
+export function useDashboard() { return useContext(DashboardContext) }
