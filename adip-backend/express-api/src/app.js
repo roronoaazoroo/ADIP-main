@@ -4,7 +4,7 @@ const cors = require('cors')
 const http = require('http')
 const { Server } = require('socket.io')
 const { startQueuePoller } = require('./services/queuePoller')
-const { sendDriftAlert }   = require('./services/alertService')
+const fetch = require('node-fetch')
 
 const app = express()
 const server = http.createServer(app)
@@ -49,16 +49,6 @@ app.use('/api', require('./routes/genome'))
 app.use('/api', require('./routes/chat'))
 
 
-// ── POST /api/alert/email START ──────────────────────────────────────────────
-// Receives a drift record from the Logic App and triggers the email alert pipeline
-app.post('/api/alert/email', express.json(), async (req, res) => {
-  console.log('[POST /api/alert/email] starts')
-  const { sendDriftAlert } = require('./services/alertService')
-  await sendDriftAlert(req.body).catch(() => {})
-  res.json({ sent: true })
-  console.log('[POST /api/alert/email] ends')
-})
-// ── POST /api/alert/email END ────────────────────────────────────────────────
 
 
 // ── POST /api/cache-state START ──────────────────────────────────────────────
@@ -113,7 +103,8 @@ app.post('/internal/drift-event', express.json(), (req, res) => {
       ? `${event.subscriptionId}:${event.resourceGroup}`
       : event.subscriptionId
     io.to(room).emit('resourceChange', event)  // unified event name
-    sendDriftAlert(event).catch(err => console.error('[Alert]', err.message))
+    const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
+    if (logicAppUrl) fetch(logicAppUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(event) }).catch(() => {})
   }
   res.sendStatus(200)
   console.log('[POST /internal/drift-event] ends')

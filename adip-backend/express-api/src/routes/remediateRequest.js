@@ -2,7 +2,7 @@
 // FILE: routes/remediateRequest.js
 // ============================================================
 const router_remediateRequest = require('express').Router()
-const { sendDriftAlert: sendDriftAlertForRequest } = require('../services/alertService')
+const fetch = require('node-fetch')
  
 // ── POST /api/remediate-request START ────────────────────────────────────────
 // Sends a drift approval email to admins without applying remediation; waits for email click
@@ -15,17 +15,11 @@ router_remediateRequest.post('/remediate-request', async (req, res) => {
   }
  
   try {
-    await sendDriftAlertForRequest({
-      subscriptionId,
-      resourceGroup: resourceGroupId,
-      resourceId,
-      severity:      severity || 'high',
-      changeCount:   differences?.length || changes?.length || 0,
-      differences:   differences || changes || [],
-      changes:       changes || differences || [],
-      caller:        caller || 'unknown',
-      detectedAt:    new Date().toISOString(),
-    })
+    const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
+    if (logicAppUrl) await fetch(logicAppUrl, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriptionId, resourceGroup: resourceGroupId, resourceId, severity: severity || 'high', changeCount: differences?.length || changes?.length || 0, differences: differences || changes || [], detectedAt: new Date().toISOString() }),
+    }).catch(() => {})
     res.json({ requested: true, message: 'Approval email sent to administrators.' })
     console.log('[POST /remediate-request] ends — email sent')
   } catch (err) {

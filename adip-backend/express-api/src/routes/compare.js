@@ -4,8 +4,7 @@ const { diffObjects }      = require('../shared/diff')
 const { classifySeverity } = require('../shared/severity')
 const { getResourceConfig } = require('../services/azureResourceService')
 const { getBaseline, saveDriftRecord } = require('../services/blobService')
-const { broadcastDriftEvent } = require('../services/signalrService')
-const { sendDriftAlert }   = require('../services/alertService')
+const { broadcastDriftEvent } = require('../services/socketService')
 const { explainDrift, reclassifySeverity } = require('../services/aiService')
 
 const _sessions = {}
@@ -43,7 +42,6 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     }
     await saveDriftRecord(record)
     broadcastDriftEvent(record)
-    sendDriftAlert(record).catch(() => {})
   }
   console.log('[runDriftCheck] ends — severity:', record.severity, 'changes:', differences.length)
   return record

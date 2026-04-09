@@ -1,0 +1,9 @@
+# Default exclusions
+.git*
+.vscode
+local.settings.json
+test
+.env
+
+# Do NOT exclude node_modules — needed for file: dependencies
+# node_modules is included so adip-shared (file:../shared) resolves correctly on Azure

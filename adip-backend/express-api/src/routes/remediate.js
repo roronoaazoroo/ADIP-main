@@ -2,11 +2,11 @@
 // FILE: routes/remediate.js
 // ============================================================
 const router_remediate = require('express').Router()
+const fetch = require('node-fetch')
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential } = require('@azure/identity')
 const { getBaseline } = require('../services/blobService')
 const { getResourceConfig, getApiVersion } = require('../services/azureResourceService')
-const { sendDriftAlert } = require('../services/alertService')
 const { diff } = require('deep-diff')
  
 const VOLATILE_REM = ['etag', 'changedTime', 'createdTime', 'provisioningState', 'lastModifiedAt', 'systemData', '_ts', '_etag', '_rid', '_self', 'id']
@@ -56,15 +56,8 @@ router_remediate.post('/remediate', async (req, res) => {
     const liveState     = strip(liveRaw)
     const differences   = diff(liveState, baselineState) || []
  
-    await sendDriftAlert({
-      resourceId,
-      resourceGroup:  resourceGroupId,
-      subscriptionId,
-      severity:       'critical',
-      changeCount:    differences.length,
-      detectedAt:     new Date().toISOString(),
-      note:           'Remediation applied — resource reverted to golden baseline',
-    })
+    const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
+    if (logicAppUrl) fetch(logicAppUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId, resourceGroup: resourceGroupId, subscriptionId, severity: 'critical', changeCount: differences.length, detectedAt: new Date().toISOString() }) }).catch(() => {})
  
     const credential = new DefaultAzureCredential()
     const armClient  = new ResourceManagementClient(credential, subscriptionId)

@@ -6,12 +6,13 @@
     "deploy": "func azure functionapp publish adip-func-001 --javascript"
   },
   "dependencies": {
+    "adip-shared": "file:../shared",
     "@azure/arm-resources": "^5.2.0",
-    "@azure/communication-email": "^1.0.0",
     "@azure/identity": "^4.0.0",
     "@azure/storage-blob": "^12.31.0",
     "deep-diff": "^1.0.2",
     "dotenv": "^16.0.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "@azure/communication-email": "^1.0.0"
   }
 }

@@ -146,7 +146,7 @@ async function enrichWithDiff(event) {
 
   return {
     ...event,
-    caller:      resolvedCaller || event.caller || 'System',
+    caller:      resolvedCaller || event.caller,
     liveState:   current,
     changes,
     changeCount: changes.length,

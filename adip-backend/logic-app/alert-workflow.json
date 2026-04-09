@@ -15,7 +15,8 @@
               "severity":       { "type": "string" },
               "changeCount":    { "type": "integer" },
               "detectedAt":     { "type": "string" },
-              "subscriptionId": { "type": "string" }
+              "subscriptionId": { "type": "string" },
+              "differences":    { "type": "array" }
             }
           }
         }
@@ -31,11 +32,11 @@
           ]
         },
         "actions": {
-          "Forward_To_Express_Email": {
+          "Call_SendAlert_Function": {
             "type": "Http",
             "inputs": {
               "method": "POST",
-              "uri": "@{concat(parameters('expressApiUrl'), '/alert/email')}",
+              "uri": "https://adip-func-001.azurewebsites.net/api/sendalert?code=SEND_ALERT_FUNCTION_KEY",
               "headers": { "Content-Type": "application/json" },
               "body": "@triggerBody()"
             },
@@ -44,7 +45,7 @@
           "Return_Sent": {
             "type": "Response",
             "inputs": { "statusCode": 200, "body": { "alerted": true } },
-            "runAfter": { "Forward_To_Express_Email": ["Succeeded", "Failed"] }
+            "runAfter": { "Call_SendAlert_Function": ["Succeeded", "Failed"] }
           }
         },
         "else": {
@@ -59,11 +60,7 @@
         "runAfter": {}
       }
     },
-    "parameters": {
-      "expressApiUrl": { "type": "string", "defaultValue": "http://localhost:3001/api" }
-    }
+    "parameters": {}
   },
-  "parameters": {
-    "expressApiUrl": { "value": "http://localhost:3001/api" }
-  }
+  "parameters": {}
 }
