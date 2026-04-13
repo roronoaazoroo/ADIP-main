@@ -179,7 +179,6 @@ export default function DashboardPage() {
                 monitorScope.current = { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || null }
                 setIsMonitoring(true)
                 setLiveEvents(prev => [...prev, {
-                  type: 'connect', icon: 'connect',
                   message: `Listening for live changes on ${resource ? resources.find(r => r.id === resource)?.name : resourceGroups.find(rg => rg.id === resourceGroup)?.name}`,
                   timestamp: new Date().toLocaleTimeString(),
                   id: Date.now(),
@@ -197,7 +196,7 @@ export default function DashboardPage() {
           })
           .finally(() => setIsScanning(false))
       }
-    }, 10)
+    })
   }
 
   const handleStop = () => {

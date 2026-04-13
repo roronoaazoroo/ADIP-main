@@ -639,14 +639,6 @@
   padding-top: 1px;
 }
 
-.log-icon {
-  display: flex;
-  align-items: center;
-  padding-top: 1px;
-  color: var(--ct-grey-500);
-  flex-shrink: 0;
-}
-
 .log-message {
   color: var(--ct-grey-700);
   word-break: break-word;

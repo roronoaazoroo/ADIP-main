@@ -122,6 +122,16 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
       socketRef.current = null
     }
   }, [connectSocket])
+
+  // Re-subscribe when scope changes on an already-connected socket
+  useEffect(() => {
+    if (socketRef.current?.connected && scope?.subscriptionId) {
+      socketRef.current.emit('subscribe', {
+        subscriptionId: scope.subscriptionId,
+        resourceGroup:  scope.resourceGroup || null,
+      })
+    }
+  }, [scope?.subscriptionId, scope?.resourceGroup])
  
   // ── clearChangeEvents START ──────────────────────────────────────────────
   // Resets the drift event feed to empty
