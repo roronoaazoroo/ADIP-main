@@ -3,19 +3,19 @@
    =========================== */
 
 .login-page {
-  /* position: relative; */
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   position: fixed;
+  overflow: hidden;
 }
 
 
 /* Animated Background */
 .login-bg {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 0;
   overflow: hidden;
@@ -100,8 +100,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xl);
+  gap: clamp(8px, 2vh, 24px);
   animation: fadeIn 0.8s ease-out;
+  max-height: 100vh;
+  padding: clamp(8px, 2vh, 20px) 16px;
+  box-sizing: border-box;
 }
 
 /* Logo Bar */
@@ -132,7 +135,7 @@
 .login-card {
   position: relative;
   width: 440px;
-  padding: var(--space-2xl) var(--space-xl);
+  padding: clamp(16px, 3vh, 40px) var(--space-xl);
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -141,7 +144,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-lg);
+  gap: clamp(8px, 1.5vh, 20px);
   animation: slideUp 0.7s ease-out 0.3s both;
   overflow: hidden;
 }
@@ -167,8 +170,8 @@
 }
 
 .login-icon-ring {
-  width: 72px;
-  height: 72px;
+  width: clamp(48px, 8vh, 72px);
+  height: clamp(48px, 8vh, 72px);
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(25, 149, 255, 0.2), rgba(32, 98, 155, 0.2));
   border: 1px solid rgba(25, 149, 255, 0.3);
@@ -180,7 +183,7 @@
 }
 
 .login-title {
-  font-size: 26px;
+  font-size: clamp(18px, 3vh, 26px);
   font-weight: 600;
   color: #ffffff;
   letter-spacing: -0.02em;
@@ -230,7 +233,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 16px var(--space-lg);
+  padding: clamp(10px, 1.8vh, 16px) var(--space-lg);
   background: linear-gradient(135deg, #1995ff 0%, #0a7de6 100%);
   border-radius: var(--radius-md);
   color: #ffffff;
@@ -240,7 +243,7 @@
   transition: var(--transition-base);
   position: relative;
   overflow: hidden;
-  margin-top: var(--space-sm);
+  margin-top: 0;
 }
 
 .login-btn::before {
@@ -354,18 +357,70 @@
 }
 
 @media (max-width: 520px) {
+  .login-page {
+    align-items: flex-start;
+    padding: 24px 0;
+    overflow-y: auto;
+  }
+
+  .login-content {
+    width: 100%;
+    padding: 0 16px;
+    gap: var(--space-lg);
+  }
+
+  .login-logos-bar img {
+    height: 36px;
+  }
+
   .login-card {
-    width: 90vw;
-    padding: var(--space-xl) var(--space-lg);
+    width: 100%;
+    padding: var(--space-xl) var(--space-md);
+    border-radius: var(--radius-lg);
   }
 
   .login-title {
-    font-size: 22px;
+    font-size: 20px;
+  }
+
+  .login-subtitle {
+    font-size: 13px;
+  }
+
+  .login-icon-ring {
+    width: 56px;
+    height: 56px;
+  }
+
+  .login-icon-ring svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .login-badges {
+    gap: 6px;
+  }
+
+  .login-badge {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  .login-btn {
+    padding: 14px var(--space-md);
+    font-size: 14px;
   }
 
   .login-workflow-steps {
     flex-wrap: wrap;
     justify-content: center;
     border-radius: var(--radius-lg);
+  }
+}
+
+@media (max-width: 360px) {
+  .login-badges {
+    flex-direction: column;
+    align-items: center;
   }
 }

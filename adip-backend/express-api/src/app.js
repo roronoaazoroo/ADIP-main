@@ -104,7 +104,7 @@ app.post('/internal/drift-event', express.json(), (req, res) => {
       : event.subscriptionId
     io.to(room).emit('resourceChange', event)  // unified event name
     const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
-    if (logicAppUrl) fetch(logicAppUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(event) }).catch(() => {})
+    if (logicAppUrl && ['critical', 'high'].includes(event.severity)) fetch(logicAppUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(event) }).catch(() => {})
   }
   res.sendStatus(200)
   console.log('[POST /internal/drift-event] ends')
