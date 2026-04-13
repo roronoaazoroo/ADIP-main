@@ -1,6 +1,6 @@
 'use strict'
 const router = require('express').Router()
-const { saveGenomeSnapshot, listGenomeSnapshots, getGenomeSnapshot, saveBaseline } = require('../services/blobService')
+const { saveGenomeSnapshot, listGenomeSnapshots, getGenomeSnapshot, saveBaseline, deleteGenomeSnapshot } = require('../services/blobService')
 const { getResourceConfig, getApiVersion } = require('../services/azureResourceService')
 const { strip } = require('../shared/diff')
 const { ResourceManagementClient } = require('@azure/arm-resources')
@@ -118,5 +118,15 @@ router.post('/genome/rollback', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 // ── POST /api/genome/rollback END ────────────────────────────────────────────
+
+// POST /api/genome/delete
+router.post('/genome/delete', async (req, res) => {
+  const { subscriptionId, blobKey } = req.body
+  if (!subscriptionId || !blobKey) return res.status(400).json({ error: 'subscriptionId and blobKey required' })
+  try {
+    await deleteGenomeSnapshot(subscriptionId, blobKey)
+    res.json({ deleted: true, blobKey })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
 
 module.exports = router

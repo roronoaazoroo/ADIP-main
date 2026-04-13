@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import JsonTree from '../components/JsonTree'
-import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot } from '../services/api'
+import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot } from '../services/api'
 
 export default function GenomePage() {
   const navigate  = useNavigate()
@@ -70,6 +70,22 @@ export default function GenomePage() {
     try {
       await rollbackToSnapshot(subscriptionId, resourceGroupId, resourceId, snap._blobKey)
       setActionMsg({ ok: true, text: `Rollback applied. Resource reverted to snapshot from ${new Date(snap.savedAt).toLocaleString()}.` })
+    } catch (e) {
+      setActionMsg({ ok: false, text: e.message })
+    } finally {
+      setActing(null)
+    }
+  }
+
+  const handleDelete = async (snap) => {
+    if (!window.confirm(`Delete snapshot from ${new Date(snap.savedAt).toLocaleString()}? This cannot be undone.`)) return
+    setActing(snap._blobKey)
+    setActionMsg(null)
+    try {
+      await deleteGenomeSnapshot(subscriptionId, snap._blobKey)
+      if (selected?._blobKey === snap._blobKey) setSelected(null)
+      setActionMsg({ ok: true, text: 'Snapshot deleted.' })
+      load()
     } catch (e) {
       setActionMsg({ ok: false, text: e.message })
     } finally {
@@ -166,6 +182,14 @@ export default function GenomePage() {
                     style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer' }}
                   >
                     {acting === snap._blobKey ? '...' : isRgLevel ? '↩ Rollback All' : '↩ Rollback'}
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleDelete(snap) }}
+                    disabled={acting === snap._blobKey}
+                    title="Delete this snapshot permanently"
+                    style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(100,116,139,0.3)', background: 'rgba(100,116,139,0.08)', color: '#94a3b8', cursor: 'pointer' }}
+                  >
+                    {acting === snap._blobKey ? '...' : '✕ Delete'}
                   </button>
                 </div>
               </div>

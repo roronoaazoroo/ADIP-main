@@ -376,6 +376,19 @@ export async function rollbackToSnapshot(subscriptionId, resourceGroupId, resour
 }
 // ── rollbackToSnapshot END ───────────────────────────────────────────────────
 
+// ── deleteGenomeSnapshot START ────────────────────────────────────────────────
+// Deletes a genome snapshot from blob storage and its index entry
+export async function deleteGenomeSnapshot(subscriptionId, blobKey) {
+  console.log('[deleteGenomeSnapshot] starts — blobKey:', blobKey)
+  const result = await apiRequest('/genome/delete', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, blobKey }),
+  })
+  console.log('[deleteGenomeSnapshot] ends')
+  return result
+}
+// ── deleteGenomeSnapshot END ──────────────────────────────────────────────────
+
 export default {
   fetchSubscriptions,
   fetchResourceGroups,

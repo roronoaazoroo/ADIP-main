@@ -244,6 +244,15 @@ async function _scanGenomeSnapshots(subscriptionId, resourceId, limit) {
   return results.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))
 }
 
+async function deleteGenomeSnapshot(subscriptionId, blobName) {
+  await container('baseline-genome').getBlockBlobClient(blobName).deleteIfExists()
+  try {
+    const { TableClient } = require('@azure/data-tables')
+    const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'genomeIndex')
+    const rk = Buffer.from(blobName).toString('base64url').slice(0, 512)
+    await tc.deleteEntity(subscriptionId || 'unknown', rk)
+  } catch {}
+}
 
 module.exports = {
   getBaseline,
@@ -255,4 +264,5 @@ module.exports = {
   saveGenomeSnapshot,
   listGenomeSnapshots,
   getGenomeSnapshot,
+  deleteGenomeSnapshot,
 }
