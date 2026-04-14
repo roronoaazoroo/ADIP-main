@@ -7,7 +7,7 @@ const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential } = require('@azure/identity')
 const { getBaseline } = require('../services/blobService')
 const { getResourceConfig, getApiVersion } = require('../services/azureResourceService')
-const { diff } = require('deep-diff')
+const { diffObjects } = require('../shared/diff')
  
 const VOLATILE_REM = ['etag', 'changedTime', 'createdTime', 'provisioningState', 'lastModifiedAt', 'systemData', '_ts', '_etag', '_rid', '_self', 'id']
  
@@ -54,7 +54,7 @@ router_remediate.post('/remediate', async (req, res) => {
     const baselineState = strip(baseline.resourceState)
     const liveRaw       = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
     const liveState     = strip(liveRaw)
-    const differences   = diff(liveState, baselineState) || []
+    const differences   = diffObjects(liveState, baselineState)
  
     const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
     const { classifySeverity } = require('../shared/severity')

@@ -7,7 +7,16 @@ const { getBaseline, saveDriftRecord } = require('../services/blobService')
 const { broadcastDriftEvent } = require('../services/socketService')
 const { explainDrift, reclassifySeverity } = require('../services/aiService')
 
-const _sessions = {}
+const { TableClient } = require('@azure/data-tables')
+
+function getSessionTable() {
+  return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'monitorSessions')
+}
+
+function sessionRowKey(subscriptionId, resourceGroupId, resourceId) {
+  const key = `${subscriptionId}:${resourceGroupId}:${resourceId || ''}`
+  return Buffer.from(key).toString('base64url').slice(0, 512)
+}
 
 
 // ── runDriftCheck START ──────────────────────────────────────────────────────
@@ -55,25 +64,36 @@ router.post('/compare', async (req, res) => {
   try { res.json(await runDriftCheck(subscriptionId, resourceGroupId, resourceId || null)) }
   catch (err) { res.status(500).json({ error: err.message }) }
 })
-router.post('/monitor/start', (req, res) => {
-  console.log('[POST /monitor/start] starts')
-  const { subscriptionId, resourceGroupId, resourceId, intervalMs = 30000 } = req.body
+router.post('/monitor/start', async (req, res) => {
+  const { subscriptionId, resourceGroupId, resourceId, intervalMs = 60000 } = req.body
   if (!subscriptionId || !resourceGroupId) return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
-  const key = `${subscriptionId}:${resourceGroupId}:${resourceId || ''}`
-  if (_sessions[key]) clearInterval(_sessions[key])
-  _sessions[key] = setInterval(() => runDriftCheck(subscriptionId, resourceGroupId, resourceId || null).catch(() => {}), Math.max(Number(intervalMs), 15000))
-  res.json({ monitoring: true, key })
+  const rk = sessionRowKey(subscriptionId, resourceGroupId, resourceId)
+  try {
+    await getSessionTable().upsertEntity({
+      partitionKey:    'session',
+      rowKey:          rk,
+      subscriptionId,
+      resourceGroupId,
+      resourceId:      resourceId || '',
+      intervalMs:      Math.max(Number(intervalMs), 60000),
+      active:          true,
+      startedAt:       new Date().toISOString(),
+    }, 'Replace')
+    res.json({ monitoring: true, key: rk })
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
-// ── POST /api/monitor/start END ──────────────────────────────────────────────
 
-router.post('/monitor/stop', (req, res) => {
-  console.log('[POST /monitor/stop] starts')
+router.post('/monitor/stop', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId } = req.body
-  const key = `${subscriptionId}:${resourceGroupId}:${resourceId || ''}`
-  if (_sessions[key]) { clearInterval(_sessions[key]); delete _sessions[key] }
-  res.json({ monitoring: false, key })
-  console.log('[POST /monitor/stop] ends — key:', key)
+  const rk = sessionRowKey(subscriptionId, resourceGroupId, resourceId)
+  try {
+    await getSessionTable().upsertEntity({
+      partitionKey: 'session', rowKey: rk,
+      subscriptionId, resourceGroupId, resourceId: resourceId || '',
+      active: false,
+    }, 'Merge')
+    res.json({ monitoring: false, key: rk })
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
-// ── POST /api/monitor/stop END ───────────────────────────────────────────────
 
 module.exports = router

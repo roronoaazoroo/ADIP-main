@@ -94,40 +94,10 @@ export async function fetchResourceConfiguration(subscriptionId, resourceGroupId
 // ── fetchResourceConfiguration END ──────────────────────────────────────────
 
 
-// ── startDriftScan START ─────────────────────────────────────────────────────
-// Triggers a drift scan and returns a scanId
-export async function startDriftScan(subscriptionId, resourceGroupId, resourceId = null) {
-  console.log('[startDriftScan] starts')
-  const result = await apiRequest('/scan/start', {
-    method: 'POST',
-    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId }),
-  })
-  console.log('[startDriftScan] ends')
-  return result
-}
-// ── startDriftScan END ───────────────────────────────────────────────────────
 
 
-// ── stopDriftScan START ──────────────────────────────────────────────────────
-// Stops an in-progress drift scan
-export async function stopDriftScan(scanId) {
-  console.log('[stopDriftScan] starts — scanId:', scanId)
-  const result = await apiRequest(`/scan/${scanId}/stop`, { method: 'POST' })
-  console.log('[stopDriftScan] ends')
-  return result
-}
-// ── stopDriftScan END ────────────────────────────────────────────────────────
 
 
-// ── getScanStatus START ──────────────────────────────────────────────────────
-// Polls scan status and returns progress, events, and results
-export async function getScanStatus(scanId) {
-  console.log('[getScanStatus] starts — scanId:', scanId)
-  const result = await apiRequest(`/scan/${scanId}/status`)
-  console.log('[getScanStatus] ends')
-  return result
-}
-// ── getScanStatus END ────────────────────────────────────────────────────────
 
 
 // ── fetchBaseline START ──────────────────────────────────────────────────────
@@ -142,32 +112,8 @@ export async function fetchBaseline(subscriptionId, resourceId) {
 // ── fetchBaseline END ────────────────────────────────────────────────────────
 
 
-// ── promoteBaseline START ────────────────────────────────────────────────────
-// Saves the current live state as the new golden baseline
-export async function promoteBaseline(subscriptionId, resourceGroupId, resourceId, resourceState) {
-  console.log('[promoteBaseline] starts — resourceId:', resourceId)
-  const result = await apiRequest('/baselines', {
-    method: 'POST',
-    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, resourceState }),
-  })
-  console.log('[promoteBaseline] ends')
-  return result
-}
-// ── promoteBaseline END ──────────────────────────────────────────────────────
 
 
-// ── fetchDriftEvents START ───────────────────────────────────────────────────
-// Fetches paginated drift event history with optional filters
-export async function fetchDriftEvents(subscriptionId, { resourceGroup, severity, limit = 50 } = {}) {
-  console.log('[fetchDriftEvents] starts — subscriptionId:', subscriptionId)
-  const params = new URLSearchParams({ subscriptionId, limit })
-  if (resourceGroup) params.set('resourceGroup', resourceGroup)
-  if (severity) params.set('severity', severity)
-  const result = await apiRequest(`/drift-events?${params}`)
-  console.log('[fetchDriftEvents] ends')
-  return result
-}
-// ── fetchDriftEvents END ─────────────────────────────────────────────────────
 
 
 // ── remediateToBaseline START ────────────────────────────────────────────────
@@ -209,18 +155,6 @@ export async function uploadBaseline(subscriptionId, resourceGroupId, resourceId
 // ── uploadBaseline END ───────────────────────────────────────────────────────
 
 
-// ── startMonitoring START ────────────────────────────────────────────────────
-// Starts a server-side polling monitor for the selected scope
-export async function startMonitoring(subscriptionId, resourceGroupId, resourceId = null) {
-  console.log('[startMonitoring] starts — subscriptionId:', subscriptionId)
-  const result = await apiRequest('/monitor/start', {
-    method: 'POST',
-    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, intervalMs: 30000 }),
-  })
-  console.log('[startMonitoring] ends')
-  return result
-}
-// ── startMonitoring END ──────────────────────────────────────────────────────
 
 
 // ── cacheState START ─────────────────────────────────────────────────────────
@@ -251,18 +185,6 @@ export async function stopMonitoring(subscriptionId, resourceGroupId, resourceId
 // ── stopMonitoring END ───────────────────────────────────────────────────────
 
 
-// ── seedBaseline START ───────────────────────────────────────────────────────
-// Seeds the golden baseline from the actual live ARM config
-export async function seedBaseline(subscriptionId, resourceGroupId, resourceId) {
-  console.log('[seedBaseline] starts — resourceId:', resourceId)
-  const result = await apiRequest('/seed-baseline', {
-    method: 'POST',
-    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId }),
-  })
-  console.log('[seedBaseline] ends')
-  return result
-}
-// ── seedBaseline END ─────────────────────────────────────────────────────────
 
 
 // ── fetchPolicyCompliance START ──────────────────────────────────────────────
@@ -289,15 +211,6 @@ export async function fetchAiExplanation(record) {
 // ── fetchAiExplanation END ───────────────────────────────────────────────────
 
 
-// ── fetchAiSeverity START ────────────────────────────────────────────────────
-// Requests an AI severity re-classification for a drift record
-export async function fetchAiSeverity(record) {
-  console.log('[fetchAiSeverity] starts')
-  const result = await apiRequest('/ai/severity', { method: 'POST', body: JSON.stringify(record) })
-  console.log('[fetchAiSeverity] ends')
-  return result
-}
-// ── fetchAiSeverity END ──────────────────────────────────────────────────────
 
 
 // ── fetchAiRecommendation START ──────────────────────────────────────────────
@@ -389,36 +302,9 @@ export async function deleteGenomeSnapshot(subscriptionId, blobKey) {
 }
 // ── deleteGenomeSnapshot END ──────────────────────────────────────────────────
 
-// ── fetchDriftTrends START ────────────────────────────────────────────────────
-export async function fetchDriftTrends(subscriptionId, resourceGroup, days = 30) {
-  const params = new URLSearchParams({ subscriptionId, days })
-  if (resourceGroup) params.set('resourceGroup', resourceGroup)
-  return apiRequest(`/drift-trends?${params}`)
-}
-// ── fetchDriftTrends END ──────────────────────────────────────────────────────
 
-// ── fetchTagCompliance START ──────────────────────────────────────────────────
-export async function fetchTagCompliance(subscriptionId, resourceGroup, requiredTags) {
-  const params = new URLSearchParams({ subscriptionId, resourceGroup })
-  if (requiredTags) params.set('requiredTags', requiredTags)
-  return apiRequest(`/tag-compliance?${params}`)
-}
-// ── fetchTagCompliance END ────────────────────────────────────────────────────
 
-// ── fetchNotificationPrefs START ─────────────────────────────────────────────
-export async function fetchNotificationPrefs(subscriptionId, userId = 'default') {
-  return apiRequest(`/notification-prefs?${new URLSearchParams({ subscriptionId, userId })}`)
-}
-// ── fetchNotificationPrefs END ───────────────────────────────────────────────
 
-// ── saveNotificationPrefs START ──────────────────────────────────────────────
-export async function saveNotificationPrefs(subscriptionId, prefs, userId = 'default') {
-  return apiRequest('/notification-prefs', {
-    method: 'POST',
-    body: JSON.stringify({ subscriptionId, userId, ...prefs }),
-  })
-}
-// ── saveNotificationPrefs END ────────────────────────────────────────────────
 
 export default {
   fetchSubscriptions,

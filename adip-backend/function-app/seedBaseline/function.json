@@ -1,0 +1,13 @@
+{
+  "bindings": [
+    {
+      "authLevel": "function",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["post"],
+      "route": "seed-baseline"
+    },
+    { "type": "http", "direction": "out", "name": "res" }
+  ]
+}
