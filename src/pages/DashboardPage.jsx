@@ -105,7 +105,9 @@ export default function DashboardPage() {
   // Task 4: re-fetch live config from ARM when a resource change event arrives
   const handleConfigUpdate = useCallback((event) => {
     if (!event.resourceId && !event.resourceGroup) return
-    if (event.liveState) {
+    // If a specific resource is selected and the event is for that resource, use liveState directly
+    // If resource group level is selected, always re-fetch the full group config
+    if (resource && event.liveState) {
       setConfigData(event.liveState)
     } else {
       fetchResourceConfiguration(subscription, resourceGroup, resource || null)
@@ -117,6 +119,17 @@ export default function DashboardPage() {
   const { socketConnected, clearDriftEvents } = useDriftSocket(scope, isSubmitted, handleConfigUpdate, driftEvents, setDriftEvents)
 
   useEffect(() => () => { if (scanInterval.current) clearInterval(scanInterval.current) }, [])
+
+  // Poll live ARM config every 5 seconds when submitted
+  useEffect(() => {
+    if (!isSubmitted || !subscription || !resourceGroup) return
+    const id = setInterval(() => {
+      fetchResourceConfiguration(subscription, resourceGroup, resource || null)
+        .then(cfg => { if (cfg) setConfigData(cfg) })
+        .catch(() => {})
+    }, 5000)
+    return () => clearInterval(id)
+  }, [isSubmitted, subscription, resourceGroup, resource])
 
   // ── Helpers ─────────────────────────────────────────────────────────
   const getDemoConfig = () => {

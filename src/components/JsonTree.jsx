@@ -17,8 +17,11 @@ const JsonTree = forwardRef(function JsonTree({ data }, ref) {
       const collect = (obj, prefix = '') => {
         if (obj && typeof obj === 'object') {
           paths.add(prefix)
-          Object.entries(Array.isArray(obj) ? obj.map((v, i) => [String(i), v]) : obj)
-            .forEach(([k, v]) => collect(v, prefix ? `${prefix}.${k}` : k))
+          if (Array.isArray(obj)) {
+            obj.forEach((v, i) => collect(v, `${prefix}[${i}]`))
+          } else {
+            Object.entries(obj).forEach(([k, v]) => collect(v, prefix ? `${prefix}.${k}` : k))
+          }
         }
       }
       collect(data)

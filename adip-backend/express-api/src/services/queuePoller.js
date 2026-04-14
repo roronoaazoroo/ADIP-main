@@ -163,9 +163,12 @@ function startQueuePoller() {
           .then(async enriched => {
             await client.deleteMessage(msg.messageId, msg.popReceipt)
             if (!global.io) return
+            const rgRoom = enriched.resourceGroup ? `${enriched.subscriptionId}:${enriched.resourceGroup}`.toLowerCase() : null
+            const resName = enriched.resourceId?.split('/').pop()?.toLowerCase()
             const rooms = [
               enriched.subscriptionId?.toLowerCase(),
-              enriched.resourceGroup ? `${enriched.subscriptionId}:${enriched.resourceGroup}`.toLowerCase() : null,
+              rgRoom,
+              rgRoom && resName ? `${rgRoom}:${resName}` : null,
             ].filter(Boolean)
             rooms.forEach(room => global.io.to(room).emit('resourceChange', enriched))
           })

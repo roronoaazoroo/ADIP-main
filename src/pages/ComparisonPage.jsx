@@ -142,13 +142,13 @@ export default function ComparisonPage() {
 
       if (severity === 'low') {
         // Low severity: apply immediately, no email approval needed
-        await remediateToBaseline(subscriptionId, resourceGroupId, resourceId)
+        await remediateToBaseline(subscriptionId, resourceGroupId, effectiveId)
         setRemediated(true)
       } else {
         // Critical / High / Medium: send approval email, wait for admin
         const sessionUser = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
         await requestRemediation({
-          subscriptionId, resourceGroupId, resourceId,
+          subscriptionId, resourceGroupId, resourceId: effectiveId,
           differences, changes: differences, severity,
           caller: sessionUser.name || sessionUser.username || 'Dashboard User',
         })

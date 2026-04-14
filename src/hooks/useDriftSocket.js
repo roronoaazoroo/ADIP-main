@@ -62,6 +62,7 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
           socket.emit('subscribe', {
             subscriptionId: scope.subscriptionId,
             resourceGroup:  scope.resourceGroup || null,
+            resourceId:     scope.resourceId || null,
           })
           console.log('[socket.connect] ends — subscribed to scope:', scope.subscriptionId)
         })
@@ -131,9 +132,10 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
       socketRef.current.emit('subscribe', {
         subscriptionId: scope.subscriptionId,
         resourceGroup:  scope.resourceGroup || null,
+        resourceId:     scope.resourceId || null,
       })
     }
-  }, [scope?.subscriptionId, scope?.resourceGroup])
+  }, [scope?.subscriptionId, scope?.resourceGroup, scope?.resourceId])
  
   // ── clearChangeEvents START ──────────────────────────────────────────────
   // Resets the drift event feed to empty

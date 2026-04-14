@@ -97,6 +97,12 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
       const armClient     = new RMC2(credential, subscriptionId)
       const parts         = resourceId.split('/')
       const rgName        = parts[4], provider = parts[6], type = parts[7], name = parts[8]
+
+      if (!rgName || !provider || !type || !name) {
+        return res.status(400).send(html('Cannot Remediate',
+          'Remediation via email approval only works for specific resources, not resource groups. Please use the dashboard to remediate resource group level drift.', '#d97706'))
+      }
+
       const apiVersion    = await getApiVersionForDecision(subscriptionId, provider, type)
  
       let location = baseline.resourceState?.location
@@ -111,7 +117,27 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
         rgName, provider, '', type, name, apiVersion,
         { ...baselineState, location }
       )
- 
+
+      // Reverse-reference cleanup for NSG subnet associations
+      if (type.toLowerCase() === 'networksecuritygroups') {
+        const baselineSubnets = (baselineState.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
+        const liveNsg = await armClient.resources.get(rgName, provider, '', type, name, apiVersion).catch(() => ({}))
+        const liveSubnets = (liveNsg.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
+        for (const subnetId of liveSubnets.filter(id => !baselineSubnets.includes(id))) {
+          try {
+            const sp = subnetId.split('/')
+            const vnetRg = sp[4], vnetName = sp[8], subnetName = sp[10]
+            if (!vnetRg || !vnetName || !subnetName) continue
+            const vnetApi = await getApiVersionForDecision(subscriptionId, 'Microsoft.Network', 'virtualNetworks')
+            const subnet = await armClient.resources.get(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi)
+            if (subnet.properties?.networkSecurityGroup) {
+              delete subnet.properties.networkSecurityGroup
+              await armClient.resources.beginCreateOrUpdateAndWait(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi, subnet)
+            }
+          } catch (e) { console.warn('[decision] subnet dissociate failed:', e.message) }
+        }
+      }
+
       console.log('[GET /remediate-decision] ends — approved and applied')
       return res.send(html('✓ Remediation Applied',
         `<strong>${resourceName}</strong> has been successfully reverted to its golden baseline.`, '#16a34a'))

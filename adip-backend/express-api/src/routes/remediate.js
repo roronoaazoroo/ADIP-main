@@ -57,7 +57,9 @@ router_remediate.post('/remediate', async (req, res) => {
     const differences   = diff(liveState, baselineState) || []
  
     const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
-    if (logicAppUrl) fetch(logicAppUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId, resourceGroup: resourceGroupId, subscriptionId, severity: 'critical', changeCount: differences.length, detectedAt: new Date().toISOString() }) }).catch(() => {})
+    const { classifySeverity } = require('../shared/severity')
+    const remSeverity = classifySeverity(differences.map(d => ({ type: d.kind === 'D' ? 'removed' : d.kind === 'N' ? 'added' : 'modified', path: d.path?.join('.') || '' })))
+    if (logicAppUrl && ['critical', 'high'].includes(remSeverity)) fetch(logicAppUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resourceId, resourceGroup: resourceGroupId, subscriptionId, severity: remSeverity, changeCount: differences.length, detectedAt: new Date().toISOString() }) }).catch(() => {})
  
     const credential = new DefaultAzureCredential()
     const armClient  = new ResourceManagementClient(credential, subscriptionId)
@@ -77,6 +79,31 @@ router_remediate.post('/remediate', async (req, res) => {
       rgName, provider, '', type, name, apiVersion,
       { ...baselineState, location }
     )
+
+    // Reverse-reference cleanup for NSG subnet associations
+    if (type.toLowerCase() === 'networksecuritygroups') {
+      const baselineSubnets = (baselineState.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
+      const liveSubnets     = (liveState.properties?.subnets    || []).map(s => s.id?.toLowerCase()).filter(Boolean)
+      const toRemove        = liveSubnets.filter(id => !baselineSubnets.includes(id))
+      for (const subnetId of toRemove) {
+        try {
+          const sp = subnetId.split('/')
+          const vnetRg = sp[4], vnetName = sp[8], subnetName = sp[10]
+          if (!vnetRg || !vnetName || !subnetName) continue
+          const vnetApi = await getApiVersion(subscriptionId, 'Microsoft.Network', 'virtualNetworks')
+          const subnet  = await armClient.resources.get(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi)
+          if (subnet.properties?.networkSecurityGroup) {
+            delete subnet.properties.networkSecurityGroup
+            await armClient.resources.beginCreateOrUpdateAndWait(
+              vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi, strip(subnet)
+            )
+            console.log(`[remediate] dissociated subnet ${subnetName} from NSG ${name}`)
+          }
+        } catch (e) {
+          console.warn(`[remediate] failed to dissociate subnet:`, e.message)
+        }
+      }
+    }
  
     res.json({ remediated: true, resourceId, changeCount: differences.length,
       appliedBaseline: baselineState, previousLiveState: liveState })

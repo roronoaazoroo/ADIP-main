@@ -16,7 +16,7 @@ router_remediateRequest.post('/remediate-request', async (req, res) => {
  
   try {
     const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
-    if (logicAppUrl) await fetch(logicAppUrl, {
+    if (logicAppUrl && ['critical', 'high', 'medium'].includes(severity)) await fetch(logicAppUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscriptionId, resourceGroup: resourceGroupId, resourceId, severity: severity || 'high', changeCount: differences?.length || changes?.length || 0, differences: differences || changes || [], detectedAt: new Date().toISOString() }),
     }).catch(() => {})

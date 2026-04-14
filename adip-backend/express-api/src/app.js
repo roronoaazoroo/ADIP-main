@@ -17,11 +17,15 @@ global.io = io
 // Handles new Socket.IO client connections and joins them to the appropriate subscription/RG room
 io.on('connection', (socket) => {
   console.log('[io.connection] starts — socketId:', socket.id)
-  socket.on('subscribe', ({ subscriptionId, resourceGroup }) => {
+  socket.on('subscribe', ({ subscriptionId, resourceGroup, resourceId }) => {
     console.log('[io.subscribe] starts — subscriptionId:', subscriptionId, 'resourceGroup:', resourceGroup)
-    const room = resourceGroup ? `${subscriptionId}:${resourceGroup}`.toLowerCase() : subscriptionId.toLowerCase()
-    socket.join(room)
-    console.log('[io.subscribe] ends — joined room:', room)
+    const baseRoom = resourceGroup ? `${subscriptionId}:${resourceGroup}`.toLowerCase() : subscriptionId.toLowerCase()
+    socket.join(baseRoom)
+    if (resourceId) {
+      const resName = String(resourceId).split('/').pop()?.toLowerCase()
+      if (resName) socket.join(`${baseRoom}:${resName}`)
+    }
+    console.log('[io.subscribe] ends — joined room:', baseRoom)
   })
   console.log('[io.connection] ends')
 })

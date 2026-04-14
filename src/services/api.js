@@ -389,6 +389,37 @@ export async function deleteGenomeSnapshot(subscriptionId, blobKey) {
 }
 // ── deleteGenomeSnapshot END ──────────────────────────────────────────────────
 
+// ── fetchDriftTrends START ────────────────────────────────────────────────────
+export async function fetchDriftTrends(subscriptionId, resourceGroup, days = 30) {
+  const params = new URLSearchParams({ subscriptionId, days })
+  if (resourceGroup) params.set('resourceGroup', resourceGroup)
+  return apiRequest(`/drift-trends?${params}`)
+}
+// ── fetchDriftTrends END ──────────────────────────────────────────────────────
+
+// ── fetchTagCompliance START ──────────────────────────────────────────────────
+export async function fetchTagCompliance(subscriptionId, resourceGroup, requiredTags) {
+  const params = new URLSearchParams({ subscriptionId, resourceGroup })
+  if (requiredTags) params.set('requiredTags', requiredTags)
+  return apiRequest(`/tag-compliance?${params}`)
+}
+// ── fetchTagCompliance END ────────────────────────────────────────────────────
+
+// ── fetchNotificationPrefs START ─────────────────────────────────────────────
+export async function fetchNotificationPrefs(subscriptionId, userId = 'default') {
+  return apiRequest(`/notification-prefs?${new URLSearchParams({ subscriptionId, userId })}`)
+}
+// ── fetchNotificationPrefs END ───────────────────────────────────────────────
+
+// ── saveNotificationPrefs START ──────────────────────────────────────────────
+export async function saveNotificationPrefs(subscriptionId, prefs, userId = 'default') {
+  return apiRequest('/notification-prefs', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, userId, ...prefs }),
+  })
+}
+// ── saveNotificationPrefs END ────────────────────────────────────────────────
+
 export default {
   fetchSubscriptions,
   fetchResourceGroups,
