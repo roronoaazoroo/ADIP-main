@@ -159,10 +159,10 @@ function startQueuePoller() {
         if (!event) { await client.deleteMessage(msg.messageId, msg.popReceipt); continue }
         if (isDuplicate(event)) { await client.deleteMessage(msg.messageId, msg.popReceipt); continue }
 
-        enrichWithDiff(event)
-          .then(async enriched => {
-            await client.deleteMessage(msg.messageId, msg.popReceipt)
-            if (!global.io) return
+        try {
+          const enriched = await enrichWithDiff(event)
+          await client.deleteMessage(msg.messageId, msg.popReceipt)
+          if (global.io) {
             const rgRoom = enriched.resourceGroup ? `${enriched.subscriptionId}:${enriched.resourceGroup}`.toLowerCase() : null
             const resName = enriched.resourceId?.split('/').pop()?.toLowerCase()
             const rooms = [
@@ -171,10 +171,9 @@ function startQueuePoller() {
               rgRoom && resName ? `${rgRoom}:${resName}` : null,
             ].filter(Boolean)
             rooms.forEach(room => global.io.to(room).emit('resourceChange', enriched))
-            // Pre-register in cross-path dedup so /internal/drift-event skips this event
             if (global._markEmitted) global._markEmitted(enriched)
-          })
-          .catch(() => {})
+          }
+        } catch { await client.deleteMessage(msg.messageId, msg.popReceipt).catch(() => {}) }
       }
     } catch {}
   }, interval)

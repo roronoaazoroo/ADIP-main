@@ -64,7 +64,11 @@ const RESOURCE_CONFIGS = {
 }
 
 const LIVE_EVENTS_TEMPLATE = [
-  { type: 'scan',    message: 'Initiating configuration fetch...',             icon: 'scan' }
+  { type: 'scan',    message: 'Initiating configuration fetch...' },
+  { type: 'connect', message: 'Connecting to Azure Resource Manager...' },
+  { type: 'fetch',   message: 'Fetching resource configuration...' },
+  { type: 'compare', message: 'Processing configuration data...' },
+  { type: 'done',    message: 'Configuration loaded successfully.' },
 ]
 
 export default function DashboardPage() {
