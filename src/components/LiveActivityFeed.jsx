@@ -58,37 +58,27 @@ export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, 
 
   return (
     <section className="panel panel-live">
-      <div className="panel-header">
-        <div className="panel-header-left">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ct-coral-blue)" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          <h3>Live Activity</h3>
-          {isScanning && <div className="live-indicator" />}
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          {isMonitoring && <span className="socket-connected-badge" title="Polling every 30s"><span className="socket-dot"/>Monitoring</span>}
-          {socketConnected && !isMonitoring && <span className="socket-connected-badge"><span className="socket-dot"/>Live</span>}
+      <div className="panel-body panel-body-log" ref={logRef}>
+        {/* Header controls */}
+        <div className="feed-controls" style={{ marginBottom: 12, justifyContent: 'flex-end' }}>
           <span className="panel-badge">{liveEvents.length + driftEvents.length} events</span>
           {uniqueUsers.length > 0 && (
-            <select value={userFilter} onChange={e=>setUserFilter(e.target.value)}
-              style={{fontSize:11,padding:'2px 6px',borderRadius:4,border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:'#e2e8f0',cursor:'pointer'}}>
+            <select value={userFilter} onChange={e=>setUserFilter(e.target.value)} className="feed-user-filter">
               <option value=''>All users</option>
               {uniqueUsers.map(u=><option key={u} value={u}>{u}</option>)}
             </select>
           )}
           {(liveEvents.length > 0 || driftEvents.length > 0) && (
-            <button onClick={downloadCSV} title="Download as CSV"
-              style={{background:'none',border:'1px solid rgba(255,255,255,0.12)',borderRadius:4,padding:'2px 8px',color:'#94a3b8',cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',gap:4}}>
+            <button onClick={downloadCSV} title="Download as CSV" className="feed-csv-btn">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               CSV
             </button>
           )}
         </div>
-      </div>
 
-      <div className="panel-body panel-body-log" ref={logRef}>
         {liveEvents.length === 0 && driftEvents.length === 0 && (
           <div className="panel-empty">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--ct-grey-300)" strokeWidth="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             <p>Activity log will appear here during operations</p>
           </div>
         )}
@@ -110,47 +100,46 @@ export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, 
           const isDelete    = ev.eventType?.includes('Delete')
           const isCreate    = ev.operationName?.toLowerCase().includes('write') && !ev.hasPrevious
           const action      = isDelete ? 'deleted' : isCreate ? 'created' : 'modified'
-          const actionColor = isDelete ? '#ef4444' : isCreate ? '#22c55e' : '#f59e0b'
           const azureTime   = ev.eventTime ? new Date(ev.eventTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ev._receivedAt
           const op          = ev.operationName?.split('/')?.slice(-1)[0] ?? ''
 
           return (
-            <div key={ev._clientId} style={{padding:'8px 10px',borderBottom:'1px solid rgba(255,255,255,0.05)',display:'flex',flexDirection:'column',gap:4}}>
-              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                <span style={{fontSize:10,color:'#64748b',fontFamily:'monospace',minWidth:60}}>{azureTime}</span>
-                <span style={{fontSize:11,fontWeight:700,color:'#818cf8',background:'rgba(129,140,248,0.1)',padding:'1px 6px',borderRadius:3}}>{user}</span>
-                <span style={{fontSize:11,fontWeight:600,color:actionColor}}>{action}</span>
-                <span style={{fontSize:11,fontFamily:'monospace',color:'#93c5fd',fontWeight:600}}>{resName}</span>
-                {resType && <span style={{fontSize:10,color:'#475569',background:'rgba(255,255,255,0.04)',padding:'1px 5px',borderRadius:3}}>{resType}</span>}
-                {op && op!=='write' && op!=='delete' && <span style={{fontSize:10,color:'#64748b'}}>via {op}</span>}
-                {ev.resourceGroup && <span style={{fontSize:10,color:'#475569'}}>in {ev.resourceGroup}</span>}
-                {ev.changes?.length > 0 && <span style={{fontSize:10,color:'#94a3b8',marginLeft:'auto'}}>{ev.changes.length} field{ev.changes.length>1?'s':''} changed</span>}
+            <div key={ev._clientId} className="drift-event-row">
+              <div className="drift-event-header">
+                <span className="drift-time">{azureTime}</span>
+                <span className="drift-user-badge">{user}</span>
+                <span className={`drift-action drift-action--${action}`}>{action}</span>
+                <span className="drift-resource-name">{resName}</span>
+                {resType && <span className="drift-resource-type">{resType}</span>}
+                {op && op!=='write' && op!=='delete' && <span className="drift-operation">via {op}</span>}
+                {ev.resourceGroup && <span className="drift-resource-group">in {ev.resourceGroup}</span>}
+                {ev.changes?.length > 0 && <span className="drift-field-count">{ev.changes.length} field{ev.changes.length>1?'s':''} changed</span>}
               </div>
               {ev.changes?.length > 0 && (
-                <div style={{paddingLeft:8,borderLeft:'2px solid rgba(255,255,255,0.06)',marginLeft:4,display:'flex',flexDirection:'column',gap:2}}>
+                <div className="drift-changes">
                   {ev.changes.slice(0,8).map((c,i) => {
-                    const tc = {modified:'#f59e0b',added:'#22c55e',removed:'#ef4444','array-added':'#22c55e','array-removed':'#ef4444'}[c.type]||'#94a3b8'
                     const segs = (c.path||'').split(' → ').filter(s=>s&&s!=='_childConfig')
                     const dp   = segs.slice(-3).join(' → ')
                     const dOld = c.oldValue!=null ? String(typeof c.oldValue==='object'?JSON.stringify(c.oldValue):c.oldValue).slice(0,50) : null
                     const dNew = c.newValue!=null ? String(typeof c.newValue==='object'?JSON.stringify(c.newValue):c.newValue).slice(0,50) : null
+                    const typeClass = `drift-change-type--${(c.type||'modified').replace(' ', '-')}`
                     return (
-                      <div key={i} style={{fontSize:11,display:'flex',alignItems:'baseline',gap:5,flexWrap:'wrap'}}>
-                        <span style={{fontSize:9,fontWeight:700,color:tc,textTransform:'uppercase',minWidth:44}}>{c.type?.replace('-',' ')}</span>
-                        <span style={{fontFamily:'monospace',color:'#93c5fd'}}>{dp}</span>
-                        {dOld!=null&&dNew!=null && <span style={{fontSize:10}}><span style={{color:'#ef4444',textDecoration:'line-through'}}>{dOld}</span><span style={{margin:'0 4px',color:'#475569'}}>→</span><span style={{color:'#22c55e'}}>{dNew}</span></span>}
-                        {dOld!=null&&dNew==null && <span style={{fontSize:10,color:'#ef4444'}}>was: {dOld}</span>}
-                        {dOld==null&&dNew!=null && <span style={{fontSize:10,color:'#22c55e'}}>now: {dNew}</span>}
+                      <div key={i} className="drift-change-row">
+                        <span className={`drift-change-type ${typeClass}`}>{c.type?.replace('-',' ')}</span>
+                        <span className="drift-change-path">{dp}</span>
+                        {dOld!=null&&dNew!=null && <span><span className="drift-change-old">{dOld}</span><span className="drift-change-arrow">→</span><span className="drift-change-new">{dNew}</span></span>}
+                        {dOld!=null&&dNew==null && <span className="drift-change-label" style={{color:'var(--color-danger)'}}>was: {dOld}</span>}
+                        {dOld==null&&dNew!=null && <span className="drift-change-label" style={{color:'var(--color-success)'}}>now: {dNew}</span>}
                       </div>
                     )
                   })}
-                  {ev.changes.length > 8 && <div style={{fontSize:10,color:'#475569'}}>+{ev.changes.length-8} more fields</div>}
+                  {ev.changes.length > 8 && <div className="drift-more-fields">+{ev.changes.length-8} more fields</div>}
                 </div>
               )}
               {(!ev.changes||ev.changes.length===0) && ev.operationName && (
-                <div style={{paddingLeft:12,fontSize:10,color:'#475569'}}>
-                  operation: <span style={{color:'#64748b',fontFamily:'monospace'}}>{ev.operationName}</span>
-                  {!ev.hasPrevious && <span style={{color:'#475569',marginLeft:6}}>(submit again to enable field-level diff)</span>}
+                <div className="drift-operation-detail">
+                  operation: <span className="drift-operation-name">{ev.operationName}</span>
+                  {!ev.hasPrevious && <span className="drift-hint">(submit again to enable field-level diff)</span>}
                 </div>
               )}
             </div>

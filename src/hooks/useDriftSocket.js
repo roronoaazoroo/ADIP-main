@@ -28,13 +28,15 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
   // Appends a new drift event to the feed, capping the list at 200 entries
   const addEvent = useCallback((event) => {
     console.log('[addEvent] starts — eventId:', event.eventId)
-    setChangeEvents(prev =>
-      [...prev, {
+    setChangeEvents(prev => {
+      const key = event.eventId || (event.resourceId + ':' + event.eventTime)
+      if (key && prev.some(e => (e.eventId || (e.resourceId + ':' + e.eventTime)) === key)) return prev
+      return [...prev, {
         ...event,
         _clientId:   `${event.eventId ?? Date.now()}-${Math.random()}`,
         _receivedAt: new Date().toLocaleTimeString(),
       }].slice(-200)
-    )
+    })
     console.log('[addEvent] ends')
   }, [setChangeEvents])
   // ── addEvent END ─────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import ctLogo from '../assets/ct-logo.png'
+import { useDashboard } from '../context/DashboardContext'
 import './Sidebar.css'
 
 const NAV_ITEMS = [
@@ -14,6 +15,28 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    id: 'comparison',
+    label: 'Comparison',
+    path: '/comparison',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5" />
+      </svg>
+    ),
+  },
+  {
+    id: 'genome',
+    label: 'Config Genome',
+    path: '/genome',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5" />
+        <path d="M2 12l10 5 10-5" />
+      </svg>
+    ),
+  },
 ]
 
 
@@ -21,10 +44,40 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+  const { subscription, resourceGroup, resource, configData, resourceGroups, resources } = useDashboard()
+
+  const handleNavClick = (path) => {
+    if (path === '/comparison') {
+      navigate('/comparison', {
+        state: {
+          subscriptionId: subscription,
+          resourceGroupId: resourceGroup,
+          resourceId: resource || null,
+          resourceName: resource
+            ? resources.find(r => r.id === resource)?.name
+            : resourceGroups.find(rg => rg.id === resourceGroup)?.name,
+          liveState: configData,
+        },
+      })
+    } else if (path === '/genome') {
+      navigate('/genome', {
+        state: {
+          subscriptionId: subscription,
+          resourceGroupId: resourceGroup,
+          resourceId: resource || resourceGroup,
+          resourceName: resource
+            ? resources.find(r => r.id === resource)?.name
+            : resourceGroups.find(rg => rg.id === resourceGroup)?.name,
+        },
+      })
+    } else {
+      navigate(path)
+    }
+  }
 
   return (
     <aside className={`sidebar-nav ${collapsed ? 'collapsed' : ''}`}>
-      {/* Top: hamburger + logo */}
+      {/* Top: toggle + logo */}
       <div className="sidebar-nav-top">
         <button
           className="sidebar-hamburger"
@@ -35,53 +88,50 @@ export default function Sidebar() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             {collapsed ? (
               <>
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="18" x2="21" y2="18" />
+                <polyline points="9 18 15 12 9 6" />
               </>
             ) : (
               <>
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="18" x2="21" y2="18" />
+                <polyline points="15 18 9 12 15 6" />
               </>
             )}
           </svg>
         </button>
         {!collapsed && (
           <div className="sidebar-nav-brand">
-            <img src={ctLogo} alt="CloudThat" style={{ height: 32, objectFit: "contain" }} />
+            <img src={ctLogo} alt="CloudThat" style={{ height: 28, objectFit: "contain", filter: "brightness(1.1)" }} />
           </div>
         )}
+      </div>
+
+      {/* Section label */}
+      <div className="sidebar-section-label">
+        {!collapsed ? 'Navigation' : ''}
       </div>
 
       {/* Nav items */}
       <nav className="sidebar-nav-list">
         {NAV_ITEMS.map((item) => {
           const isActive = location.pathname === item.path
-          const isAvailable = item.path === '/dashboard'
           return (
             <button
               key={item.id}
-              className={`sidebar-nav-item ${isActive ? 'active' : ''} ${!isAvailable ? 'coming-soon' : ''}`}
-              onClick={() => isAvailable ? navigate(item.path) : null}
-              title={collapsed ? item.label : (isAvailable ? '' : `${item.label} — Coming Soon`)}
+              className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => handleNavClick(item.path)}
+              title={collapsed ? item.label : ''}
               id={`nav-${item.id}`}
             >
               <span className="sidebar-nav-icon">{item.icon}</span>
               {!collapsed && (
-                <span className="sidebar-nav-label">
-                  {item.label}
-                  {!isAvailable && <span className="sidebar-badge-soon">Soon</span>}
-                </span>
+                <span className="sidebar-nav-label">{item.label}</span>
               )}
-              {isActive && <div className="sidebar-active-indicator" />}
+              {collapsed && <span className="sidebar-tooltip">{item.label}</span>}
             </button>
           )
         })}
       </nav>
 
-      {/* Bottom: user */}
+      {/* Bottom: sign out */}
       <div className="sidebar-nav-bottom">
         <button
           className="sidebar-nav-item sidebar-user-btn"
@@ -97,6 +147,7 @@ export default function Sidebar() {
             </svg>
           </span>
           {!collapsed && <span className="sidebar-nav-label">Sign Out</span>}
+          {collapsed && <span className="sidebar-tooltip">Sign Out</span>}
         </button>
       </div>
     </aside>

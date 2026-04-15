@@ -171,6 +171,8 @@ function startQueuePoller() {
               rgRoom && resName ? `${rgRoom}:${resName}` : null,
             ].filter(Boolean)
             rooms.forEach(room => global.io.to(room).emit('resourceChange', enriched))
+            // Pre-register in cross-path dedup so /internal/drift-event skips this event
+            if (global._markEmitted) global._markEmitted(enriched)
           })
           .catch(() => {})
       }

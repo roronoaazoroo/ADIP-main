@@ -98,10 +98,24 @@ app.post('/api/cache-state', express.json(), (req, res) => {
 
 // ── POST /internal/drift-event START ────────────────────────────────────────
 // Internal endpoint called by the Function App to push drift events to connected frontend clients
+// Cross-path dedup: prevents same event emitted by both queue poller and Function App
+const _emittedEvents = new Map()
+function isAlreadyEmitted(event) {
+  const key = (event.eventId || event.resourceId) + ':' + (event.eventTime || '')
+  if (_emittedEvents.has(key)) return true
+  _emittedEvents.set(key, Date.now())
+  const cutoff = Date.now() - 30000
+  for (const [k, ts] of _emittedEvents) if (ts < cutoff) _emittedEvents.delete(k)
+  return false
+}
+// Expose so queue poller can pre-register events it already emitted
+global._markEmitted = (event) => isAlreadyEmitted(event)
+
 app.post('/internal/drift-event', express.json(), (req, res) => {
   console.log('[POST /internal/drift-event] starts')
   const event = req.body
   if (event?.subscriptionId) {
+    if (isAlreadyEmitted(event)) { res.sendStatus(200); return }
     const room = event.resourceGroup
       ? `${event.subscriptionId}:${event.resourceGroup}`.toLowerCase()
       : event.subscriptionId.toLowerCase()
