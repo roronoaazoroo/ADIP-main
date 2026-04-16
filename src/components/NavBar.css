@@ -1,0 +1,60 @@
+/* ── Nav ─────────────────────────────────────────────────────────────────── */
+.dh-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 32px;
+  height: 72px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 2px 16px rgba(31,97,154,0.06);
+}
+
+.dh-brand {
+  font-size: 17px;
+  font-weight: 700;
+  color: #003359;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.dh-nav-left { display: flex; align-items: center; gap: 32px; }
+.dh-nav-right { display: flex; align-items: center; gap: 12px; }
+
+.dh-nav-links { display: flex; gap: 24px; }
+.dh-nav-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  padding-bottom: 2px;
+  transition: color 0.15s;
+}
+.dh-nav-link:hover { color: #0060a9; }
+.dh-nav-link--active { color: #0060a9; border-bottom: 2px solid #0060a9; font-weight: 600; }
+
+.dh-icon-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: #64748b;
+  transition: background 0.15s;
+}
+.dh-icon-btn:hover { background: #edeef1; }
+.dh-icon-btn .material-symbols-outlined { font-size: 22px; }
+
+.dh-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #003359, #0060a9);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+}

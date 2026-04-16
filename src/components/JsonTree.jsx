@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useImperativeHandle, forwardRef } from 'react'
+import './JsonTree.css'
 
 const JsonTree = forwardRef(function JsonTree({ data }, ref) {
   const [expandedNodes, setExpandedNodes] = useState(new Set())

@@ -38,7 +38,7 @@ const DUMMY_USERS = [
    *    import { msalInstance, loginWithMicrosoft } from '../services/api'
    *    const result = await loginWithMicrosoft()
    *    // Store account info in context/state
-   *    navigate('/dashboard')
+   *    navigate('/home')
    */
   const handleLogin = () => {
     setError(null)
@@ -136,41 +136,32 @@ const DUMMY_USERS = [
           )}
 
           {/* Username & Password fields */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-            <div style={{ position: 'relative' }}>
+          <div className="login-fields">
+            <div className="login-field-wrap">
               <input
                 type="text"
+                className="login-input"
                 placeholder="Username"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
                 autoComplete="username"
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)',
-                  color: '#e2e8f0', fontSize: 14, outline: 'none', boxSizing: 'border-box',
-                }}
               />
             </div>
-            <div style={{ position: 'relative' }}>
+            <div className="login-field-wrap">
               <input
                 type={showPass ? 'text' : 'password'}
+                className="login-input login-input--password"
                 placeholder="Password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
                 autoComplete="current-password"
-                style={{
-                  width: '100%', padding: '10px 40px 10px 14px', borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)',
-                  color: '#e2e8f0', fontSize: 14, outline: 'none', boxSizing: 'border-box',
-                }}
               />
               <button
                 type="button"
+                className="login-pass-toggle"
                 onClick={() => setShowPass(p => !p)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0 }}
               >
                 {showPass
                   ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>

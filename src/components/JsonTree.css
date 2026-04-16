@@ -1,0 +1,83 @@
+/* JsonTree — Light enterprise design matching DashboardHome */
+.json-tree {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #1a1c1e;
+}
+
+/* Keys & values */
+.json-key { color: #003359; font-weight: 600; }
+.json-string { color: #0060a9; }
+.json-number { color: #7c3aed; }
+.json-bool { color: #0891b2; font-weight: 600; }
+.json-null { color: #94a3b8; font-style: italic; }
+.json-bracket { color: #64748b; font-weight: 700; }
+.json-colon { color: #94a3b8; }
+.json-index { color: #94a3b8; font-size: 11px; }
+
+/* Expand/collapse count label */
+.json-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-left: 6px;
+  letter-spacing: 0.03em;
+}
+
+/* Toggle button */
+.json-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 9px;
+  line-height: 1;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 2px;
+}
+
+.json-toggle:hover {
+  background: rgba(0,51,89,0.08);
+  color: #003359;
+}
+
+/* Arrow indicator */
+.json-arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 8px;
+}
+
+.json-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+/* Children container */
+.json-children {
+  border-left: 1px solid #e2e8f0;
+  margin-left: 4px;
+  padding-left: 2px;
+}
+
+/* Entry row */
+.json-entry {
+  padding: 1px 4px;
+  border-radius: 4px;
+  transition: background 0.1s ease;
+}
+
+.json-entry:hover {
+  background: rgba(0,51,89,0.03);
+}
+
+/* Object / array containers */
+.json-object,
+.json-array {
+  display: inline;
+}

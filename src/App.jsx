@@ -2,7 +2,8 @@ import { Routes, Route, useLocation } from 'react-router-dom'
 import { DashboardProvider } from './context/DashboardContext'
 import { ThemeProvider } from './context/ThemeContext'
 import LoginPage      from './pages/LoginPage'
-import DashboardPage  from './pages/DashboardPage'
+import DashboardHome  from './pages/DashboardHome'
+import DriftScanner  from './pages/DriftScanner'
 import ComparisonPage from './pages/ComparisonPage'
 import GenomePage     from './pages/GenomePage'
 import AzureChatbot   from './components/AzureChatbot'
@@ -15,10 +16,11 @@ function App() {
     <ThemeProvider>
       <DashboardProvider>
         <Routes>
-          <Route path="/"           element={<LoginPage />} />
-          <Route path="/dashboard"  element={<DashboardPage />} />
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/dashboard" element={<DashboardHome />} />
+          <Route path="/scanner" element={<DriftScanner />} />
           <Route path="/comparison" element={<ComparisonPage />} />
-          <Route path="/genome"     element={<GenomePage />} />
+          <Route path="/genome" element={<GenomePage />} />
         </Routes>
         {showChat && <AzureChatbot />}
       </DashboardProvider>

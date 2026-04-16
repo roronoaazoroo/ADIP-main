@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react'
+import './LiveActivityFeed.css'
 
 function resolveUser(ev) {
   if (ev.caller && ev.caller !== 'unknown' && ev.caller !== 'Unknown user' && ev.caller !== 'System') return ev.caller
