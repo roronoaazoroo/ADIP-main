@@ -48,10 +48,10 @@
 
 .cp-changes-list { padding: 12px 20px; display: flex; flex-direction: column; gap: 6px; }
 .cp-change { padding: 10px 14px; border-radius: 10px; border-left: 3px solid transparent; }
-.cp-change--added   { border-left-color: #16a34a; background: rgba(16,185,129,0.04); }
+/* .cp-change--added   { border-left-color: #16a34a; background: rgba(16,185,129,0.04); }
 .cp-change--removed { border-left-color: #dc2626; background: rgba(239,68,68,0.04); }
 .cp-change--changed { border-left-color: #f59e0b; background: rgba(245,158,11,0.04); }
-.cp-change--array   { border-left-color: #0060a9; background: rgba(0,96,169,0.04); }
+.cp-change--array   { border-left-color: #0060a9; background: rgba(0,96,169,0.04); } */
 .cp-change-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .cp-change-badge { padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .cp-change-badge--added   { background: rgba(16,185,129,0.12); color: #065f46; }

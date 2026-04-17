@@ -274,7 +274,7 @@ export default function DashboardHome() {
         <div className="dh-table-section">
           <div className="dh-table-header">
             <div className="dh-table-title-row">
-              <h2 className="dh-table-title">Recent Drift Events</h2>
+              <h2 className="dh-table-title">Recent Events</h2>
               {driftEvents.length > 0 && (
                 <span className="dh-live-badge">
                   <span className="dh-live-dot" />
