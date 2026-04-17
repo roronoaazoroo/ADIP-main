@@ -170,7 +170,6 @@ export default function DriftScanner() {
   const statsRegion = configData?.resourceGroup?.location ?? configData?.location ?? '—'
   const totalEvents = driftEvents.length
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
-
   return (
     <div className="ds-root">
       <NavBar

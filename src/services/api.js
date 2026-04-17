@@ -159,11 +159,25 @@ export async function uploadBaseline(subscriptionId, resourceGroupId, resourceId
 
 // ── cacheState START ─────────────────────────────────────────────────────────
 // Sends the current resource config to the backend cache so first change has a diff
-export async function fetchDriftEvents(subscriptionId, { resourceGroup, severity, limit = 50 } = {}) {
+export async function fetchDriftEvents(subscriptionId, { resourceGroup, severity, since, caller, limit = 50 } = {}) {
   const params = new URLSearchParams({ subscriptionId, limit })
   if (resourceGroup) params.set('resourceGroup', resourceGroup)
   if (severity) params.set('severity', severity)
+  if (since) params.set('since', since)
+  if (caller) params.set('caller', caller)
   return apiRequest(`/drift-events?${params}`)
+}
+
+export async function fetchRecentChanges(subscriptionId, { resourceGroup, caller, changeType, hours = 24, limit = 200 } = {}) {
+  const params = new URLSearchParams({ subscriptionId, hours, limit })
+  if (resourceGroup) params.set('resourceGroup', resourceGroup)
+  if (caller)        params.set('caller', caller)
+  if (changeType)    params.set('changeType', changeType)
+  return apiRequest(`/changes/recent?${params}`)
+}
+
+export async function fetchStatsToday(subscriptionId) {
+  return apiRequest(`/stats/today?subscriptionId=${encodeURIComponent(subscriptionId)}`)
 }
 // ── fetchDriftEvents END ──────────────────────────────────────────────────────
 
