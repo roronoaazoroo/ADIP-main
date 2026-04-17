@@ -254,6 +254,83 @@ async function deleteGenomeSnapshot(subscriptionId, blobName) {
   } catch {}
 }
 
+// ── saveChangeRecord START ────────────────────────────────────────────────────
+// Permanently records every ARM change event to all-changes blob + changesIndex Table
+// Called by queue poller, detectDrift Function, and scanSubscription Function
+async function saveChangeRecord(record) {
+  const ts  = record.detectedAt || new Date().toISOString()
+  const key = `${ts.replace(/[:.]/g, '-')}_${Buffer.from(record.resourceId || 'unknown').toString('base64url').slice(0, 80)}.json`
+
+  // Write permanent blob
+  await writeBlob('all-changes', key, { ...record, _blobKey: key })
+
+  // Write index entry for fast counting
+  const rk = Buffer.from(key).toString('base64url').slice(0, 512)
+  tableClient('changesIndex')?.upsertEntity({
+    partitionKey:  record.subscriptionId || 'unknown',
+    rowKey:        rk,
+    blobKey:       key,
+    resourceId:    record.resourceId    || '',
+    resourceGroup: record.resourceGroup || '',
+    eventType:     record.eventType     || record.operationName || '',
+    changeType:    record.changeType    || 'modified',
+    severity:      record.severity      || 'low',
+    caller:        record.caller        || '',
+    detectedAt:    ts,
+    changeCount:   record.changeCount   || record.differences?.length || 0,
+  }, 'Replace').catch(() => {})
+}
+// ── saveChangeRecord END ──────────────────────────────────────────────────────
+
+// ── getRecentChanges START ────────────────────────────────────────────────────
+// Queries changesIndex Table for last N hours, fetches full blobs for detail
+async function getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since, limit = 200 }) {
+  const tc = tableClient('changesIndex')
+  if (!tc) return []
+
+  let filter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${since}'`
+  if (resourceGroup) filter += ` and resourceGroup eq '${resourceGroup}'`
+  if (changeType)    filter += ` and changeType eq '${changeType}'`
+
+  const results = []
+  for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
+    if (results.length >= limit) break
+    if (caller && entity.caller !== caller) continue
+    // Read full blob for complete detail
+    const doc = await readBlob('all-changes', entity.blobKey).catch(() => null)
+    if (doc) results.push(doc)
+    else {
+      // Fallback: use index entity fields if blob missing
+      results.push({
+        subscriptionId,
+        resourceId:    entity.resourceId    || '',
+        resourceGroup: entity.resourceGroup || '',
+        eventType:     entity.eventType     || '',
+        operationName: entity.operationName || '',
+        changeType:    entity.changeType    || 'modified',
+        caller:        entity.caller        || '',
+        detectedAt:    entity.detectedAt    || '',
+        _blobKey:      entity.blobKey,
+      })
+    }
+  }
+  return results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+}
+// ── getRecentChanges END ──────────────────────────────────────────────────────
+
+
+// Returns total permanent change count for a subscription (all time)
+async function getTotalChangesCount(subscriptionId) {
+  const tc = tableClient('changesIndex')
+  if (!tc) return 0
+  let count = 0
+  for await (const _ of tc.listEntities({ queryOptions: { filter: `PartitionKey eq '${subscriptionId}'`, select: ['RowKey'] } })) {
+    count++
+  }
+  return count
+}
+// ── getTotalChangesCount END ──────────────────────────────────────────────────
+
 module.exports = {
   getBaseline,
   saveBaseline,
@@ -265,4 +342,7 @@ module.exports = {
   listGenomeSnapshots,
   getGenomeSnapshot,
   deleteGenomeSnapshot,
+  saveChangeRecord,
+  getTotalChangesCount,
+  getRecentChanges,
 }
