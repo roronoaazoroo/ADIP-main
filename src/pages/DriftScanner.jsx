@@ -151,20 +151,6 @@ export default function DriftScanner() {
     setPolicyData(null); setAnomalies([]); clearDriftEvents()
   }
 
-  const handleCompare = () => navigate('/comparison', {
-    state: { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || null,
-      resourceName: resource ? resources.find(r => r.id === resource)?.name : resourceGroups.find(rg => rg.id === resourceGroup)?.name,
-      liveState: configData }
-  })
-
-  const handleGenome = () => {
-    if (!resourceGroup) return
-    navigate('/genome', {
-      state: { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || resourceGroup,
-        resourceName: resource ? resources.find(r => r.id === resource)?.name : resourceGroups.find(rg => rg.id === resourceGroup)?.name }
-    })
-  }
-
   const statsResources = configData?.resources ? configData.resources.length : (configData ? 1 : 0)
   const statsTags = configData?.resourceGroup ? Object.keys(configData.resourceGroup.tags ?? {}).length : Object.keys(configData?.tags ?? {}).length
   const statsRegion = configData?.resourceGroup?.location ?? configData?.location ?? '—'
@@ -305,12 +291,6 @@ export default function DriftScanner() {
                     </button>
                     <button className="ds-toolbar-btn" onClick={() => jsonTreeRef.current?.collapseAll()}>
                       <span className="material-symbols-outlined">unfold_less</span> Collapse
-                    </button>
-                    <button className="ds-toolbar-btn" onClick={handleCompare}>
-                      <span className="material-symbols-outlined">compare_arrows</span> Compare
-                    </button>
-                    <button className="ds-toolbar-btn" onClick={handleGenome}>
-                      <span className="material-symbols-outlined">history</span> Genome
                     </button>
                   </>
                 )}

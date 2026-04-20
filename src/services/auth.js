@@ -1,22 +1,22 @@
-/**
- * Authentication configuration for Azure AD SSO.
- * 
- * To enable SSO, install @azure/msal-browser and set these env vars:
- *   VITE_AZURE_CLIENT_ID=your-app-client-id
- *   VITE_AZURE_TENANT_ID=your-tenant-id
- * 
- * Then uncomment the MSAL initialization in services/api.js
- */
+// /**
+//  * Authentication configuration for Azure AD SSO.
+//  * 
+//  * To enable SSO, install @azure/msal-browser and set these env vars:
+//  *   VITE_AZURE_CLIENT_ID=your-app-client-id
+//  *   VITE_AZURE_TENANT_ID=your-tenant-id
+//  * 
+//  * Then uncomment the MSAL initialization in services/api.js
+//  */
 
-export const AUTH_CONFIG = {
-  clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '',
-  tenantId: import.meta.env.VITE_AZURE_TENANT_ID || '',
-  redirectUri: typeof window !== 'undefined' ? window.location.origin : '',
-  scopes: [
-    'user.read',
-    'https://management.azure.com/.default',
-  ],
-}
+// export const AUTH_CONFIG = {
+//   clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '',
+//   tenantId: import.meta.env.VITE_AZURE_TENANT_ID || '',
+//   redirectUri: typeof window !== 'undefined' ? window.location.origin : '',
+//   scopes: [
+//     'user.read',
+//     'https://management.azure.com/.default',
+//   ],
+// }
 
 /**
  * Check if SSO is configured (env vars set).

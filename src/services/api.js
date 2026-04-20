@@ -176,6 +176,10 @@ export async function fetchRecentChanges(subscriptionId, { resourceGroup, caller
   return apiRequest(`/changes/recent?${params}`)
 }
 
+export async function fetchChartStats(subscriptionId, mode = '24h') {
+  return apiRequest(`/stats/chart?subscriptionId=${encodeURIComponent(subscriptionId)}&mode=${mode}`)
+}
+
 export async function fetchStatsToday(subscriptionId) {
   return apiRequest(`/stats/today?subscriptionId=${encodeURIComponent(subscriptionId)}`)
 }

@@ -45,7 +45,14 @@ module.exports = async function (context, req) {
       return
     }
 
-    const apiVersion = API_VERSION_MAP[type.toLowerCase()] || '2021-04-01'
+    let apiVersion = API_VERSION_MAP[type.toLowerCase()]
+    if (!apiVersion) {
+      try {
+        const providerInfo = await armClient.providers.get(provider)
+        const rt = providerInfo.resourceTypes?.find(r => r.resourceType?.toLowerCase() === type.toLowerCase())
+        apiVersion = rt?.apiVersions?.find(v => !v.includes('preview')) || rt?.apiVersions?.[0] || '2021-04-01'
+      } catch { apiVersion = '2021-04-01' }
+    }
     const liveRaw    = await armClient.resources.get(rgName, provider, '', type, name, apiVersion)
     const live       = strip(liveRaw)
 

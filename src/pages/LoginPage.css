@@ -113,6 +113,7 @@
   align-items: center;
   gap: var(--space-lg);
   animation: slideDown 0.6s ease-out 0.2s both;
+  -webkit-user-drag: none;
 }
 
 .login-logos-divider {

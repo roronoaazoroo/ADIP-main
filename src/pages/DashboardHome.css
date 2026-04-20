@@ -456,3 +456,18 @@
   .dh-main { padding: 24px 16px 60px; }
   .dh-headline { font-size: 28px; }
 }
+
+.bar-chart-modes { display: flex; gap: 4px; }
+.bar-mode-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.bar-mode-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+.bar-mode-btn--active { background: rgba(25,149,255,0.2); border-color: rgba(25,149,255,0.4); color: #1995ff; }

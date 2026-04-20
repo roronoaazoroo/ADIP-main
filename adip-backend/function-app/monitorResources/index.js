@@ -35,7 +35,14 @@ async function runDriftCheck(context, session) {
     if (resourceId && resourceId.startsWith('/subscriptions/')) {
       const parts      = resourceId.split('/')
       const rgName     = parts[4], provider = parts[6], type = parts[7], name = parts[8]
-      const apiVersion = API_VERSION_MAP[type?.toLowerCase()] || '2021-04-01'
+      let apiVersion = API_VERSION_MAP[type?.toLowerCase()]
+      if (!apiVersion) {
+        try {
+          const providerInfo = await armClient.providers.get(provider)
+          const rt = providerInfo.resourceTypes?.find(r => r.resourceType?.toLowerCase() === type?.toLowerCase())
+          apiVersion = rt?.apiVersions?.find(v => !v.includes('preview')) || rt?.apiVersions?.[0] || '2021-04-01'
+        } catch { apiVersion = '2021-04-01' }
+      }
       liveRaw = await armClient.resources.get(rgName, provider, '', type, name, apiVersion)
     } else {
       // Resource group level — list all resources
@@ -145,8 +152,14 @@ module.exports = async function (context, timer) {
 
   context.log(`[monitorResources] checking ${sessions.length} session(s)`)
 
-  // Run all checks in parallel
-  await Promise.allSettled(sessions.map(s => runDriftCheck(context, s)))
+  // Only check sessions whose intervalMs has elapsed since lastCheckedAt
+  const now_ms = Date.now()
+  const due = sessions.filter(s => {
+    if (!s.lastCheckedAt) return true
+    return (now_ms - new Date(s.lastCheckedAt).getTime()) >= (s.intervalMs || 60000)
+  })
+  context.log(`[monitorResources] ${due.length} of ${sessions.length} session(s) due`)
+  await Promise.allSettled(due.map(s => runDriftCheck(context, s)))
 
   // Update lastCheckedAt for all sessions
   const now = new Date().toISOString()

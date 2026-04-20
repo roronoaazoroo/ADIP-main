@@ -99,17 +99,17 @@ function parseMessage(msg) {
 // ── parseMessage END ─────────────────────────────────────────────────────────
 
 
-// ── Deduplication: same resource+operation within 10s = same event ────────────
-const _dedup = new Map()
-function isDuplicate(event) {
-  const bucket = Math.floor(new Date(event.eventTime).getTime() / 10000)
-  const key    = `${event.resourceId}:${event.operationName}:${bucket}`
-  if (_dedup.has(key)) return true
-  _dedup.set(key, Date.now())
-  const cutoff = Date.now() - 60000
-  for (const [k, ts] of _dedup) if (ts < cutoff) _dedup.delete(k)
-  return false
-}
+// ── Deduplication: same resource+operation within 0.1s = same event ────────────
+// const _dedup = new Map()
+// function isDuplicate(event) {
+//   const bucket = Math.floor(new Date(event.eventTime).getTime() / 100)
+//   const key    = `${event.resourceId}:${event.operationName}:${bucket}`
+//   if (_dedup.has(key)) return true
+//   _dedup.set(key, Date.now())
+//   const cutoff = Date.now() - 60000
+//   for (const [k, ts] of _dedup) if (ts < cutoff) _dedup.delete(k)
+//   return false
+//}
 // ── isDuplicate END ──────────────────────────────────────────────────────────
 
 // ── Enrich event with diff and resolved identity ──────────────────────────────
@@ -153,15 +153,33 @@ function startQueuePoller() {
 
   setInterval(async () => {
     try {
-      const { receivedMessageItems } = await client.receiveMessages({ numberOfMessages: 32, visibilityTimeout: 30 })
+      const { receivedMessageItems } = await client.receiveMessages({ numberOfMessages: 128, visibilityTimeout: 100 })
       for (const msg of receivedMessageItems) {
         const event = parseMessage(msg)
         if (!event) { await client.deleteMessage(msg.messageId, msg.popReceipt); continue }
-        if (isDuplicate(event)) { await client.deleteMessage(msg.messageId, msg.popReceipt); continue }
+        // if (isDuplicate(event)) { await client.deleteMessage(msg.messageId, msg.popReceipt); continue }
 
         try {
           const enriched = await enrichWithDiff(event)
           await client.deleteMessage(msg.messageId, msg.popReceipt)
+
+          // Permanently record to all-changes blob + changesIndex Table
+          try {
+            const { saveChangeRecord } = require('./blobService')
+            await saveChangeRecord({
+              subscriptionId: enriched.subscriptionId,
+              resourceId:     enriched.resourceId,
+              resourceGroup:  enriched.resourceGroup,
+              eventType:      enriched.eventType,
+              operationName:  enriched.operationName,
+              changeType:     (enriched.eventType || '').includes('Delete') ? 'deleted' : 'modified',
+              caller:         enriched.caller,
+              detectedAt:     enriched.eventTime,
+              changeCount:    enriched.changeCount || 0,
+              source:         'queue-poller',
+            })
+          } catch { /* non-fatal */ }
+
           if (global.io) {
             const rgRoom = enriched.resourceGroup ? `${enriched.subscriptionId}:${enriched.resourceGroup}`.toLowerCase() : null
             const resName = enriched.resourceId?.split('/').pop()?.toLowerCase()

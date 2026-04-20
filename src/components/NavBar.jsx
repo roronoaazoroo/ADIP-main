@@ -10,7 +10,10 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData }) => 
   return (
     <nav className="dh-nav">
       <div className="dh-nav-left">
-        <span className="dh-brand">Azure Drift Intelligence Platform</span>
+        <img src="../src/assets/ct-logo.png" alt="ct-logo" className="ct-logo"/>
+        <span className="dh-brand">
+          Azure Drift Intelligence Platform
+          </span>
         <div className="dh-nav-links">
           <span className={active("/dashboard")} onClick={() => navigate("/dashboard")}>Dashboard</span>
           <span className={active("/scanner")} onClick={() => navigate("/scanner")}>Drift Scanner</span>

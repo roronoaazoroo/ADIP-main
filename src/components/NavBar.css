@@ -19,6 +19,7 @@
   color: #003359;
   letter-spacing: -0.02em;
   white-space: nowrap;
+  margin-bottom: 5px;
 }
 
 .dh-nav-left { display: flex; align-items: center; gap: 32px; }
@@ -57,4 +58,9 @@
   font-weight: 700;
   font-size: 15px;
   display: flex; align-items: center; justify-content: center;
+}
+
+.ct-logo{
+  height: 30px;
+  -webkit-user-drag: none;
 }

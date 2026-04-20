@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
 import NavBar from '../components/NavBar'
-import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchDriftEvents, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges } from '../services/api'
+import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchDriftEvents, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
 import './DashboardHome.css'
 
 // ── Filter dropdown component ─────────────────────────────────────────────────
@@ -61,53 +61,81 @@ function KpiCard({ label, value, icon }) {
   )
 }
 
-function DonutChart({ drifted, total }) {
-  const pct  = total > 0 ? Math.round((drifted / total) * 100) : 0
+function DonutChart({ changed, total }) {
+  const pct  = total > 0 ? Math.round((changed / total) * 100) : 0
   const dash = Math.min((pct / 100) * 100, 100)
   return (
     <div className="donut-wrap">
-      <h3 className="donut-title">Percentage of Drift (Today)</h3>
+      <h3 className="donut-title">Resources Changed (Today)</h3>
       <div className="donut-chart">
         <svg viewBox="0 0 36 36" className="donut-svg">
           <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" strokeWidth="3" />
           <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${dash}, 100`} />
         </svg>
         <div className="donut-center">
-          <span className="donut-number">{drifted}</span>
-          <span className="donut-sub">Drifted</span>
+          <span className="donut-number">{changed}</span>
+          <span className="donut-sub">{pct}%</span>
         </div>
       </div>
       <div className="donut-legend">
-        <div className="donut-legend-item"><span className="donut-dot" style={{ background: '#f59e0b' }} />Drifted ({drifted})</div>
-        <div className="donut-legend-item"><span className="donut-dot" style={{ background: '#e2e8f0' }} />Compliant ({Math.max(total - drifted, 0)})</div>
+        <div className="donut-legend-item"><span className="donut-dot" style={{ background: '#f59e0b' }} />Changed ({changed})</div>
+        <div className="donut-legend-item"><span className="donut-dot" style={{ background: '#e2e8f0' }} />Unchanged ({Math.max(total - changed, 0)})</div>
       </div>
     </div>
   )
 }
 
-function BarChart({ data }) {
+function BarChart({ subscriptionId }) {
+  const [mode, setMode] = useState('24h')
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!subscriptionId) return
+    setLoading(true)
+    fetchChartStats(subscriptionId, mode)
+      .then(r => setData(r.buckets || []))
+      .catch(() => setData([]))
+      .finally(() => setLoading(false))
+  }, [subscriptionId, mode])
+
   const max = Math.max(...data.map(d => d.count), 1)
+  const titles = { '24h': '24-Hour Change Statistics', '7d': '7-Day Change Statistics', '30d': '30-Day Change Statistics' }
+  const subs   = { '24h': 'Hourly — last 24 hours', '7d': 'Daily — last 7 days', '30d': 'Daily — last 30 days' }
+  // Show every nth label to avoid crowding
+  const labelEvery = mode === '24h' ? 4 : mode === '7d' ? 1 : 5
+
   return (
     <div className="bar-chart-wrap">
       <div className="bar-chart-header">
         <div>
-          <h3 className="bar-chart-title">24-Hour Change Statistics</h3>
-          <p className="bar-chart-sub">Hourly drift volume — today 00:00 to now</p>
+          <h3 className="bar-chart-title">{titles[mode]}</h3>
+          <p className="bar-chart-sub">{subs[mode]}</p>
+        </div>
+        <div className="bar-chart-modes">
+          {['24h', '7d', '30d'].map(m => (
+            <button key={m} className={`bar-mode-btn ${mode === m ? 'bar-mode-btn--active' : ''}`}
+              onClick={() => setMode(m)}>{m}</button>
+          ))}
         </div>
       </div>
-      <div className="bar-chart-bars">
-        {data.map((d, i) => (
-          <div key={i} className="bar-col">
-            <div className="bar-outer">
-              <div className="bar-inner" style={{
-                height: `${(d.count / max) * 100}%`,
-                background: d.count > 10 ? '#ef4444' : d.count > 3 ? '#1995ff' : '#c2c7d0'
-              }} title={`${d.label}: ${d.count} changes`} />
+      {loading ? (
+        <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>Loading...</div>
+      ) : (
+        <div className="bar-chart-bars">
+          {data.map((d, i) => (
+            <div key={i} className="bar-col">
+              <div className="bar-outer">
+                <div className="bar-inner" style={{
+                  height: `${(d.count / max) * 100}%`,
+                  background: d.count > 10 ? '#ef4444' : d.count > 3 ? '#1995ff' : '#c2c7d0'
+                }} title={`${d.label}: ${d.count} change${d.count !== 1 ? 's' : ''}`} />
+              </div>
+              {i % labelEvery === 0 && <span className="bar-label">{d.label}</span>}
             </div>
-            {i % 4 === 0 && <span className="bar-label">{d.label}</span>}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -181,7 +209,9 @@ export default function DashboardHome() {
       const statsData = await fetchStatsToday(sub).catch(() => null)
       setStats(statsData)
 
-      // Fetch from all-changes blob — last 24h by default, respects time filter
+      // Fetch from all-changes blob (all ARM events, not just drift) — last 24h by default, respects time filter
+      // NOTE: This queries all-changes (every ARM write/delete), not drift-records (severity-classified drift only).
+      // Intentional — the dashboard shows all infrastructure changes, not just deviations from baseline.
       const timeLabel = appliedFilters.time[0] || 'Last 24 Hours'
       const hours = timeLabel === 'Last 1 Hour' ? 1 : timeLabel === 'Last 7 Days' ? 168 : 24
       const rgFilter     = appliedFilters.resourceGroup[0] || undefined
@@ -266,8 +296,8 @@ export default function DashboardHome() {
 
         {/* Charts */}
         <div className="dh-charts-row">
-          <DonutChart drifted={totalDrifted} total={Math.max(totalDrifted + (stats ? Math.max(totalRGs * 2 - totalDrifted, 0) : 10), totalDrifted + 1)} />
-          <BarChart data={byHour} />
+          <DonutChart changed={totalDrifted} total={Math.max(totalRes, totalDrifted)} />
+          <BarChart subscriptionId={activeSub} />
         </div>
 
         {/* Table */}
@@ -328,7 +358,10 @@ export default function DashboardHome() {
                     const op = (ev.operationName || ev.eventType || '').split('/').slice(-2).join('/')
                     const isDelete = ev.changeType === 'deleted'
                     return (
-                      <tr key={ev._blobKey || i} className="dh-tr">
+                      <tr key={ev._blobKey || i} className="dh-tr"
+                        style={{ cursor: isDelete ? 'default' : 'pointer' }}
+                        onClick={() => !isDelete && navigateToComparison(ev)}
+                        title={isDelete ? '' : 'Click to compare against baseline'}>
                         <td style={{ whiteSpace: 'nowrap', color: '#94a3b8', fontSize: 12 }}>
                           {ev.detectedAt ? new Date(ev.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </td>
