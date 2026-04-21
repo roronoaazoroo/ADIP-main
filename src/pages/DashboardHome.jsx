@@ -1,3 +1,24 @@
+// ============================================================
+// FILE: src/pages/DashboardHome.jsx
+// ROLE: Main dashboard page — KPI cards, charts, and recent ARM change events table
+//
+// What this page does:
+//   - load(): fetches subscriptions, resource groups, resources, stats, and recent
+//     changes on mount and every 30 seconds (keeps KPIs fresh without page reload)
+//   - KpiCard: shows Subscriptions, Resource Groups, Total Resources, Total Changes
+//   - DonutChart: shows unique resources changed today vs total resources
+//     (data from GET /api/stats/today → changesIndex Table)
+//   - BarChart: shows change volume over time with 24h / 7d / 30d toggle
+//     (data from GET /api/stats/chart → changesIndex Table, self-fetching component)
+//   - Recent Events table: shows last 100 ARM events from 'all-changes' blob
+//     via GET /api/changes/recent. Clicking a non-deleted row navigates to
+//     ComparisonPage with the resource pre-loaded (navigateToComparison)
+//   - FilterDropdown: two-stage filter (pendingFilters → appliedFilters on Apply click)
+//     so the table only re-fetches when the user explicitly applies filters
+//
+// NOTE: This page shows ALL ARM events (all-changes), not just severity-classified
+//   drift (drift-records). This is intentional — it is an infrastructure audit log.
+// ============================================================
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'

@@ -16,7 +16,7 @@ async function sendMessage(messages, context) {
 export default function AzureChatbot({ context }) {
   const [open,     setOpen]     = useState(false)
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Hi! I\'m your Azure Cloud Expert. Ask me about architecture, drift, cost optimization, or any Azure resource.' }
+    { role: 'assistant', content: 'Welcome. I am available to support your Azure cloud initiatives, providing detailed guidance on Azure services.' }
   ])
   const [input,    setInput]    = useState('')
   const [loading,  setLoading]  = useState(false)

@@ -56,6 +56,7 @@ export default function GenomePage() {
     try {
       await rollbackToSnapshot(subscriptionId, resourceGroupId, resourceId, snap._blobKey)
       setActionMsg({ ok: true, text: 'Rollback applied.' })
+      load()
     } catch (e) { setActionMsg({ ok: false, text: e.message }) }
     finally { setActing(null) }
   }
@@ -138,9 +139,9 @@ export default function GenomePage() {
                   </button>
                   <button className="gp-snap-btn gp-snap-btn--red"
                     onClick={e => { e.stopPropagation(); handleRollback(snap) }}
-                    disabled={acting === snap._blobKey}
-                    title={isRgLevel ? 'Rollback all resources' : 'Rollback resource'}>
-                    {acting === snap._blobKey ? '...' : isRgLevel ? 'Rollback All' : 'Rollback'}
+                    disabled={acting === snap._blobKey || !!snap.rolledBackAt}
+                    title={snap.rolledBackAt ? `Rolled back on ${new Date(snap.rolledBackAt).toLocaleString()}` : isRgLevel ? 'Rollback all resources' : 'Rollback resource'}>
+                    {acting === snap._blobKey ? '...' : snap.rolledBackAt ? 'Rolled Back' : isRgLevel ? 'Rollback All' : 'Rollback'}
                   </button>
                   <button className="gp-snap-btn gp-snap-btn--grey"
                     onClick={e => { e.stopPropagation(); handleDelete(snap) }}

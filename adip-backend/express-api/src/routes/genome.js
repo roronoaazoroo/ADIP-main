@@ -114,6 +114,16 @@ router.post('/genome/rollback', async (req, res) => {
       catch { location = 'eastus' }
     }
     await armClient.resources.beginCreateOrUpdateAndWait(rgName, provider, '', type, name, apiVersion, { ...state, location })
+    // Mark this snapshot as active rollback; clear flag on all others for this resource
+    try {
+      const tc = require('@azure/data-tables').TableClient.fromConnectionString(
+        process.env.STORAGE_CONNECTION_STRING, 'genomeIndex'
+      )
+      const now = new Date().toISOString()
+      for await (const entity of tc.listEntities({ queryOptions: { filter: `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}'` } })) {
+        await tc.upsertEntity({ ...entity, rolledBackAt: entity.blobKey === blobKey ? now : null }, 'Replace').catch(() => {})
+      }
+    } catch { /* non-fatal */ }
     res.json({ rolledBack: true, resourceId, blobKey, savedAt: snapshot.savedAt })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })

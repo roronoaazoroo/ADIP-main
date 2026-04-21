@@ -1,3 +1,26 @@
+// ============================================================
+// FILE: adip-backend/function-app/detectDrift/index.js
+// ROLE: Azure Function — detects drift between live ARM config and stored baseline
+//
+// Trigger: HTTP POST from adip-logic-app Logic App
+//   (Logic App receives Event Grid events, filters noise, calls this Function)
+//
+// What this function does (in order):
+//   1. Receives the ARM change event from the Logic App
+//   2. Looks up the correct ARM API version for the resource type
+//      (checks API_VERSION_MAP first, falls back to armClient.providers.get())
+//   3. Fetches the current live ARM config for the resource
+//   4. Reads the golden baseline blob from 'baselines' container
+//   5. Strips volatile fields (etag, provisioningState) from both configs
+//   6. Runs diffObjects() to get field-level changes
+//   7. Calls classifySeverity() — Critical / High / Medium / Low
+//   8. Writes drift record to 'drift-records' blob + 'driftIndex' Table
+//   9. POSTs to EXPRESS_API_URL/internal/drift-event to push to Socket.IO
+//  10. Sends email alert via ACS for High/Critical severity
+//
+// Deployed to: adip-func-001 (Azure Functions, West US 2, Consumption plan)
+// Auth level:  function (requires ?code= key in URL)
+// ============================================================
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')
