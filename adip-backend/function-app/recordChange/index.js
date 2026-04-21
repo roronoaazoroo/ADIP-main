@@ -2,10 +2,12 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 const { BlobServiceClient } = require('@azure/storage-blob')
 const { TableClient }       = require('@azure/data-tables')
 
-const blobSvc   = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-const changesCtr = blobSvc.getContainerClient('all-changes')
+// Connect to Azure Blob Storage — 'all-changes' container stores one blob per ARM event
+const blobStorageClient  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+const allChangesContainer = blobStorageClient.getContainerClient('all-changes')
 
-function getChangesIndex() {
+// Returns a Table Storage client for the changesIndex table (used for fast queries by DashboardHome)
+function getChangesIndexTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'changesIndex')
 }
 
@@ -26,66 +28,72 @@ module.exports = async function (context, req) {
 
   for (const event of events) {
     try {
-      const data = event.data || {}
+      const eventPayload = event.data || {}
 
-      // Skip failed, read, list, deployment operations
-      const op     = (data.operationName || '').toLowerCase()
-      const status = (data.status || '').toLowerCase()
-      if (status === 'failed') continue
-      if (op.includes('read') || op.includes('list')) continue
-      if ((data.resourceUri || '').toLowerCase().includes('/deployments/')) continue
+      // Skip noise: failed operations, read/list calls, and ARM deployment events
+      const operationName = (eventPayload.operationName || '').toLowerCase()
+      const operationStatus = (eventPayload.status || '').toLowerCase()
+      if (operationStatus === 'failed') continue
+      if (operationName.includes('read') || operationName.includes('list')) continue
+      if ((eventPayload.resourceUri || '').toLowerCase().includes('/deployments/')) continue
 
-      // Normalise resource ID to parent (strip child paths > 9 parts)
-      let resourceId = data.resourceUri || event.subject || ''
-      const parts = resourceId.split('/')
-      if (parts.length > 9) resourceId = parts.slice(0, 9).join('/')
+      // Normalise resource ID: strip child resource paths (> 9 parts) to get the parent resource
+      // e.g. /subscriptions/.../storageAccounts/foo/blobServices/default → /subscriptions/.../storageAccounts/foo
+      let resourceId = eventPayload.resourceUri || event.subject || ''
+      const resourceIdParts = resourceId.split('/')
+      if (resourceIdParts.length > 9) resourceId = resourceIdParts.slice(0, 9).join('/')
 
-      const uriParts       = resourceId.split('/')
-      const subscriptionId = uriParts[2] || data.subscriptionId || ''
-      const resourceGroup  = uriParts.length >= 5 ? uriParts[4] : (data.resourceGroupName || '')
+      const normalizedParts = resourceId.split('/')
+      const subscriptionId  = normalizedParts[2] || eventPayload.subscriptionId || ''
+      const resourceGroup   = normalizedParts.length >= 5 ? normalizedParts[4] : (eventPayload.resourceGroupName || '')
 
       if (!subscriptionId) continue
 
-      // Extract caller from claims
-      const claims    = data.claims || {}
-      const givenName = claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname'] || ''
-      const surname   = claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname']   || ''
-      const caller    = claims.name || claims.unique_name ||
-                        (givenName && surname ? `${givenName} ${surname}` : '') ||
-                        data.caller || 'System'
+      // Extract the human-readable caller identity from Azure AD claims
+      // ARM events include a 'claims' object with various identity fields — try them in priority order
+      const identityClaims = eventPayload.claims || {}
+      const callerFirstName = identityClaims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname'] || ''
+      const callerLastName  = identityClaims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname']   || ''
+      const callerIdentity  = identityClaims.name || identityClaims.unique_name ||
+                              (callerFirstName && callerLastName ? `${callerFirstName} ${callerLastName}` : '') ||
+                              eventPayload.caller || 'System'
 
       const detectedAt = event.eventTime || new Date().toISOString()
+      // Determine if this was a delete or a write/update
       const changeType = (event.eventType || '').includes('Delete') ? 'deleted' : 'modified'
 
-      const record = {
+      // The change record that gets saved to blob storage and indexed in Table Storage
+      const changeRecord = {
         subscriptionId,
         resourceId,
         resourceGroup,
         eventType:     event.eventType || '',
-        operationName: data.operationName || '',
+        operationName: eventPayload.operationName || '',
         changeType,
-        caller,
+        caller:        callerIdentity,
         detectedAt,
-        source:        'event-grid-direct',
+        source:        'event-grid-direct',  // distinguishes from queue-poller path
       }
 
-      // Write blob
-      const blobKey = `${detectedAt.replace(/[:.]/g, '-')}_${Buffer.from(resourceId).toString('base64url').slice(0, 80)}.json`
-      const body    = JSON.stringify({ ...record, _blobKey: blobKey })
-      await changesCtr.getBlockBlobClient(blobKey)
-        .upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: 'application/json' } })
+      // Generate a unique blob filename: timestamp + base64url(resourceId)
+      // base64url is used because resourceId contains '/' which is a path separator in blob storage
+      const blobFileName    = `${detectedAt.replace(/[:.]/g, '-')}_${Buffer.from(resourceId).toString('base64url').slice(0, 80)}.json`
+      const blobContent     = JSON.stringify({ ...changeRecord, _blobKey: blobFileName })
+      await allChangesContainer.getBlockBlobClient(blobFileName)
+        .upload(blobContent, Buffer.byteLength(blobContent), { blobHTTPHeaders: { blobContentType: 'application/json' } })
 
-      // Write Table index
-      const rk = Buffer.from(blobKey).toString('base64url').slice(0, 512)
-      await getChangesIndex().upsertEntity({
+      // Write a lightweight index row to Table Storage so DashboardHome can query changes
+      // without scanning every blob (Table query is O(matches), blob scan is O(total))
+      const tableRowKey = Buffer.from(blobFileName).toString('base64url').slice(0, 512)
+      await getChangesIndexTable().upsertEntity({
         partitionKey:  subscriptionId,
-        rowKey:        rk,
-        blobKey,
+        rowKey:        tableRowKey,
+        blobKey:       blobFileName,
         resourceId,
         resourceGroup,
-        eventType:     record.eventType,
+        eventType:     changeRecord.eventType,
         changeType,
-        caller,
+        caller:        callerIdentity,
         detectedAt,
         changeCount:   0,
       }, 'Replace')

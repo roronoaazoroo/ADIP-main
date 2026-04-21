@@ -10,14 +10,19 @@ const { classifySeverity }         = require('adip-shared/severity')
 const { blobKey, driftKey, readBlob, writeBlob } = require('adip-shared/blobHelpers')
 const { API_VERSION_MAP }          = require('adip-shared/constants')
 
-const blobService = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-const baselineCtr = blobService.getContainerClient('baselines')
-const driftCtr    = blobService.getContainerClient('drift-records')
+// Connect to Azure Blob Storage
+const blobStorageClient     = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+const baselinesContainer    = blobStorageClient.getContainerClient('baselines')     // golden baseline blobs
+const driftRecordsContainer = blobStorageClient.getContainerClient('drift-records') // detected drift blobs
 
-function getSessionTable() {
+// Returns a Table Storage client for the monitorSessions table
+// Each row = one active monitoring session started by a user on the DriftScanner page
+function getMonitorSessionsTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'monitorSessions')
 }
 
+// Returns a Table Storage client for the driftIndex table
+// Each row = one detected drift event, used for fast queries by /api/drift-events
 function getDriftIndexTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
 }
@@ -55,64 +60,65 @@ async function runDriftCheck(context, session) {
     }
 
     const live      = strip(liveRaw)
-    const baseline  = await readBlob(baselineCtr, blobKey(resourceId || resourceGroupId))
-    const baseState = baseline ? strip(baseline.resourceState) : null
-    const changes   = baseState ? diffObjects(baseState, live) : []
-    const severity  = classifySeverity(changes)
+    const baselineDocument       = await readBlob(baselinesContainer, blobKey(resourceId || resourceGroupId))
+    const baselineConfigStripped = baselineDocument ? strip(baselineDocument.resourceState) : null
+    const detectedChanges        = baselineConfigStripped ? diffObjects(baselineConfigStripped, live) : []
+    const driftSeverity          = classifySeverity(detectedChanges)
 
-    if (changes.length === 0) {
+    if (detectedChanges.length === 0) {
       context.log(`[monitorResources] no drift — ${resourceId || resourceGroupId}`)
       return
     }
 
     const detectedAt = new Date().toISOString()
-    const record = {
+    const driftRecord = {
       subscriptionId,
       resourceId:    resourceId || resourceGroupId,
       resourceGroup: resourceGroupId,
       liveState:     live,
-      baselineState: baseState,
-      differences:   changes,
-      changes,
-      severity,
-      changeCount:   changes.length,
-      hasPrevious:   !!baseState,
+      baselineState: baselineConfigStripped,
+      differences:   detectedChanges,
+      changes:       detectedChanges,
+      severity:      driftSeverity,
+      changeCount:   detectedChanges.length,
+      hasPrevious:   !!baselineConfigStripped,
       detectedAt,
-      source:        'monitorResources-timer',
+      source:        'monitorResources-timer',  // identifies this came from the 1-min timer function
     }
 
-    // Save drift record blob
-    await writeBlob(driftCtr, driftKey(record.resourceId, detectedAt), record)
+    // Save the drift record blob to 'drift-records' container
+    await writeBlob(driftRecordsContainer, driftKey(driftRecord.resourceId, detectedAt), driftRecord)
 
-    // Write to driftIndex Table
+    // Write a lightweight index row to driftIndex Table for fast queries
     try {
-      const tc = getDriftIndexTable()
-      const rk = Buffer.from(driftKey(record.resourceId, detectedAt)).toString('base64url').slice(0, 512)
-      await tc.upsertEntity({
+      const driftIndexTable = getDriftIndexTable()
+      const driftBlobKey    = driftKey(driftRecord.resourceId, detectedAt)
+      const tableRowKey     = Buffer.from(driftBlobKey).toString('base64url').slice(0, 512)
+      await driftIndexTable.upsertEntity({
         partitionKey:  subscriptionId,
-        rowKey:        rk,
-        blobKey:       driftKey(record.resourceId, detectedAt),
-        resourceId:    record.resourceId,
+        rowKey:        tableRowKey,
+        blobKey:       driftBlobKey,
+        resourceId:    driftRecord.resourceId,
         resourceGroup: resourceGroupId,
-        severity,
+        severity:      driftSeverity,
         detectedAt,
-        changeCount:   changes.length,
+        changeCount:   detectedChanges.length,
       }, 'Replace')
     } catch (e) {
       context.log.warn('[monitorResources] driftIndex write failed:', e.message)
     }
 
-    // Notify Express → Socket.IO
-    const apiUrl = process.env.EXPRESS_API_URL
-    if (apiUrl) {
-      fetch(`${apiUrl}/internal/drift-event`, {
+    // Notify the Express API so it can push the event to the browser via Socket.IO
+    const expressApiUrl = process.env.EXPRESS_API_URL
+    if (expressApiUrl) {
+      fetch(`${expressApiUrl}/internal/drift-event`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(record),
-      }).catch(() => {})
+        body:    JSON.stringify(driftRecord),
+      }).catch(() => {})  // fire-and-forget
     }
 
-    context.log(`[monitorResources] drift detected — ${severity} — ${changes.length} change(s) on ${record.resourceId}`)
+    context.log(`[monitorResources] drift detected — ${driftSeverity} — ${detectedChanges.length} change(s) on ${driftRecord.resourceId}`)
   } catch (err) {
     context.log.error(`[monitorResources] error for ${resourceId || resourceGroupId}:`, err.message)
   }
@@ -127,17 +133,18 @@ module.exports = async function (context, timer) {
     context.log('[monitorResources] timer is past due — running anyway')
   }
 
-  const tc = getSessionTable()
-  const sessions = []
+  const monitorSessionsTable = getMonitorSessionsTable()
+  const activeSessions = []
 
   try {
-    for await (const entity of tc.listEntities({ queryOptions: { filter: "active eq true" } })) {
-      sessions.push({
-        subscriptionId: entity.subscriptionId,
-        resourceGroupId: entity.resourceGroupId,
-        resourceId:     entity.resourceId || null,
-        intervalMs:     entity.intervalMs || 60000,
-        lastCheckedAt:  entity.lastCheckedAt || null,
+    // Query monitorSessions Table for all sessions where active = true
+    for await (const sessionEntity of monitorSessionsTable.listEntities({ queryOptions: { filter: "active eq true" } })) {
+      activeSessions.push({
+        subscriptionId:  sessionEntity.subscriptionId,
+        resourceGroupId: sessionEntity.resourceGroupId,
+        resourceId:      sessionEntity.resourceId || null,
+        intervalMs:      sessionEntity.intervalMs || 60000,   // how often to check this session
+        lastCheckedAt:   sessionEntity.lastCheckedAt || null,  // when it was last checked
       })
     }
   } catch (err) {
@@ -145,35 +152,37 @@ module.exports = async function (context, timer) {
     return
   }
 
-  if (sessions.length === 0) {
+  if (activeSessions.length === 0) {
     context.log('[monitorResources] no active sessions')
     return
   }
 
-  context.log(`[monitorResources] checking ${sessions.length} session(s)`)
+  context.log(`[monitorResources] checking ${activeSessions.length} session(s)`)
 
-  // Only check sessions whose intervalMs has elapsed since lastCheckedAt
-  const now_ms = Date.now()
-  const due = sessions.filter(s => {
-    if (!s.lastCheckedAt) return true
-    return (now_ms - new Date(s.lastCheckedAt).getTime()) >= (s.intervalMs || 60000)
+  // Only run drift checks for sessions whose check interval has elapsed
+  // e.g. if intervalMs = 300000 (5 min), skip sessions checked less than 5 min ago
+  const currentTimeMs = Date.now()
+  const sessionsDue   = activeSessions.filter(session => {
+    if (!session.lastCheckedAt) return true  // never checked — always run
+    const timeSinceLastCheck = currentTimeMs - new Date(session.lastCheckedAt).getTime()
+    return timeSinceLastCheck >= (session.intervalMs || 60000)
   })
-  context.log(`[monitorResources] ${due.length} of ${sessions.length} session(s) due`)
-  await Promise.allSettled(due.map(s => runDriftCheck(context, s)))
+  context.log(`[monitorResources] ${sessionsDue.length} of ${activeSessions.length} session(s) due`)
+  await Promise.allSettled(sessionsDue.map(session => runDriftCheck(context, session)))
 
-  // Update lastCheckedAt for all sessions
-  const now = new Date().toISOString()
-  await Promise.allSettled(sessions.map(s => {
-    const rk = `${s.subscriptionId}:${s.resourceGroupId}:${s.resourceId || ''}`
-    return tc.upsertEntity({
-      partitionKey:   'session',
-      rowKey:         Buffer.from(rk).toString('base64url').slice(0, 512),
-      subscriptionId: s.subscriptionId,
-      resourceGroupId: s.resourceGroupId,
-      resourceId:     s.resourceId || '',
-      intervalMs:     s.intervalMs,
-      active:         true,
-      lastCheckedAt:  now,
+  // Update lastCheckedAt timestamp for all sessions so the interval logic works next run
+  const currentTimestamp = new Date().toISOString()
+  await Promise.allSettled(activeSessions.map(session => {
+    const sessionKey = `${session.subscriptionId}:${session.resourceGroupId}:${session.resourceId || ''}`
+    return monitorSessionsTable.upsertEntity({
+      partitionKey:    'session',
+      rowKey:          Buffer.from(sessionKey).toString('base64url').slice(0, 512),
+      subscriptionId:  session.subscriptionId,
+      resourceGroupId: session.resourceGroupId,
+      resourceId:      session.resourceId || '',
+      intervalMs:      session.intervalMs,
+      active:          true,
+      lastCheckedAt:   currentTimestamp,
     }, 'Merge').catch(() => {})
   }))
 }

@@ -21,40 +21,41 @@ Keep answers concise and actionable. Use bullet points for lists. No markdown he
 
 // POST /api/chat  { messages: [{role, content}], context?: { resourceId, driftSummary } }
 router.post('/chat', async (req, res) => {
-  const { messages, context } = req.body
-  if (!messages?.length) return res.status(400).json({ error: 'messages required' })
+  const { messages: conversationHistory, context: resourceContext } = req.body
+  if (!conversationHistory?.length) return res.status(400).json({ error: 'messages required' })
   if (!ENDPOINT() || !API_KEY()) return res.status(503).json({ error: 'Azure OpenAI not configured' })
 
   try {
     // Inject drift context into system prompt if provided
-    let systemPrompt = SYSTEM_PROMPT
-    if (context?.resourceId || context?.driftSummary) {
-      systemPrompt += `\n\nCurrent context:\n`
-      if (context.resourceId) systemPrompt += `Resource: ${context.resourceId}\n`
-      if (context.driftSummary) systemPrompt += `Recent drift: ${context.driftSummary}\n`
+    // Build the system prompt, optionally injecting the current resource context
+    let systemPromptWithContext = SYSTEM_PROMPT
+    if (resourceContext?.resourceId || resourceContext?.driftSummary) {
+      systemPromptWithContext += `\n\nCurrent context:\n`
+      if (resourceContext.resourceId)   systemPromptWithContext += `Resource: ${resourceContext.resourceId}\n`
+      if (resourceContext.driftSummary) systemPromptWithContext += `Recent drift: ${resourceContext.driftSummary}\n`
     }
 
-    const url = `${ENDPOINT()}/openai/deployments/${DEPLOYMENT()}/chat/completions?api-version=${API_VER}`
-    const response = await fetch(url, {
+    const openAiEndpointUrl = `${ENDPOINT()}/openai/deployments/${DEPLOYMENT()}/chat/completions?api-version=${API_VER}`
+    const openAiResponse = await fetch(openAiEndpointUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': API_KEY() },
       body: JSON.stringify({
-        messages: [{ role: 'system', content: systemPrompt }, ...messages.slice(-20)], // keep last 20 turns
+        messages: [{ role: 'system', content: systemPromptWithContext }, ...conversationHistory.slice(-20)], // keep last 20 turns
         max_tokens: 600,
         temperature: 0.4,
         stream: false,
       }),
     })
 
-    if (!response.ok) {
-      const err = await response.text()
-      return res.status(response.status).json({ error: err })
+    if (!openAiResponse.ok) {
+      const errorBody = await openAiResponse.text()
+      return res.status(openAiResponse.status).json({ error: errorBody })
     }
 
-    const data = await response.json()
-    res.json({ reply: data.choices[0]?.message?.content?.trim() || '' })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
+    const openAiResponseData = await openAiResponse.json()
+    res.json({ reply: openAiResponseData.choices[0]?.message?.content?.trim() || '' })
+  } catch (chatError) {
+    res.status(500).json({ error: chatError.message })
   }
 })
 

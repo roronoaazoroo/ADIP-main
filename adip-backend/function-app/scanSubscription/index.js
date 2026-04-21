@@ -1,3 +1,18 @@
+// FILE: adip-backend/function-app/scanSubscription/index.js
+// ROLE: Azure Function — hourly full subscription sweep for drift
+
+// Trigger: Timer — every 1 hour
+
+// What this function does:
+//   1. Lists all accessible Azure subscriptions
+//   2. For each subscription, lists all resource groups
+//   3. For each resource group (5 at a time in parallel), lists all resources
+//   4. For each resource that has a baseline blob, fetches live ARM config,
+//      diffs against baseline, and saves a drift record if changes are found
+//   5. Notifies Express /internal/drift-event to push to Socket.IO
+
+// Counters: subCount, resourceCount, driftCount — logged at the end
+
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { SubscriptionClient }       = require('@azure/arm-subscriptions')
@@ -11,79 +26,89 @@ const { classifySeverity }         = require('adip-shared/severity')
 const { blobKey, driftKey, readBlob, writeBlob } = require('adip-shared/blobHelpers')
 const { API_VERSION_MAP }          = require('adip-shared/constants')
 
-const blobSvc  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-const baseCtr  = blobSvc.getContainerClient('baselines')
-const driftCtr = blobSvc.getContainerClient('drift-records')
+const blobStorageClient      = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+const baselinesContainer     = blobStorageClient.getContainerClient('baselines')     // golden baseline blobs
+const driftRecordsContainer  = blobStorageClient.getContainerClient('drift-records') // detected drift blobs
 
-function getDriftIndex() {
+// Returns a Table Storage client for the driftIndex table (fast queries for /api/drift-events)
+function getDriftIndexTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
 }
 
 // ── scanResource START ────────────────────────────────────────────────────────
 // Fetches live config for one resource, diffs against baseline, writes drift record
-async function scanResource(context, armClient, subscriptionId, rgName, resource) {
-  const parts      = resource.id.split('/')
-  const provider   = parts[6], type = parts[7], name = parts[8]
-  if (!provider || !type || !name) return
+// scanResource — checks one resource for drift against its stored baseline
+// Called for every resource in every resource group across all subscriptions
+async function scanResource(context, armClient, subscriptionId, resourceGroupName, resourceToScan) {
+  // Parse the ARM resource ID to extract provider, type, and name
+  const resourceIdParts   = resourceToScan.id.split('/')
+  const providerNamespace = resourceIdParts[6]
+  const resourceTypeName  = resourceIdParts[7]
+  const resourceName      = resourceIdParts[8]
+  if (!providerNamespace || !resourceTypeName || !resourceName) return
 
-  const apiVersion = API_VERSION_MAP[type?.toLowerCase()] || '2021-04-01'
+  const armApiVersion = API_VERSION_MAP[resourceTypeName?.toLowerCase()] || '2021-04-01'
 
   try {
-    const liveRaw  = await armClient.resources.get(rgName, provider, '', type, name, apiVersion)
-    const live     = strip(liveRaw)
-    const baseline = await readBlob(baseCtr, blobKey(resource.id))
-    if (!baseline?.resourceState) return // no baseline — skip
+    // Fetch the current live ARM config for this resource
+    const liveConfigRaw      = await armClient.resources.get(resourceGroupName, providerNamespace, '', resourceTypeName, resourceName, armApiVersion)
+    const liveConfigStripped = strip(liveConfigRaw)
 
-    const baseState = strip(baseline.resourceState)
-    const changes   = diffObjects(baseState, live)
-    const severity  = classifySeverity(changes)
+    // Read the stored golden baseline — skip if none exists
+    const baselineDocument       = await readBlob(baselinesContainer, blobKey(resourceToScan.id))
+    if (!baselineDocument?.resourceState) return
 
-    if (changes.length === 0) return // no drift
+    const baselineConfigStripped = strip(baselineDocument.resourceState)
+    const detectedChanges        = diffObjects(baselineConfigStripped, liveConfigStripped)
+    const driftSeverity          = classifySeverity(detectedChanges)
+
+    if (detectedChanges.length === 0) return  // resource matches baseline — no drift
 
     const detectedAt = new Date().toISOString()
-    const record = {
+    const driftRecord = {
       subscriptionId,
-      resourceId:    resource.id,
-      resourceGroup: rgName,
-      liveState:     live,
-      baselineState: baseState,
-      differences:   changes,
-      changes,
-      severity,
-      changeCount:   changes.length,
+      resourceId:    resourceToScan.id,
+      resourceGroup: resourceGroupName,
+      liveState:     liveConfigStripped,
+      baselineState: baselineConfigStripped,
+      differences:   detectedChanges,
+      changes:       detectedChanges,
+      severity:      driftSeverity,
+      changeCount:   detectedChanges.length,
       hasPrevious:   true,
       detectedAt,
-      source:        'scanSubscription-hourly',
+      source:        'scanSubscription-hourly',  // identifies this came from the hourly timer
     }
 
-    // Write drift blob
-    await writeBlob(driftCtr, driftKey(resource.id, detectedAt), record)
+    // Save the drift record blob to 'drift-records' container
+    const driftBlobKey = driftKey(resourceToScan.id, detectedAt)
+    await writeBlob(driftRecordsContainer, driftBlobKey, driftRecord)
 
-    // Write driftIndex Table entry
-    const rk = Buffer.from(driftKey(resource.id, detectedAt)).toString('base64url').slice(0, 512)
-    await getDriftIndex().upsertEntity({
+    // Write a lightweight index row to driftIndex Table for fast queries
+    const tableRowKey = Buffer.from(driftBlobKey).toString('base64url').slice(0, 512)
+    await getDriftIndexTable().upsertEntity({
       partitionKey:  subscriptionId,
-      rowKey:        rk,
-      blobKey:       driftKey(resource.id, detectedAt),
-      resourceId:    resource.id,
-      resourceGroup: rgName,
-      severity,
+      rowKey:        tableRowKey,
+      blobKey:       driftBlobKey,
+      resourceId:    resourceToScan.id,
+      resourceGroup: resourceGroupName,
+      severity:      driftSeverity,
       detectedAt,
-      changeCount:   changes.length,
+      changeCount:   detectedChanges.length,
     }, 'Replace').catch(() => {})
 
-    // Notify Express → Socket.IO
-    const apiUrl = process.env.EXPRESS_API_URL
-    if (apiUrl) {
-      fetch(`${apiUrl}/internal/drift-event`, {
+    // Notify the Express API so it can push the event to the browser via Socket.IO
+    const expressApiUrl = process.env.EXPRESS_API_URL
+    if (expressApiUrl) {
+      fetch(`${expressApiUrl}/internal/drift-event`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record),
+        body: JSON.stringify(driftRecord),
       }).catch(() => {})
     }
 
-    context.log(`[scanSubscription] drift: ${severity} — ${changes.length} change(s) on ${name}`)
-  } catch (err) {
-    context.log.warn(`[scanSubscription] skip ${resource.id}: ${err.message}`)
+    context.log(`[scanSubscription] drift: ${driftSeverity} — ${detectedChanges.length} change(s) on ${resourceName}`)
+  } catch (scanError) {
+    context.log.warn(`[scanSubscription] skip ${resourceToScan.id}: ${scanError.message}`)
   }
 }
 // ── scanResource END ──────────────────────────────────────────────────────────
@@ -94,33 +119,34 @@ async function scanResource(context, armClient, subscriptionId, rgName, resource
 module.exports = async function (context, timer) {
   if (timer.isPastDue) context.log('[scanSubscription] timer past due — running anyway')
 
-  const credential = new DefaultAzureCredential()
-  const subClient  = new SubscriptionClient(credential)
+  const azureCredential    = new DefaultAzureCredential()
+  const subscriptionClient = new SubscriptionClient(azureCredential)
 
-  let subCount = 0, resourceCount = 0, driftCount = 0
+  // Counters for the summary log at the end
+  let subscriptionsScanned = 0, resourcesChecked = 0, driftsRecorded = 0
 
   try {
-    for await (const sub of subClient.subscriptions.list()) {
-      const subscriptionId = sub.subscriptionId
+    for await (const subscription of subscriptionClient.subscriptions.list()) {
+      const subscriptionId = subscription.subscriptionId
       if (!subscriptionId) continue
-      subCount++
+      subscriptionsScanned++
 
-      const armClient = new ResourceManagementClient(credential, subscriptionId)
+      const armClient = new ResourceManagementClient(azureCredential, subscriptionId)
 
-      // List all resource groups
-      const rgs = []
-      for await (const rg of armClient.resourceGroups.list()) rgs.push(rg)
+      // Collect all resource groups in this subscription
+      const allResourceGroups = []
+      for await (const resourceGroup of armClient.resourceGroups.list()) allResourceGroups.push(resourceGroup)
 
-      // Scan each resource group in parallel (batches of 5)
-      for (let i = 0; i < rgs.length; i += 5) {
-        const batch = rgs.slice(i, i + 5)
-        await Promise.allSettled(batch.map(async rg => {
-          const resources = []
-          for await (const r of armClient.resources.listByResourceGroup(rg.name)) resources.push(r)
-          await Promise.allSettled(resources.map(r => {
-            resourceCount++
-            return scanResource(context, armClient, subscriptionId, rg.name, r)
-              .then(() => driftCount++)
+      // Scan resource groups in parallel batches of 5 to avoid ARM throttling
+      for (let batchStart = 0; batchStart < allResourceGroups.length; batchStart += 5) {
+        const resourceGroupBatch = allResourceGroups.slice(batchStart, batchStart + 5)
+        await Promise.allSettled(resourceGroupBatch.map(async resourceGroup => {
+          const resourcesInGroup = []
+          for await (const resource of armClient.resources.listByResourceGroup(resourceGroup.name)) resourcesInGroup.push(resource)
+          await Promise.allSettled(resourcesInGroup.map(resource => {
+            resourcesChecked++
+            return scanResource(context, armClient, subscriptionId, resourceGroup.name, resource)
+              .then(() => driftsRecorded++)
               .catch(() => {})
           }))
         }))
@@ -130,6 +156,6 @@ module.exports = async function (context, timer) {
     context.log.error('[scanSubscription] fatal:', err.message)
   }
 
-  context.log(`[scanSubscription] done — ${subCount} subs, ${resourceCount} resources checked, ${driftCount} drifts recorded`)
+  context.log(`[scanSubscription] done — ${subscriptionsScanned} subs, ${resourcesChecked} resources checked, ${driftsRecorded} drifts recorded`)
 }
 // ── Main handler END ──────────────────────────────────────────────────────────

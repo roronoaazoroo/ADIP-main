@@ -1,3 +1,24 @@
+// FILE: src/components/LiveActivityFeed.jsx
+// ROLE: Real-time activity feed shown on the DriftScanner Activity tab
+
+// Props:
+//   liveEvents      — scan animation log entries (type, message, timestamp)
+//                     shown as simple log lines at the top of the feed
+//   driftEvents     — real ARM change events received via Socket.IO
+//                     shown as detailed drift cards with field-level changes
+//   isScanning      — true while the scan animation is playing
+//   isMonitoring    — true while the monitoring session is active
+//   socketConnected — true when the Socket.IO connection is live
+
+// Key functions:
+//   resolveUser(ev)  — extracts a human-readable caller name from an event
+//                      tries ev.caller, then ARM claims, then sessionStorage user
+//   downloadCSV()    — exports all events (both liveEvents and driftEvents) as a CSV file
+//   userFilter       — dropdown to filter driftEvents by a specific caller
+//   uniqueUsers      — derived from driftEvents, used to populate the filter dropdown
+//   filtered         — driftEvents after applying userFilter
+//   logRef           — ref to the scroll container, auto-scrolls to bottom on new events
+
 import React, { useRef, useEffect, useState, useMemo } from 'react'
 import './LiveActivityFeed.css'
 
@@ -7,16 +28,25 @@ function resolveUser(ev) {
     const svc = (ev.operationName || '').split('/')[0]?.replace('Microsoft.', '') || 'System'
     return `System (${svc})`
   }
-  try { const u = JSON.parse(sessionStorage.getItem('user') || '{}'); return u.name || u.username || 'Unknown user' }
+  try { const sessionUser = JSON.parse(sessionStorage.getItem('user') || '{}'); return sessionUser.name || sessionUser.username || 'Unknown user' }
   catch { return 'Unknown user' }
 }
 
 export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, isMonitoring, socketConnected, onClear }) {
+  // Ref to the scroll container — used to auto-scroll to the bottom on new events
   const logRef = useRef(null)
-  const [userFilter, setUserFilter] = useState('')
 
-  const uniqueUsers = useMemo(() => [...new Set(driftEvents.map(resolveUser))].sort(), [driftEvents])
-  const filtered    = useMemo(() => userFilter ? driftEvents.filter(ev => resolveUser(ev) === userFilter) : driftEvents, [driftEvents, userFilter])
+  // The currently selected user in the filter dropdown (empty string = show all users)
+  const [selectedUserFilter, setSelectedUserFilter] = useState('')
+
+  // Unique list of caller names derived from driftEvents — populates the filter dropdown
+  const uniqueCallerNames = useMemo(() => [...new Set(driftEvents.map(resolveUser))].sort(), [driftEvents])
+
+  // driftEvents after applying the user filter (or all events if no filter selected)
+  const filteredDriftEvents = useMemo(
+    () => selectedUserFilter ? driftEvents.filter(ev => resolveUser(ev) === selectedUserFilter) : driftEvents,
+    [driftEvents, selectedUserFilter]
+  )
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
@@ -31,19 +61,22 @@ export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, 
       const isDelete = ev.eventType?.includes('Delete')
       const isCreate = ev.operationName?.toLowerCase().includes('write') && !ev.hasPrevious
       const action = isDelete ? 'deleted' : isCreate ? 'created' : 'modified'
-      const changes = (ev.changes||[]).map(c => {
-        const p = (c.path||'').split(' → ').filter(s=>s&&s!=='_childConfig').slice(-3).join('.')
-        const ov = c.oldValue != null ? String(typeof c.oldValue==='object'?JSON.stringify(c.oldValue):c.oldValue) : ''
-        const nv = c.newValue != null ? String(typeof c.newValue==='object'?JSON.stringify(c.newValue):c.newValue) : ''
-        return ov&&nv ? `${p}: ${ov} -> ${nv}` : ov ? `${p}: removed (was ${ov})` : `${p}: added (${nv})`
+      const changesText = (ev.changes||[]).map(changeItem => {
+        const fieldPath = (changeItem.path||'').split(' → ').filter(segment => segment && segment !== '_childConfig').slice(-3).join('.')
+        const oldValueStr = changeItem.oldValue != null ? String(typeof changeItem.oldValue === 'object' ? JSON.stringify(changeItem.oldValue) : changeItem.oldValue) : ''
+        const newValueStr = changeItem.newValue != null ? String(typeof changeItem.newValue === 'object' ? JSON.stringify(changeItem.newValue) : changeItem.newValue) : ''
+        return oldValueStr && newValueStr ? `${fieldPath}: ${oldValueStr} -> ${newValueStr}`
+             : oldValueStr ? `${fieldPath}: removed (was ${oldValueStr})`
+             : `${fieldPath}: added (${newValueStr})`
       }).join(' | ')
-      rows.push([time,user,action,ev.resourceId?.split('/').pop()||'',ev.resourceId?.split('/')?.[7]||'',ev.resourceGroup||'',ev.operationName||'',ev.changes?.length||0,changes])
+      rows.push([time, user, action, ev.resourceId?.split('/').pop()||'', ev.resourceId?.split('/')?.[7]||'', ev.resourceGroup||'', ev.operationName||'', ev.changes?.length||0, changesText])
     })
-    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}))
-    a.download = `adip-activity-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`
-    a.click(); URL.revokeObjectURL(a.href)
+    const csvContent = rows.map(row => row.map(cellValue => `"${String(cellValue).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const downloadLink = document.createElement('a')
+    downloadLink.href = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv' }))
+    downloadLink.download = `adip-activity-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`
+    downloadLink.click()
+    URL.revokeObjectURL(downloadLink.href)
   }
 
   return (
@@ -52,10 +85,10 @@ export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, 
         {/* Header controls */}
         <div className="feed-controls" style={{ marginBottom: 12, justifyContent: 'flex-end' }}>
           <span className="panel-badge">{driftEvents.length} events</span>
-          {uniqueUsers.length > 0 && (
-            <select value={userFilter} onChange={e=>setUserFilter(e.target.value)} className="feed-user-filter">
+          {uniqueCallerNames.length > 0 && (
+            <select value={selectedUserFilter} onChange={e=>setSelectedUserFilter(e.target.value)} className="feed-user-filter">
               <option value=''>All users</option>
-              {uniqueUsers.map(u=><option key={u} value={u}>{u}</option>)}
+              {uniqueCallerNames.map(callerName=><option key={callerName} value={callerName}>{callerName}</option>)}
             </select>
           )}
           {(liveEvents.length > 0 || driftEvents.length > 0) && (
@@ -80,45 +113,45 @@ export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, 
           </div>
         ))}
 
-        {filtered.length > 0 && <div className="drift-feed-divider"><span>Live resource changes</span></div>}
+        {filteredDriftEvents.length > 0 && <div className="drift-feed-divider"><span>Live resource changes</span></div>}
 
-        {filtered.map(ev => {
-          const user        = resolveUser(ev)
-          const resName     = ev.resourceId?.split('/').pop() ?? ev.subject ?? 'resource'
-          const resType     = ev.resourceId?.split('/')?.[7] ?? ''
-          const isDelete    = ev.eventType?.includes('Delete')
-          const isCreate    = ev.operationName?.toLowerCase().includes('write') && !ev.hasPrevious
-          const action      = isDelete ? 'deleted' : isCreate ? 'created' : 'modified'
-          const azureTime   = ev.eventTime ? new Date(ev.eventTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ev._receivedAt
-          const op          = ev.operationName?.split('/')?.slice(-1)[0] ?? ''
+        {filteredDriftEvents.map(ev => {
+          const callerDisplayName  = resolveUser(ev)
+          const resourceShortName  = ev.resourceId?.split('/').pop() ?? ev.subject ?? 'resource'
+          const resourceTypeName   = ev.resourceId?.split('/')?.[7] ?? ''
+          const isDeleteEvent      = ev.eventType?.includes('Delete')
+          const isCreateEvent      = ev.operationName?.toLowerCase().includes('write') && !ev.hasPrevious
+          const actionLabel        = isDeleteEvent ? 'deleted' : isCreateEvent ? 'created' : 'modified'
+          const formattedEventTime = ev.eventTime ? new Date(ev.eventTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ev._receivedAt
+          const shortOperationName = ev.operationName?.split('/')?.slice(-1)[0] ?? ''
 
           return (
             <div key={ev._clientId} className="drift-event-row">
               <div className="drift-event-header">
-                <span className="drift-time">{azureTime}</span>
-                <span className="drift-user-badge">{user}</span>
-                <span className={`drift-action drift-action--${action}`}>{action}</span>
-                <span className="drift-resource-name">{resName}</span>
-                {resType && <span className="drift-resource-type">{resType}</span>}
-                {op && op!=='write' && op!=='delete' && <span className="drift-operation">via {op}</span>}
+                <span className="drift-time">{formattedEventTime}</span>
+                <span className="drift-user-badge">{callerDisplayName}</span>
+                <span className={`drift-action drift-action--${actionLabel}`}>{actionLabel}</span>
+                <span className="drift-resource-name">{resourceShortName}</span>
+                {resourceTypeName && <span className="drift-resource-type">{resourceTypeName}</span>}
+                {shortOperationName && shortOperationName !== 'write' && shortOperationName !== 'delete' && <span className="drift-operation">via {shortOperationName}</span>}
                 {ev.resourceGroup && <span className="drift-resource-group">in {ev.resourceGroup}</span>}
                 {ev.changes?.length > 0 && <span className="drift-field-count">{ev.changes.length} field{ev.changes.length>1?'s':''} changed</span>}
               </div>
               {ev.changes?.length > 0 && (
                 <div className="drift-changes">
-                  {ev.changes.slice(0,8).map((c,i) => {
-                    const segs = (c.path||'').split(' → ').filter(s=>s&&s!=='_childConfig')
-                    const dp   = segs.slice(-3).join(' → ')
-                    const dOld = c.oldValue!=null ? String(typeof c.oldValue==='object'?JSON.stringify(c.oldValue):c.oldValue).slice(0,50) : null
-                    const dNew = c.newValue!=null ? String(typeof c.newValue==='object'?JSON.stringify(c.newValue):c.newValue).slice(0,50) : null
-                    const typeClass = `drift-change-type--${(c.type||'modified').replace(' ', '-')}`
+                  {ev.changes.slice(0, 8).map((changeItem, changeIndex) => {
+                    const pathSegments    = (changeItem.path||'').split(' → ').filter(seg => seg && seg !== '_childConfig')
+                    const displayPath     = pathSegments.slice(-3).join(' → ')  // show last 3 segments to keep it readable
+                    const displayOldValue = changeItem.oldValue != null ? String(typeof changeItem.oldValue === 'object' ? JSON.stringify(changeItem.oldValue) : changeItem.oldValue).slice(0, 50) : null
+                    const displayNewValue = changeItem.newValue != null ? String(typeof changeItem.newValue === 'object' ? JSON.stringify(changeItem.newValue) : changeItem.newValue).slice(0, 50) : null
+                    const changeTypeCssClass = `drift-change-type--${(changeItem.type||'modified').replace(' ', '-')}`
                     return (
-                      <div key={i} className="drift-change-row">
-                        <span className={`drift-change-type ${typeClass}`}>{c.type?.replace('-',' ')}</span>
-                        <span className="drift-change-path">{dp}</span>
-                        {dOld!=null&&dNew!=null && <span><span className="drift-change-old">{dOld}</span><span className="drift-change-arrow">→</span><span className="drift-change-new">{dNew}</span></span>}
-                        {dOld!=null&&dNew==null && <span className="drift-change-label" style={{color:'var(--color-danger)'}}>was: {dOld}</span>}
-                        {dOld==null&&dNew!=null && <span className="drift-change-label" style={{color:'var(--color-success)'}}>now: {dNew}</span>}
+                      <div key={changeIndex} className="drift-change-row">
+                        <span className={`drift-change-type ${changeTypeCssClass}`}>{changeItem.type?.replace('-', ' ')}</span>
+                        <span className="drift-change-path">{displayPath}</span>
+                        {displayOldValue != null && displayNewValue != null && <span><span className="drift-change-old">{displayOldValue}</span><span className="drift-change-arrow">→</span><span className="drift-change-new">{displayNewValue}</span></span>}
+                        {displayOldValue != null && displayNewValue == null && <span className="drift-change-label" style={{color:'var(--color-danger)'}}>was: {displayOldValue}</span>}
+                        {displayOldValue == null && displayNewValue != null && <span className="drift-change-label" style={{color:'var(--color-success)'}}>now: {displayNewValue}</span>}
                       </div>
                     )
                   })}
