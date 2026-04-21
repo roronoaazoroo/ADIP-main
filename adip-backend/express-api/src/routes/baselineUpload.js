@@ -1,5 +1,6 @@
 // ============================================================
 // FILE: routes/baselineUpload.js
+// ROLE: POST /api/baselines/upload — accepts a JSON file as the new golden baseline
 // ============================================================
 const router_baselineUpload = require('express').Router()
 const { upsertBaseline } = require('../services/blobService')
@@ -20,12 +21,12 @@ router_baselineUpload.post('/baselines/upload', async (req, res) => {
   }
  
   try {
-    const saved = await upsertBaseline(subscriptionId, resourceGroupId || '', resourceId, baselineData)
-    res.json({ uploaded: true, id: saved?.id, resourceId })
+    const savedBaselineDocument = await upsertBaseline(subscriptionId, resourceGroupId || '', resourceId, baselineData)
+    res.json({ uploaded: true, id: savedBaselineDocument?.id, resourceId })
     console.log('[POST /baselines/upload] ends — resourceId:', resourceId)
-  } catch (err) {
-    console.log('[POST /baselines/upload] ends — error:', err.message)
-    res.status(500).json({ error: err.message })
+  } catch (uploadError) {
+    console.log('[POST /baselines/upload] ends — error:', uploadError.message)
+    res.status(500).json({ error: uploadError.message })
   }
 })
 // ── POST /api/baselines/upload END ───────────────────────────────────────────

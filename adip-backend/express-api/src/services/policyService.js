@@ -8,62 +8,62 @@ const credential = new DefaultAzureCredential()
 // Queries Azure Policy compliance state for a specific resource or resource group (read-only)
 async function getPolicyCompliance(subscriptionId, resourceGroupName, resourceId = null) {
   console.log('[getPolicyCompliance] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupName, 'resourceId:', resourceId)
-  const client = new PolicyInsightsClient(credential, subscriptionId)
-
-  const results = []
+  const policyClient       = new PolicyInsightsClient(credential, subscriptionId)
+  const policyStateResults = []
 
   if (resourceId) {
-    const parts    = resourceId.split('/')
-    const provider = parts[6]
-    const type     = parts[7]
-    const name     = parts[8]
+    // Build the full ARM scope path required by the Policy Insights API
+    const resourceIdParts   = resourceId.split('/')
+    const providerNamespace = resourceIdParts[6]
+    const resourceTypeName  = resourceIdParts[7]
+    const resourceName      = resourceIdParts[8]
+    const resourceScopePath = `subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/${providerNamespace}/${resourceTypeName}/${resourceName}`
 
-    const resourceScope = `subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/${provider}/${type}/${name}`
-
-    for await (const state of client.policyStates.listQueryResultsForResource(
-      'latest', resourceScope, { queryOptions: { top: 50 } }
+    for await (const policyState of policyClient.policyStates.listQueryResultsForResource(
+      'latest', resourceScopePath, { queryOptions: { top: 50 } }
     )) {
-      results.push(formatState(state))
+      policyStateResults.push(formatPolicyState(policyState))
     }
   } else {
-    for await (const state of client.policyStates.listQueryResultsForResourceGroup(
+    for await (const policyState of policyClient.policyStates.listQueryResultsForResourceGroup(
       'latest', subscriptionId, resourceGroupName, { queryOptions: { top: 100 } }
     )) {
-      results.push(formatState(state))
+      policyStateResults.push(formatPolicyState(policyState))
     }
   }
 
-  const nonCompliant = results.filter(r => r.complianceState === 'NonCompliant')
-  const compliant    = results.filter(r => r.complianceState === 'Compliant')
+  const nonCompliantStates = policyStateResults.filter(state => state.complianceState === 'NonCompliant')
+  const compliantStates    = policyStateResults.filter(state => state.complianceState === 'Compliant')
 
-  const result = {
-    total:        results.length,
-    nonCompliant: nonCompliant.length,
-    compliant:    compliant.length,
-    summary:      nonCompliant.length === 0 ? 'compliant' : 'non-compliant',
-    violations:   nonCompliant,
+  const complianceSummary = {
+    total:        policyStateResults.length,
+    nonCompliant: nonCompliantStates.length,
+    compliant:    compliantStates.length,
+    summary:      nonCompliantStates.length === 0 ? 'compliant' : 'non-compliant',
+    violations:   nonCompliantStates,
   }
-  console.log('[getPolicyCompliance] ends — total:', results.length, 'nonCompliant:', nonCompliant.length)
-  return result
+  console.log('[getPolicyCompliance] ends — total:', policyStateResults.length, 'nonCompliant:', nonCompliantStates.length)
+  return complianceSummary
 }
 // ── getPolicyCompliance END ──────────────────────────────────────────────────
 
 
 // ── formatState START ────────────────────────────────────────────────────────
 // Maps a raw PolicyInsights state object to a clean, serialisable result shape
-function formatState(state) {
-  console.log('[formatState] starts')
-  const result = {
-    complianceState:        state.complianceState,
-    policyAssignmentName:   state.policyAssignmentName,
-    policyDefinitionName:   state.policyDefinitionName,
-    policyDefinitionAction: state.policyDefinitionAction,
-    resourceId:             state.resourceId,
-    resourceType:           state.resourceType,
-    timestamp:              state.timestamp,
+// Maps a raw PolicyInsights state object to a clean serialisable shape
+function formatPolicyState(rawPolicyState) {
+  console.log('[formatPolicyState] starts')
+  const formattedState = {
+    complianceState:        rawPolicyState.complianceState,
+    policyAssignmentName:   rawPolicyState.policyAssignmentName,
+    policyDefinitionName:   rawPolicyState.policyDefinitionName,
+    policyDefinitionAction: rawPolicyState.policyDefinitionAction,
+    resourceId:             rawPolicyState.resourceId,
+    resourceType:           rawPolicyState.resourceType,
+    timestamp:              rawPolicyState.timestamp,
   }
-  console.log('[formatState] ends — state:', result.complianceState)
-  return result
+  console.log('[formatPolicyState] ends — state:', formattedState.complianceState)
+  return formattedState
 }
 // ── formatState END ──────────────────────────────────────────────────────────
 

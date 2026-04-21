@@ -1,3 +1,23 @@
+// FILE: src/components/JsonTree.jsx
+// ROLE: Interactive collapsible JSON tree viewer
+
+// Props:
+//   data — any JavaScript value (object, array, string, number, boolean, null)
+//   ref  — forwarded ref that exposes expandAll() and collapseAll() methods
+//          (used by ComparisonPage and DriftScanner toolbar buttons)
+
+// How it works:
+//   - expandedNodes: a Set of dot-notation paths that are currently expanded
+//     e.g. 'properties', 'properties.networkAcls', 'tags'
+//   - toggleNode(path): adds or removes a path from expandedNodes on click
+//   - renderNode(val, path, depth): recursively renders any JS value
+//     Objects and arrays show a ▶ toggle button and a count badge
+//     Primitives (string/number/bool/null) render with colour-coded CSS classes
+//   - expandAll(): collects all nested paths via DFS and adds them all to expandedNodes
+//   - collapseAll(): clears expandedNodes so everything collapses
+//   - useImperativeHandle: exposes expandAll/collapseAll on the forwarded ref
+//     so parent components can call jsonTreeRef.current.expandAll()
+
 import React, { useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import './JsonTree.css'
 

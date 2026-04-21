@@ -1,5 +1,6 @@
 // ============================================================
 // FILE: routes/subscriptions.js
+// ROLE: GET /api/subscriptions — returns all Azure subscriptions the credential can access
 // ============================================================
 const router_subscriptions = require('express').Router()
 const { listSubscriptions } = require('../services/azureResourceService')
@@ -9,12 +10,13 @@ const { listSubscriptions } = require('../services/azureResourceService')
 router_subscriptions.get('/subscriptions', async (req, res) => {
   console.log('[GET /subscriptions] starts')
   try {
-    const subs = await listSubscriptions()
-    res.json(subs.map(s => ({ id: s.subscriptionId, name: s.displayName })))
-    console.log('[GET /subscriptions] ends — returned:', subs.length)
-  } catch (err) {
-    console.log('[GET /subscriptions] ends — error:', err.message)
-    res.status(500).json({ error: err.message })
+    const subscriptionList = await listSubscriptions()
+    // Return only the fields the frontend needs
+    res.json(subscriptionList.map(subscription => ({ id: subscription.subscriptionId, name: subscription.displayName })))
+    console.log('[GET /subscriptions] ends — returned:', subscriptionList.length)
+  } catch (fetchError) {
+    console.log('[GET /subscriptions] ends — error:', fetchError.message)
+    res.status(500).json({ error: fetchError.message })
   }
 })
 // ── GET /api/subscriptions END ───────────────────────────────────────────────

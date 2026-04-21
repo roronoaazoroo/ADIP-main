@@ -1,8 +1,7 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/queuePoller.js
 // ROLE: Real-time change feed engine — polls Azure Storage Queue and pushes events to the browser
-//
 // What this file owns:
+
 //   - startQueuePoller(): reads the 'resource-changes' queue every 5s
 //   - parseMessage(): decodes raw Event Grid queue messages into structured event objects
 //   - enrichWithDiff(): fetches live ARM config, diffs against previous state,
@@ -12,10 +11,10 @@
 //     Azure Table Storage ('liveStateCache' table) so diffs survive Express restarts
 //   - saveChangeRecord(): called after each event to write to 'all-changes' blob
 //     and 'changesIndex' Table (permanent audit log)
-//
+
 // Called by: app.js on server start via startQueuePoller()
 // Emits to:  global.io Socket.IO rooms (subscriptionId:resourceGroup:resourceName)
-// ============================================================
+
 'use strict'
 const { QueueServiceClient } = require('@azure/storage-queue')
 const { TableClient }        = require('@azure/data-tables')

@@ -23,23 +23,23 @@ const DUMMY_USERS = [
 
   /**
    * Handle Microsoft Sign-In.
-   * 
+
    * When SSO is configured (VITE_AZURE_CLIENT_ID + VITE_AZURE_TENANT_ID set),
    * this will use MSAL to authenticate via Azure AD popup.
-   * 
+   
    * In demo mode (no env vars), it navigates directly to dashboard.
-   * 
+   
    * To enable real SSO:
    * 1. npm install @azure/msal-browser
    * 2. Set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID in .env
    * 3. Uncomment the MSAL code in services/api.js
    * 4. Replace the demo branch below with:
-   *    
+   
    *    import { msalInstance, loginWithMicrosoft } from '../services/api'
    *    const result = await loginWithMicrosoft()
    *    // Store account info in context/state
-   *    navigate('/home')
-   */
+   *    navigate('/home')*/
+   
   const handleLogin = () => {
     setError(null)
     if (!username || !password) { setError('Please enter username and password.'); return }

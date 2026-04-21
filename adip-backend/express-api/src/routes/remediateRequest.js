@@ -15,16 +15,25 @@ router_remediateRequest.post('/remediate-request', async (req, res) => {
   }
  
   try {
-    const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
-    if (logicAppUrl && ['critical', 'high', 'medium'].includes(severity)) await fetch(logicAppUrl, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscriptionId, resourceGroup: resourceGroupId, resourceId, severity: severity || 'high', changeCount: differences?.length || changes?.length || 0, differences: differences || changes || [], detectedAt: new Date().toISOString() }),
-    }).catch(() => {})
+    // POST to Logic App → sendAlert Function → ACS email with Approve/Reject links
+    const alertLogicAppUrl = process.env.ALERT_LOGIC_APP_URL
+    if (alertLogicAppUrl && ['critical', 'high', 'medium'].includes(severity)) {
+      await fetch(alertLogicAppUrl, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionId, resourceGroup: resourceGroupId, resourceId,
+          severity: severity || 'high',
+          changeCount: differences?.length || changes?.length || 0,
+          differences: differences || changes || [],
+          detectedAt: new Date().toISOString(),
+        }),
+      }).catch(() => {})
+    }
     res.json({ requested: true, message: 'Approval email sent to administrators.' })
     console.log('[POST /remediate-request] ends — email sent')
-  } catch (err) {
-    console.log('[POST /remediate-request] ends — error:', err.message)
-    res.status(500).json({ error: err.message })
+  } catch (requestError) {
+    console.log('[POST /remediate-request] ends — error:', requestError.message)
+    res.status(500).json({ error: requestError.message })
   }
 })
 // ── POST /api/remediate-request END ──────────────────────────────────────────

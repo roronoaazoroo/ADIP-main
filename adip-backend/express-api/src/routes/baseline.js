@@ -1,5 +1,6 @@
 // ============================================================
 // FILE: routes/baseline.js
+// ROLE: GET /api/baselines — fetch golden baseline | POST /api/baselines — save new baseline
 // ============================================================
 const router_baseline = require('express').Router()
 const { getBaseline, saveBaseline } = require('../services/blobService')
@@ -14,12 +15,12 @@ router_baseline.get('/baselines', async (req, res) => {
     return res.status(400).json({ error: 'subscriptionId required' })
   }
   try {
-    const baseline = await getBaseline(subscriptionId, resourceId)
-    res.json(baseline || null)
+    const baselineDocument = await getBaseline(subscriptionId, resourceId)
+    res.json(baselineDocument || null)
     console.log('[GET /baselines] ends')
-  } catch (err) {
-    console.log('[GET /baselines] ends — error:', err.message)
-    res.status(500).json({ error: err.message })
+  } catch (fetchError) {
+    console.log('[GET /baselines] ends — error:', fetchError.message)
+    res.status(500).json({ error: fetchError.message })
   }
 })
 // ── GET /api/baselines END ───────────────────────────────────────────────────
@@ -34,12 +35,12 @@ router_baseline.post('/baselines', async (req, res) => {
     return res.status(400).json({ error: 'subscriptionId and resourceState required' })
   }
   try {
-    const saved = await saveBaseline(subscriptionId, resourceGroupId, resourceId, resourceState)
-    res.json(saved)
+    const savedBaselineDocument = await saveBaseline(subscriptionId, resourceGroupId, resourceId, resourceState)
+    res.json(savedBaselineDocument)
     console.log('[POST /baselines] ends')
-  } catch (err) {
-    console.log('[POST /baselines] ends — error:', err.message)
-    res.status(500).json({ error: err.message })
+  } catch (saveError) {
+    console.log('[POST /baselines] ends — error:', saveError.message)
+    res.status(500).json({ error: saveError.message })
   }
 })
 // ── POST /api/baselines END ──────────────────────────────────────────────────

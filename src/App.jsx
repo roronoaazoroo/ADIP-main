@@ -1,6 +1,5 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { DashboardProvider } from './context/DashboardContext'
-import { ThemeProvider } from './context/ThemeContext'
 import LoginPage      from './pages/LoginPage'
 import DashboardHome  from './pages/DashboardHome'
 import DriftScanner  from './pages/DriftScanner'
@@ -13,7 +12,6 @@ function App() {
   const showChat = location.pathname !== '/'
 
   return (
-    <ThemeProvider>
       <DashboardProvider>
         <Routes>
           <Route path="/" element={<LoginPage />} />
@@ -24,9 +22,7 @@ function App() {
         </Routes>
         {showChat && <AzureChatbot />}
       </DashboardProvider>
-    </ThemeProvider>
   )
 }
 
 export default App
-

@@ -16,10 +16,10 @@ router_drift.get('/drift-events', async (req, res) => {
   const { subscriptionId, resourceGroup, severity, since, caller, limit = 50 } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   try {
-    const records = await getDriftRecordsForRoute({ subscriptionId, resourceGroup, severity, startDate: since, limit })
-    const filtered = caller ? records.filter(r => r.caller === caller) : records
-    res.json(filtered)
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    const driftRecords          = await getDriftRecordsForRoute({ subscriptionId, resourceGroup, severity, startDate: since, limit })
+    const callerFilteredRecords = caller ? driftRecords.filter(record => record.caller === caller) : driftRecords
+    res.json(callerFilteredRecords)
+  } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
 // ── GET /api/changes/recent ───────────────────────────────────────────────────
@@ -29,10 +29,10 @@ router_drift.get('/changes/recent', async (req, res) => {
   const { subscriptionId, resourceGroup, caller, changeType, hours = 24, limit = 200 } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   try {
-    const since = new Date(Date.now() - Number(hours) * 3600 * 1000).toISOString()
-    const records = await getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since, limit: Number(limit) })
-    res.json(records)
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    const sinceTimestamp      = new Date(Date.now() - Number(hours) * 3600 * 1000).toISOString()
+    const recentChangeRecords = await getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since: sinceTimestamp, limit: Number(limit) })
+    res.json(recentChangeRecords)
+  } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
 // ── GET /api/changes/count ────────────────────────────────────────────────────
@@ -41,9 +41,9 @@ router_drift.get('/changes/count', async (req, res) => {
   const { subscriptionId } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   try {
-    const total = await getTotalChangesCount(subscriptionId)
-    res.json({ total })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    const totalChangeCount = await getTotalChangesCount(subscriptionId)
+    res.json({ total: totalChangeCount })
+  } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
 // ── GET /api/stats/today ──────────────────────────────────────────────────────
@@ -60,29 +60,30 @@ router_drift.get('/stats/today', async (req, res) => {
     const tc = getChangesIndexTable()
     const filter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${sinceISO}'`
 
-    const uniqueResources = new Set()
-    const uniqueRGs = new Set()
-    const uniqueCallers = new Set()
-    let totalChanges = 0
+    // Use Sets to count unique resources, RGs, and callers
+    const uniqueResourceIds    = new Set()
+    const uniqueResourceGroups = new Set()
+    const uniqueCallerNames    = new Set()
+    let totalChangesToday = 0
 
-    for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
-      totalChanges++
-      if (entity.resourceId)    uniqueResources.add(entity.resourceId)
-      if (entity.resourceGroup) uniqueRGs.add(entity.resourceGroup)
-      if (entity.caller)        uniqueCallers.add(entity.caller)
+    for await (const changeEntity of tc.listEntities({ queryOptions: { filter } })) {
+      totalChangesToday++
+      if (changeEntity.resourceId)    uniqueResourceIds.add(changeEntity.resourceId)
+      if (changeEntity.resourceGroup) uniqueResourceGroups.add(changeEntity.resourceGroup)
+      if (changeEntity.caller)        uniqueCallerNames.add(changeEntity.caller)
     }
 
     const allTimeTotal = await getTotalChangesCount(subscriptionId).catch(() => 0)
 
     res.json({
-      totalChanges,
-      totalDrifted:  uniqueResources.size,   // unique resources with changes today
-      totalRGs:      uniqueRGs.size,
-      uniqueCallers: [...uniqueCallers],
+      totalChanges:  totalChangesToday,
+      totalDrifted:  uniqueResourceIds.size,    // unique resources with at least one change today
+      totalRGs:      uniqueResourceGroups.size,
+      uniqueCallers: [...uniqueCallerNames],
       since:         sinceISO,
       allTimeTotal,
     })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (statsError) { res.status(500).json({ error: statsError.message }) }
 })
 
 // ── GET /api/stats/chart ──────────────────────────────────────────────────────
@@ -121,19 +122,17 @@ router_drift.get('/stats/chart', async (req, res) => {
   try {
     const tc = getChangesIndexTable()
     const filter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${since}'`
-    for await (const entity of tc.listEntities({ queryOptions: { filter, select: ['detectedAt'] } })) {
-      const d = new Date(entity.detectedAt)
-      let key
-      if (mode === '24h') {
-        key = `${d.toISOString().slice(0, 10)}T${String(d.getHours()).padStart(2, '0')}`
-      } else {
-        key = d.toISOString().slice(0, 10)
-      }
-      const bucket = buckets.find(b => b.key === key)
-      if (bucket) bucket.count++
+    for await (const changeEntity of tc.listEntities({ queryOptions: { filter, select: ['detectedAt'] } })) {
+      const eventDate = new Date(changeEntity.detectedAt)
+      // Build the bucket key matching the format used when creating buckets above
+      const bucketKey = mode === '24h'
+        ? `${eventDate.toISOString().slice(0, 10)}T${String(eventDate.getHours()).padStart(2, '0')}`
+        : eventDate.toISOString().slice(0, 10)
+      const matchingBucket = buckets.find(bucket => bucket.key === bucketKey)
+      if (matchingBucket) matchingBucket.count++
     }
     res.json({ mode, buckets })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+  } catch (chartError) { res.status(500).json({ error: chartError.message }) }
 })
 
 module.exports = router_drift

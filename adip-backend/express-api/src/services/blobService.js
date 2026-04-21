@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/blobService.js
 // ROLE: All Azure Blob Storage and Table Storage reads/writes for the Express API
-//
+
 // What this file owns:
 //   - saveBaseline() / getBaseline(): golden baseline blobs in 'baselines' container
 //   - saveDriftRecord() / getDriftRecords(): drift detection results in 'drift-records'
@@ -12,13 +11,13 @@
 //     in 'baseline-genome' container + 'genomeIndex' Table
 //   - All blob keys use base64url(resourceId) so ARM resource IDs (which contain /)
 //     are safe to use as blob filenames
-//
+
 // Pattern: every blob write is paired with a Table Storage upsert (the index).
 //   Table = fast O(filtered) query to find which blobs to fetch.
 //   Blob  = full JSON document storage.
-//
+
 // Called by: drift.js, baseline.js, genome.js, compare.js, queuePoller.js, app.js
-// ============================================================
+
 const { BlobServiceClient } = require('@azure/storage-blob')
 const { TableClient, odata } = require('@azure/data-tables')
 

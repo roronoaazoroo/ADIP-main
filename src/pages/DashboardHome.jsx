@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: src/pages/DashboardHome.jsx
 // ROLE: Main dashboard page — KPI cards, charts, and recent ARM change events table
-//
+
 // What this page does:
 //   - load(): fetches subscriptions, resource groups, resources, stats, and recent
 //     changes on mount and every 30 seconds (keeps KPIs fresh without page reload)
@@ -15,10 +14,10 @@
 //     ComparisonPage with the resource pre-loaded (navigateToComparison)
 //   - FilterDropdown: two-stage filter (pendingFilters → appliedFilters on Apply click)
 //     so the table only re-fetches when the user explicitly applies filters
-//
+
 // NOTE: This page shows ALL ARM events (all-changes), not just severity-classified
 //   drift (drift-records). This is intentional — it is an infrastructure audit log.
-// ============================================================
+
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
@@ -165,142 +164,222 @@ export default function DashboardHome() {
   const navigate = useNavigate()
   const { subscription: ctxSub, resourceGroup, resource, configData } = useDashboard()
 
-  const [subs,        setSubs]        = useState([])
-  const [rgs,         setRgs]         = useState([])
-  const [totalRes,    setTotalRes]    = useState(0)
-  const [activeSub,   setActiveSub]   = useState(ctxSub || '')
-  const [stats,       setStats]       = useState(null)
-  const [driftEvents, setDriftEvents] = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [search,      setSearch]      = useState('')
+  // List of Azure subscriptions the user has access to (fetched from /api/subscriptions)
+  const [subscriptionList,    setSubscriptionList]    = useState([])
+
+  // List of resource groups in the active subscription (fetched from /api/resource-groups)
+  const [resourceGroupList,   setResourceGroupList]   = useState([])
+
+  // Total count of all resources across the first 10 resource groups
+  const [totalResourceCount,  setTotalResourceCount]  = useState(0)
+
+  // The currently selected subscription ID — drives all data fetches
+  const [activeSubscriptionId, setActiveSubscriptionId] = useState(ctxSub || '')
+
+  // Today's stats from /api/stats/today: { totalChanges, totalDrifted, allTimeTotal }
+  const [todayStats,          setTodayStats]          = useState(null)
+
+  // The list of recent ARM change events shown in the table (from /api/changes/recent)
+  const [recentChangeEvents,  setRecentChangeEvents]  = useState([])
+
+  // Whether the page is currently loading data (shows 'Loading...' in the table)
+  const [isLoadingData,       setIsLoadingData]       = useState(true)
+
+  // Text typed in the search box — used for client-side filtering of the table
+  const [searchText,          setSearchText]          = useState('')
 
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
-  // Today midnight ISO
-  const todayMidnight = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() })()
+  // ISO timestamp for today at midnight — used as the default 'since' value for data fetches
+  const todayMidnightISO = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() })()
 
-  // Filter state
-  const emptyFilters = { time: ['Last 24 Hours'], subscription: [], resourceGroup: [], resource: [], username: [], change: [] }
-  const [pendingFilters, setPendingFilters] = useState({ ...emptyFilters })
-  const [appliedFilters, setAppliedFilters] = useState({ ...emptyFilters })
-  const [openFilter,     setOpenFilter]     = useState(null)
+  // Default filter state — time defaults to Last 24 Hours, all others empty (no filter)
+  const defaultFilters = { time: ['Last 24 Hours'], subscription: [], resourceGroup: [], resource: [], username: [], change: [] }
 
-  const toggleFilterOption = (key, option) => {
-    setPendingFilters(prev => {
-      const arr = prev[key]
-      // Time is single-select
-      if (key === 'time') return { ...prev, time: [option] }
-      return { ...prev, [key]: arr.includes(option) ? arr.filter(o => o !== option) : [...arr, option] }
+  // pendingFilters: what the user has checked in the dropdowns but NOT yet applied
+  // These update on every checkbox click but do NOT trigger a data fetch
+  const [pendingFilters, setPendingFilters] = useState({ ...defaultFilters })
+
+  // appliedFilters: the filters that are actually active and driving the data fetch
+  // Only updated when the user clicks the Apply button
+  const [appliedFilters, setAppliedFilters] = useState({ ...defaultFilters })
+
+  // Which filter dropdown is currently open (null = all closed)
+  const [openFilterKey, setOpenFilterKey] = useState(null)
+
+  // Called when the user checks/unchecks a filter option in a dropdown
+  // Time filter is single-select (only one time range at a time)
+  // All other filters are multi-select (can pick multiple resource groups, users, etc.)
+  const toggleFilterOption = (filterCategory, selectedOption) => {
+    setPendingFilters(previousFilters => {
+      const currentSelections = previousFilters[filterCategory]
+      if (filterCategory === 'time') return { ...previousFilters, time: [selectedOption] }
+      const isAlreadySelected = currentSelections.includes(selectedOption)
+      return {
+        ...previousFilters,
+        [filterCategory]: isAlreadySelected
+          ? currentSelections.filter(opt => opt !== selectedOption)  // remove it
+          : [...currentSelections, selectedOption]                   // add it
+      }
     })
   }
 
-  const applyFilters = () => { setAppliedFilters({ ...pendingFilters }); setOpenFilter(null) }
-  const clearFilters = () => { setPendingFilters({ ...emptyFilters }); setAppliedFilters({ ...emptyFilters }); setOpenFilter(null) }
-  const hasActiveFilters = Object.entries(appliedFilters).some(([k, arr]) => k !== 'time' && arr.length > 0)
+  // Moves pendingFilters into appliedFilters — this triggers load() to re-fetch with new filters
+  const applyFilters = () => { setAppliedFilters({ ...pendingFilters }); setOpenFilterKey(null) }
+
+  // Resets all filters back to defaults and re-fetches
+  const clearFilters = () => { setPendingFilters({ ...defaultFilters }); setAppliedFilters({ ...defaultFilters }); setOpenFilterKey(null) }
+
+  // True if any non-time filter has a selection (used to show the Clear All button)
+  const hasActiveFilters = Object.entries(appliedFilters).some(([filterKey, selections]) => filterKey !== 'time' && selections.length > 0)
+
+  // True if pendingFilters differs from appliedFilters (used to enable/highlight the Apply button)
   const hasPendingChanges = JSON.stringify(pendingFilters) !== JSON.stringify(appliedFilters)
 
-  // Compute `since` from time filter
-  const getSince = () => {
-    const t = appliedFilters.time[0] || 'Last 24 Hours'
-    if (t === 'Last 1 Hour')  return new Date(Date.now() - 3600000).toISOString()
-    if (t === 'Last 7 Days')  return new Date(Date.now() - 7 * 86400000).toISOString()
-    return todayMidnight // Last 24 Hours default
+  // Converts the selected time filter label into an ISO timestamp
+  // This timestamp is passed to /api/changes/recent as the 'since' parameter
+  const getStartTimeFromFilter = () => {
+    const selectedTimeRange = appliedFilters.time[0] || 'Last 24 Hours'
+    if (selectedTimeRange === 'Last 1 Hour')  return new Date(Date.now() - 3600000).toISOString()
+    if (selectedTimeRange === 'Last 7 Days')  return new Date(Date.now() - 7 * 86400000).toISOString()
+    return todayMidnightISO  // default: Last 24 Hours = since midnight today
   }
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  // load() — main data fetch function
+  // Called on mount, every 30 seconds, and whenever appliedFilters changes
+  // Fetches: subscriptions → resource groups → resource count → today's stats → recent change events
+  const loadDashboardData = useCallback(async () => {
+    setIsLoadingData(true)
     try {
-      const s = await fetchSubscriptions()
-      const subList = Array.isArray(s) ? s : []
-      setSubs(subList)
-      const sub = activeSub || subList[0]?.id || ''
-      if (!activeSub && sub) setActiveSub(sub)
-      if (!sub) { setLoading(false); return }
+      // Step 1: Fetch all Azure subscriptions the user has access to
+      const subscriptionsResponse = await fetchSubscriptions()
+      const subscriptions = Array.isArray(subscriptionsResponse) ? subscriptionsResponse : []
+      setSubscriptionList(subscriptions)
 
-      const rgList = await fetchResourceGroups(sub).catch(() => [])
-      const rgArr = Array.isArray(rgList) ? rgList : []
-      setRgs(rgArr)
-      let resCount = 0
-      await Promise.allSettled(rgArr.slice(0, 10).map(async rg => {
-        const resList = await fetchResources(sub, rg.id || rg.name).catch(() => [])
-        resCount += Array.isArray(resList) ? resList.length : 0
+      // Use the subscription from context (if user navigated from DriftScanner) or default to first
+      const selectedSubscriptionId = activeSubscriptionId || subscriptions[0]?.id || ''
+      if (!activeSubscriptionId && selectedSubscriptionId) setActiveSubscriptionId(selectedSubscriptionId)
+      if (!selectedSubscriptionId) { setIsLoadingData(false); return }
+
+      // Step 2: Fetch resource groups for the selected subscription
+      const resourceGroups = await fetchResourceGroups(selectedSubscriptionId).catch(() => [])
+      const resourceGroupArray = Array.isArray(resourceGroups) ? resourceGroups : []
+      setResourceGroupList(resourceGroupArray)
+
+      // Step 3: Count total resources across the first 10 resource groups (in parallel)
+      let totalResources = 0
+      await Promise.allSettled(resourceGroupArray.slice(0, 10).map(async resourceGroup => {
+        const resourcesInGroup = await fetchResources(selectedSubscriptionId, resourceGroup.id || resourceGroup.name).catch(() => [])
+        totalResources += Array.isArray(resourcesInGroup) ? resourcesInGroup.length : 0
       }))
-      setTotalRes(resCount)
+      setTotalResourceCount(totalResources)
 
-      const statsData = await fetchStatsToday(sub).catch(() => null)
-      setStats(statsData)
+      // Step 4: Fetch today's stats for KPI cards and donut chart
+      // Returns: { totalChanges, totalDrifted (unique resources changed), allTimeTotal }
+      const statsForToday = await fetchStatsToday(selectedSubscriptionId).catch(() => null)
+      setTodayStats(statsForToday)
 
-      // Fetch from all-changes blob (all ARM events, not just drift) — last 24h by default, respects time filter
-      // NOTE: This queries all-changes (every ARM write/delete), not drift-records (severity-classified drift only).
-      // Intentional — the dashboard shows all infrastructure changes, not just deviations from baseline.
-      const timeLabel = appliedFilters.time[0] || 'Last 24 Hours'
-      const hours = timeLabel === 'Last 1 Hour' ? 1 : timeLabel === 'Last 7 Days' ? 168 : 24
-      const rgFilter     = appliedFilters.resourceGroup[0] || undefined
-      const callerFilter = appliedFilters.username[0]      || undefined
-      const typeFilter   = appliedFilters.change[0] === 'Resource Deleted' ? 'deleted'
-                         : appliedFilters.change[0] === 'Property Modified' || appliedFilters.change[0] === 'Tag Changed' ? 'modified'
-                         : undefined
-      const events = await fetchRecentChanges(sub, { resourceGroup: rgFilter, caller: callerFilter, changeType: typeFilter, hours, limit: 200 }).catch(() => [])
-      setDriftEvents(Array.isArray(events) ? events : [])
-    } catch (e) {
-      console.error('[DashboardHome] load error:', e.message)
+      // Step 5: Fetch recent ARM change events for the table
+      // Queries 'all-changes' blob (every ARM write/delete), NOT 'drift-records' (severity-classified drift only)
+      // This is intentional — the dashboard is an infrastructure audit log, not just a drift log
+      const selectedTimeRange = appliedFilters.time[0] || 'Last 24 Hours'
+      const hoursToFetch = selectedTimeRange === 'Last 1 Hour' ? 1 : selectedTimeRange === 'Last 7 Days' ? 168 : 24
+
+      // Map filter selections to API parameters
+      const resourceGroupFilter = appliedFilters.resourceGroup[0] || undefined
+      const callerFilter        = appliedFilters.username[0]      || undefined
+      const changeTypeFilter    = appliedFilters.change[0] === 'Resource Deleted' ? 'deleted'
+                                : appliedFilters.change[0] === 'Property Modified' || appliedFilters.change[0] === 'Tag Changed' ? 'modified'
+                                : undefined
+
+      const changeEvents = await fetchRecentChanges(selectedSubscriptionId, {
+        resourceGroup: resourceGroupFilter,
+        caller:        callerFilter,
+        changeType:    changeTypeFilter,
+        hours:         hoursToFetch,
+        limit:         200,
+      }).catch(() => [])
+      setRecentChangeEvents(Array.isArray(changeEvents) ? changeEvents : [])
+
+    } catch (fetchError) {
+      console.error('[DashboardHome] loadDashboardData error:', fetchError.message)
     } finally {
-      setLoading(false)
+      setIsLoadingData(false)
     }
-  }, [activeSub, appliedFilters])
+  }, [activeSubscriptionId, appliedFilters])
 
-  useEffect(() => { load() }, [load])
+  // Run loadDashboardData on mount and whenever appliedFilters changes (e.g. user clicks Apply)
+  useEffect(() => { loadDashboardData() }, [loadDashboardData])
 
-  // Auto-refresh counts every 30 seconds
+  // Auto-refresh the dashboard every 30 seconds so KPIs stay current without a page reload
   useEffect(() => {
-    const id = setInterval(() => load(), 30000)
-    return () => clearInterval(id)
-  }, [load])
+    const autoRefreshTimer = setInterval(() => loadDashboardData(), 30000)
+    return () => clearInterval(autoRefreshTimer)  // cleanup on unmount
+  }, [loadDashboardData])
 
-  // Dynamic filter options — derived from loaded all-changes data
-  const filterOptions = {
+  // Filter dropdown configuration — defines labels, icons, and available options for each filter
+  // Options for resource, username are derived dynamically from the loaded change events
+  const filterDropdownConfig = {
     time:          { label: 'Time',           icon: 'schedule',        options: ['Last 1 Hour', 'Last 24 Hours', 'Last 7 Days'] },
-    subscription:  { label: 'Subscription',   icon: 'layers',          options: subs.map(s => s.name || s.id) },
-    resourceGroup: { label: 'Resource Group', icon: 'folder',          options: rgs.map(r => r.name || r.id) },
-    resource:      { label: 'Resource',       icon: 'dns',             options: [...new Set(driftEvents.map(e => e.resourceId?.split('/').pop()).filter(Boolean))] },
-    username:      { label: 'Username',       icon: 'person',          options: [...new Set(driftEvents.map(e => e.caller).filter(Boolean))] },
+    subscription:  { label: 'Subscription',   icon: 'layers',          options: subscriptionList.map(sub => sub.name || sub.id) },
+    resourceGroup: { label: 'Resource Group', icon: 'folder',          options: resourceGroupList.map(rg => rg.name || rg.id) },
+    resource:      { label: 'Resource',       icon: 'dns',             options: [...new Set(recentChangeEvents.map(event => event.resourceId?.split('/').pop()).filter(Boolean))] },
+    username:      { label: 'Username',       icon: 'person',          options: [...new Set(recentChangeEvents.map(event => event.caller).filter(Boolean))] },
     change:        { label: 'Change',         icon: 'compare_arrows',  options: ['Property Modified', 'Resource Deleted', 'Tag Changed'] },
   }
 
-  // Client-side filtering (resource and tag-changed filters applied here since API doesn't support them)
-  const applyClientFilters = (events) => {
-    let result = events
-    if (search) result = result.filter(e =>
-      e.resourceId?.toLowerCase().includes(search.toLowerCase()) ||
-      e.resourceGroup?.toLowerCase().includes(search.toLowerCase()) ||
-      e.caller?.toLowerCase().includes(search.toLowerCase())
+  // Client-side filtering applied on top of the server-side filtered results
+  // Used for: search box text, resource name filter, tag-changed filter (API doesn't support these)
+  const applyClientSideFilters = (allEvents) => {
+    let filteredEvents = allEvents
+
+    // Search box: filter by resourceId, resourceGroup, or caller containing the search text
+    if (searchText) filteredEvents = filteredEvents.filter(event =>
+      event.resourceId?.toLowerCase().includes(searchText.toLowerCase()) ||
+      event.resourceGroup?.toLowerCase().includes(searchText.toLowerCase()) ||
+      event.caller?.toLowerCase().includes(searchText.toLowerCase())
     )
+
+    // Resource filter: only show events for the selected resource names
     if (appliedFilters.resource.length)
-      result = result.filter(e => appliedFilters.resource.includes(e.resourceId?.split('/').pop()))
+      filteredEvents = filteredEvents.filter(event => appliedFilters.resource.includes(event.resourceId?.split('/').pop()))
+
+    // Tag Changed filter: only show events where the operation name contains 'tag'
     if (appliedFilters.change.includes('Tag Changed'))
-      result = result.filter(e => (e.operationName || '').toLowerCase().includes('tag'))
-    return result
+      filteredEvents = filteredEvents.filter(event => (event.operationName || '').toLowerCase().includes('tag'))
+
+    return filteredEvents
   }
 
-  const filtered = applyClientFilters(driftEvents)
+  // The final list of events shown in the table after all filters are applied
+  const filteredChangeEvents = applyClientSideFilters(recentChangeEvents)
 
-  // Navigate to comparison with fresh live state
-  const navigateToComparison = async (ev) => {
-    let liveState = ev.liveState
-    if (ev.resourceId && ev.subscriptionId && ev.resourceGroup) {
+  // Called when a table row is clicked — fetches fresh live ARM config and navigates to ComparisonPage
+  // Passes the resource IDs and live config as React Router navigation state
+  const navigateToComparison = async (changeEvent) => {
+    let currentLiveState = changeEvent.liveState  // use stored state as fallback
+    if (changeEvent.resourceId && changeEvent.subscriptionId && changeEvent.resourceGroup) {
       try {
-        liveState = await fetchResourceConfiguration(ev.subscriptionId, ev.resourceGroup, ev.resourceId)
-      } catch { /* use stored liveState as fallback */ }
+        // Try to fetch the freshest live config from ARM
+        currentLiveState = await fetchResourceConfiguration(changeEvent.subscriptionId, changeEvent.resourceGroup, changeEvent.resourceId)
+      } catch { /* fall back to stored liveState if ARM fetch fails */ }
     }
     navigate('/comparison', {
-      state: { subscriptionId: ev.subscriptionId, resourceGroupId: ev.resourceGroup, resourceId: ev.resourceId, resourceName: ev.resourceId?.split('/').pop(), liveState }
+      state: {
+        subscriptionId: changeEvent.subscriptionId,
+        resourceGroupId: changeEvent.resourceGroup,
+        resourceId:     changeEvent.resourceId,
+        resourceName:   changeEvent.resourceId?.split('/').pop(),
+        liveState:      currentLiveState,
+      }
     })
   }
 
-  const totalChanges  = stats?.allTimeTotal  ?? stats?.totalChanges ?? driftEvents.length
-  const totalDrifted  = stats?.totalDrifted  ?? new Set(driftEvents.map(e => e.resourceId)).size
-  const totalRGs      = rgs.length
-  const byHour        = stats?.byHour        ?? Array.from({ length: 24 }, (_, h) => ({ hour: h, label: `${String(h).padStart(2,'0')}:00`, count: 0 }))
+  // Derived values for KPI cards — prefer stats from API, fall back to counting loaded events
+  const kpiTotalChangesAllTime  = todayStats?.allTimeTotal  ?? todayStats?.totalChanges ?? recentChangeEvents.length
+  const kpiResourcesChangedToday = todayStats?.totalDrifted ?? new Set(recentChangeEvents.map(e => e.resourceId)).size
+  const kpiResourceGroupCount   = resourceGroupList.length
+  const byHour = todayStats?.byHour ?? Array.from({ length: 24 }, (_, hour) => ({ hour, label: `${String(hour).padStart(2,'0')}:00`, count: 0 }))
 
   return (
     <div className="dh-root">
@@ -309,16 +388,16 @@ export default function DashboardHome() {
       <main className="dh-main">
         {/* KPI Cards */}
         <div className="dh-kpi-grid">
-          <KpiCard label="Subscriptions"      value={subs.length}    icon="layers" />
-          <KpiCard label="Resource Groups"    value={totalRGs}       icon="folder" />
-          <KpiCard label="Total Resources"    value={totalRes}       icon="dns" />
-          <KpiCard label="Total Changes (All Time)" value={totalChanges}  icon="history" />
+          <KpiCard label="Subscriptions"           value={subscriptionList.length}   icon="layers" />
+          <KpiCard label="Resource Groups"         value={kpiResourceGroupCount}     icon="folder" />
+          <KpiCard label="Total Resources"         value={totalResourceCount}        icon="dns" />
+          <KpiCard label="Total Changes (All Time)" value={kpiTotalChangesAllTime}  icon="history" />
         </div>
 
         {/* Charts */}
         <div className="dh-charts-row">
-          <DonutChart changed={totalDrifted} total={Math.max(totalRes, totalDrifted)} />
-          <BarChart subscriptionId={activeSub} />
+          <DonutChart changed={kpiResourcesChangedToday} total={Math.max(totalResourceCount, kpiResourcesChangedToday)} />
+          <BarChart subscriptionId={activeSubscriptionId} />
         </div>
 
         {/* Table */}
@@ -326,10 +405,10 @@ export default function DashboardHome() {
           <div className="dh-table-header">
             <div className="dh-table-title-row">
               <h2 className="dh-table-title">Recent Events</h2>
-              {driftEvents.length > 0 && (
+              {recentChangeEvents.length > 0 && (
                 <span className="dh-live-badge">
                   <span className="dh-live-dot" />
-                  {driftEvents.length} events
+                  {recentChangeEvents.length} events
                 </span>
               )}
             </div>
@@ -339,10 +418,10 @@ export default function DashboardHome() {
           <div className="dh-filter-bar">
             <div className="dh-filter-bar-left">
               <span className="material-symbols-outlined dh-filter-bar-icon">filter_list</span>
-              {Object.entries(filterOptions).map(([key, config]) => (
-                <FilterDropdown key={key} filterKey={key} config={config}
-                  selected={pendingFilters[key]} onToggle={toggleFilterOption}
-                  isOpen={openFilter === key} onOpenToggle={setOpenFilter} />
+              {Object.entries(filterDropdownConfig).map(([filterKey, filterConfig]) => (
+                <FilterDropdown key={filterKey} filterKey={filterKey} config={filterConfig}
+                  selected={pendingFilters[filterKey]} onToggle={toggleFilterOption}
+                  isOpen={openFilterKey === filterKey} onOpenToggle={setOpenFilterKey} />
               ))}
             </div>
             <div className="dh-filter-bar-right">
@@ -359,11 +438,11 @@ export default function DashboardHome() {
           </div>
 
           <div className="dh-table-wrap">
-            {loading ? (
+            {isLoadingData ? (
               <div className="dh-empty">Loading changes...</div>
-            ) : filtered.length === 0 ? (
+            ) : filteredChangeEvents.length === 0 ? (
               <div className="dh-empty">
-                {activeSub ? 'No changes found for the selected period.' : 'No subscription available.'}
+                {activeSubscriptionId ? 'No changes found for the selected period.' : 'No subscription available.'}
               </div>
             ) : (
               <table className="dh-table">
@@ -374,29 +453,32 @@ export default function DashboardHome() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.slice(0, 100).map((ev, i) => {
-                    const resName = ev.resourceId?.split('/').pop() || '—'
-                    const op = (ev.operationName || ev.eventType || '').split('/').slice(-2).join('/')
-                    const isDelete = ev.changeType === 'deleted'
+                  {/* Render up to 100 rows — each row is one ARM change event */}
+                  {filteredChangeEvents.slice(0, 100).map((changeEvent, rowIndex) => {
+                    // Extract the short resource name from the full ARM resource ID
+                    const resourceShortName = changeEvent.resourceId?.split('/').pop() || '—'
+                    // Shorten the operation name to the last two segments (e.g. storageAccounts/write)
+                    const shortOperationName = (changeEvent.operationName || changeEvent.eventType || '').split('/').slice(-2).join('/')
+                    const isDeleteEvent = changeEvent.changeType === 'deleted'
                     return (
-                      <tr key={ev._blobKey || i} className="dh-tr"
-                        style={{ cursor: isDelete ? 'default' : 'pointer' }}
-                        onClick={() => !isDelete && navigateToComparison(ev)}
-                        title={isDelete ? '' : 'Click to compare against baseline'}>
+                      <tr key={changeEvent._blobKey || rowIndex} className="dh-tr"
+                        style={{ cursor: isDeleteEvent ? 'default' : 'pointer' }}
+                        onClick={() => !isDeleteEvent && navigateToComparison(changeEvent)}
+                        title={isDeleteEvent ? '' : 'Click to compare against baseline'}>
                         <td style={{ whiteSpace: 'nowrap', color: '#94a3b8', fontSize: 12 }}>
-                          {ev.detectedAt ? new Date(ev.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {changeEvent.detectedAt ? new Date(changeEvent.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                         </td>
-                        <td style={{ color: '#60a5fa', fontWeight: 500 }}>{ev.caller || '—'}</td>
-                        <td className="dh-td-resource" title={ev.resourceId}>{resName}</td>
-                        <td>{ev.resourceGroup || '—'}</td>
-                        <td style={{ fontSize: 12, color: '#94a3b8', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ev.operationName}>{op || '—'}</td>
+                        <td style={{ color: '#60a5fa', fontWeight: 500 }}>{changeEvent.caller || '—'}</td>
+                        <td className="dh-td-resource" title={changeEvent.resourceId}>{resourceShortName}</td>
+                        <td>{changeEvent.resourceGroup || '—'}</td>
+                        <td style={{ fontSize: 12, color: '#94a3b8', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={changeEvent.operationName}>{shortOperationName || '—'}</td>
                         <td>
                           <span style={{
                             display: 'inline-block', padding: '2px 8px', borderRadius: 10,
                             fontSize: 11, fontWeight: 600,
-                            background: isDelete ? 'rgba(239,68,68,0.15)' : 'rgba(99,179,237,0.15)',
-                            color: isDelete ? '#ef4444' : '#63b3ed',
-                          }}>{ev.changeType || 'modified'}</span>
+                            background: isDeleteEvent ? 'rgba(239,68,68,0.15)' : 'rgba(99,179,237,0.15)',
+                            color: isDeleteEvent ? '#ef4444' : '#63b3ed',
+                          }}>{changeEvent.changeType || 'modified'}</span>
                         </td>
                       </tr>
                     )

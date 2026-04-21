@@ -1,6 +1,7 @@
  
 // ============================================================
 // FILE: routes/configuration.js
+// ROLE: GET /api/configuration — fetches full live ARM config for a resource or resource group
 // ============================================================
 const router_configuration = require('express').Router()
 const { getResourceConfig: getResourceConfigForRoute } = require('../services/azureResourceService')
@@ -15,12 +16,12 @@ router_configuration.get('/configuration', async (req, res) => {
     return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
   }
   try {
-    const config = await getResourceConfigForRoute(subscriptionId, resourceGroupId, resourceId || null)
-    res.json(config)
+    const liveArmConfig = await getResourceConfigForRoute(subscriptionId, resourceGroupId, resourceId || null)
+    res.json(liveArmConfig)
     console.log('[GET /configuration] ends')
-  } catch (err) {
-    console.log('[GET /configuration] ends — error:', err.message)
-    res.status(500).json({ error: err.message })
+  } catch (fetchError) {
+    console.log('[GET /configuration] ends — error:', fetchError.message)
+    res.status(500).json({ error: fetchError.message })
   }
 })
 // ── GET /api/configuration END ───────────────────────────────────────────────

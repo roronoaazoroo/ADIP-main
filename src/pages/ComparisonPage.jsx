@@ -1,3 +1,17 @@
+// FILE: src/pages/ComparisonPage.jsx
+// ROLE: Shows baseline vs live ARM config side-by-side with field-level diff and remediation
+
+// What this page does:
+//   - On load: fetches the golden baseline blob and policy compliance in parallel
+//   - Strips volatile fields (etag, provisioningState) from both configs before diffing
+//   - Runs deepDiff(baseline, live) to get field-level changes
+//   - Classifies severity: Critical / High / Medium / Low
+//   - Calls Azure OpenAI (non-blocking) for plain-English explanation
+//   - Remediate button: Low = immediate ARM PUT, Medium/High/Critical = approval email
+//   - Upload Baseline: accepts raw ARM config or ARM template export (.json)
+
+// Receives data via React Router location.state (set by DashboardHome or DriftScanner)
+
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { diff as deepDiff } from 'deep-diff'
@@ -61,90 +75,209 @@ export default function ComparisonPage() {
   const { subscription, resourceGroup, resource, configData } = useDashboard()
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
-  const [baseline, setBaseline] = useState(null)
-  const [differences, setDifferences] = useState([])
-  const [severity, setSeverity] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [noBaseline, setNoBaseline] = useState(false)
-  const [remediating, setRemediating] = useState(false)
-  const [remediated, setRemediated] = useState(false)
-  const [remediateErr, setRemediateErr] = useState(null)
-  const [remediateDiff, setRemediateDiff] = useState(null)
-  const [policyData, setPolicyData] = useState(null)
-  const [aiExplanation, setAiExplanation] = useState(null)
-  const [aiRecommend, setAiRecommend] = useState(null)
-  const [aiLoading, setAiLoading] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadMsg, setUploadMsg] = useState(null)
+  // The stripped golden baseline config fetched from 'baselines' blob storage
+  const [baselineConfig, setBaselineConfig] = useState(null)
+
+  // Array of field-level differences between baseline and live config
+  // Each item: { path, type, label, oldValue, newValue }
+  const [fieldDifferences, setFieldDifferences] = useState([])
+
+  // Drift severity level: 'critical' | 'high' | 'medium' | 'low' | null
+  const [driftSeverity, setDriftSeverity] = useState(null)
+
+  // Whether the baseline is currently being fetched from blob storage
+  const [isLoadingBaseline, setIsLoadingBaseline] = useState(false)
+
+  // True if no baseline blob exists for this resource yet
+  const [baselineNotFound, setBaselineNotFound] = useState(false)
+
+  // Whether a remediation ARM PUT or approval request is in progress
+  const [isRemediating, setIsRemediating] = useState(false)
+
+  // True after a successful remediation or approval request
+  const [remediationSucceeded, setRemediationSucceeded] = useState(false)
+
+  // Error message if remediation fails
+  const [remediationError, setRemediationError] = useState(null)
+
+  // The diff shown in the success banner after remediation
+  const [remediationDiffSummary, setRemediationDiffSummary] = useState(null)
+
+  // Azure Policy compliance result for this resource
+  const [policyComplianceData, setPolicyComplianceData] = useState(null)
+
+  // Plain-English explanation from Azure OpenAI (loaded async after diff)
+  const [aiDriftExplanation, setAiDriftExplanation] = useState(null)
+
+  // Remediation recommendation from Azure OpenAI (loaded when user clicks Remediate)
+  const [aiRemediationRecommendation, setAiRemediationRecommendation] = useState(null)
+
+  // Whether the AI explanation is currently being fetched
+  const [isAiLoading, setIsAiLoading] = useState(false)
+
+  // Whether a baseline file upload is in progress
+  const [isUploadingBaseline, setIsUploadingBaseline] = useState(false)
+
+  // Success/error message shown after a baseline upload attempt
+  const [baselineUploadMessage, setBaselineUploadMessage] = useState(null)
+
+  // Refs to the JsonTree components so we can call expandAll/collapseAll imperatively
   const baselineTreeRef = useRef(null)
   const liveTreeRef = useRef(null)
 
+  // On mount: fetch the golden baseline and policy compliance in parallel
+  // Then compute the diff between baseline and the live config passed via navigation state
   useEffect(() => {
     if (!subscriptionId) return
-    setLoading(true)
-    fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId).then(setPolicyData).catch(() => {})
-    fetchBaseline(subscriptionId, effectiveId).then(data => {
-      if (data?.resourceState) {
-        const normBaseline = normaliseState(data.resourceState)
-        const normLive = normaliseState(passedLive)
-        setBaseline(normBaseline)
-        const rawDiff = deepDiff(normBaseline, normLive) || []
-        const fmtDiff = formatDifferences(rawDiff)
-        setDifferences(fmtDiff)
-        setSeverity(classifySeverity(fmtDiff))
-        if (fmtDiff.length > 0) {
-          setAiLoading(true)
-          fetchAiExplanation({ resourceId, resourceGroup: resourceGroupId, subscriptionId, severity: classifySeverity(fmtDiff), differences: fmtDiff, changes: fmtDiff })
-            .then(r => setAiExplanation(r?.explanation || null)).catch(() => {}).finally(() => setAiLoading(false))
+    setIsLoadingBaseline(true)
+
+    // Fetch policy compliance in the background (non-blocking)
+    fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId)
+      .then(setPolicyComplianceData).catch(() => {})
+
+    // Fetch the golden baseline blob for this resource
+    fetchBaseline(subscriptionId, effectiveId).then(baselineDocument => {
+      if (baselineDocument?.resourceState) {
+        // Strip volatile fields before comparing so etag/provisioningState don't show as drift
+        const strippedBaseline = normaliseState(baselineDocument.resourceState)
+        const strippedLive     = normaliseState(passedLive)
+        setBaselineConfig(strippedBaseline)
+
+        // Run deep field-level diff
+        const rawDiffResult      = deepDiff(strippedBaseline, strippedLive) || []
+        const formattedDiffItems = formatDifferences(rawDiffResult)
+        setFieldDifferences(formattedDiffItems)
+        setDriftSeverity(classifySeverity(formattedDiffItems))
+
+        // If drift was found, fetch AI explanation in the background
+        if (formattedDiffItems.length > 0) {
+          setIsAiLoading(true)
+          fetchAiExplanation({
+            resourceId,
+            resourceGroup: resourceGroupId,
+            subscriptionId,
+            severity: classifySeverity(formattedDiffItems),
+            differences: formattedDiffItems,
+            changes:     formattedDiffItems,
+          })
+            .then(aiResponse => setAiDriftExplanation(aiResponse?.explanation || null))
+            .catch(() => {})
+            .finally(() => setIsAiLoading(false))
         }
-      } else { setNoBaseline(true) }
-    }).catch(() => setNoBaseline(true)).finally(() => setLoading(false))
+      } else {
+        // No baseline stored for this resource
+        setBaselineNotFound(true)
+      }
+    }).catch(() => setBaselineNotFound(true)).finally(() => setIsLoadingBaseline(false))
   }, [subscriptionId, resourceId])
 
+  // handleRemediate — called when the user clicks 'Apply Fix Now' or 'Request Approval'
+  // Low severity: immediately calls ARM PUT via /api/remediate to revert to baseline
+  // Medium/High/Critical: sends an approval email via /api/remediate-request
+  //   → Logic App → sendAlert Function → ACS email with Approve/Reject links
   const handleRemediate = async () => {
-    setRemediating(true); setRemediateErr(null); setRemediateDiff(null)
-    fetchAiRecommendation({ resourceId, resourceGroup: resourceGroupId, subscriptionId, severity, differences, changes: differences })
-      .then(r => setAiRecommend(r?.recommendation || null)).catch(() => {})
+    setIsRemediating(true)
+    setRemediationError(null)
+    setRemediationDiffSummary(null)
+
+    // Fetch AI recommendation in the background (shown after remediation)
+    fetchAiRecommendation({
+      resourceId,
+      resourceGroup: resourceGroupId,
+      subscriptionId,
+      severity: driftSeverity,
+      differences: fieldDifferences,
+      changes: fieldDifferences,
+    }).then(aiResponse => setAiRemediationRecommendation(aiResponse?.recommendation || null)).catch(() => {})
+
     try {
-      const normLive = normaliseState(passedLive)
-      setRemediateDiff(formatDifferences(deepDiff(baseline || {}, normLive) || []))
-      if (severity === 'low') {
+      // Compute the diff that will be shown in the success banner
+      const strippedLiveForSummary = normaliseState(passedLive)
+      setRemediationDiffSummary(formatDifferences(deepDiff(baselineConfig || {}, strippedLiveForSummary) || []))
+
+      if (driftSeverity === 'low') {
+        // Low severity: apply immediately via ARM PUT (no approval needed)
         await remediateToBaseline(subscriptionId, resourceGroupId, effectiveId)
       } else {
-        const sessionUser = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
-        await requestRemediation({ subscriptionId, resourceGroupId, resourceId: effectiveId, differences, changes: differences, severity, caller: sessionUser.name || 'Dashboard User' })
+        // Medium/High/Critical: send approval email to admin
+        const loggedInUser = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
+        await requestRemediation({
+          subscriptionId,
+          resourceGroupId,
+          resourceId:  effectiveId,
+          differences: fieldDifferences,
+          changes:     fieldDifferences,
+          severity:    driftSeverity,
+          caller:      loggedInUser.name || 'Dashboard User',
+        })
       }
-      setRemediated(true)
-    } catch (err) { setRemediateErr(err.message) }
-    finally { setRemediating(false) }
+      setRemediationSucceeded(true)
+    } catch (remediationErr) {
+      setRemediationError(remediationErr.message)
+    } finally {
+      setIsRemediating(false)
+    }
   }
 
-  const handleUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.name.endsWith('.json')) { setUploadMsg({ ok: false, text: 'Only .json files are accepted.' }); return }
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      let parsed
-      try { parsed = JSON.parse(ev.target.result) } catch { setUploadMsg({ ok: false, text: 'Invalid JSON.' }); return }
-      if (parsed.$schema?.includes('deploymentTemplate') && Array.isArray(parsed.resources)) {
-        parsed = parsed.resources[0]
-        if (!parsed) { setUploadMsg({ ok: false, text: 'ARM template has no resources.' }); return }
-      }
-      setUploading(true); setUploadMsg(null)
-      try {
-        await uploadBaseline(subscriptionId, resourceGroupId, effectiveId, parsed)
-        const fresh = await fetchBaseline(subscriptionId, effectiveId)
-        if (fresh?.resourceState) {
-          const nb = normaliseState(fresh.resourceState), nl = normaliseState(passedLive)
-          const fd = formatDifferences(deepDiff(nb, nl) || [])
-          setBaseline(nb); setDifferences(fd); setSeverity(classifySeverity(fd)); setNoBaseline(false)
-          setUploadMsg({ ok: true, text: 'Baseline uploaded and applied.' })
-        } else { setNoBaseline(true); setUploadMsg({ ok: false, text: 'Upload succeeded but baseline not found.' }) }
-      } catch (err) { setUploadMsg({ ok: false, text: `Upload failed: ${err.message}` }) }
-      finally { setUploading(false); e.target.value = '' }
+  // handleUpload — called when the user selects a .json file to use as the new baseline
+  // Accepts: raw ARM config JSON, or an ARM template export (extracts resources[0])
+  // After upload: re-fetches the baseline and recomputes the diff
+  const handleUpload = (fileInputEvent) => {
+    const selectedFile = fileInputEvent.target.files?.[0]
+    if (!selectedFile) return
+    if (!selectedFile.name.endsWith('.json')) {
+      setBaselineUploadMessage({ ok: false, text: 'Only .json files are accepted.' })
+      return
     }
-    reader.readAsText(file)
+
+    const fileReader = new FileReader()
+    fileReader.onload = async (readEvent) => {
+      let parsedBaselineJson
+      try {
+        parsedBaselineJson = JSON.parse(readEvent.target.result)
+      } catch {
+        setBaselineUploadMessage({ ok: false, text: 'Invalid JSON.' })
+        return
+      }
+
+      // If the file is an ARM template export, extract the first resource from resources[]
+      if (parsedBaselineJson.$schema?.includes('deploymentTemplate') && Array.isArray(parsedBaselineJson.resources)) {
+        parsedBaselineJson = parsedBaselineJson.resources[0]
+        if (!parsedBaselineJson) {
+          setBaselineUploadMessage({ ok: false, text: 'ARM template has no resources.' })
+          return
+        }
+      }
+
+      setIsUploadingBaseline(true)
+      setBaselineUploadMessage(null)
+      try {
+        // Upload the new baseline to blob storage
+        await uploadBaseline(subscriptionId, resourceGroupId, effectiveId, parsedBaselineJson)
+
+        // Re-fetch the baseline and recompute the diff
+        const updatedBaselineDocument = await fetchBaseline(subscriptionId, effectiveId)
+        if (updatedBaselineDocument?.resourceState) {
+          const newStrippedBaseline = normaliseState(updatedBaselineDocument.resourceState)
+          const strippedLive        = normaliseState(passedLive)
+          const newDiffItems        = formatDifferences(deepDiff(newStrippedBaseline, strippedLive) || [])
+          setBaselineConfig(newStrippedBaseline)
+          setFieldDifferences(newDiffItems)
+          setDriftSeverity(classifySeverity(newDiffItems))
+          setBaselineNotFound(false)
+          setBaselineUploadMessage({ ok: true, text: 'Baseline uploaded and applied.' })
+        } else {
+          setBaselineNotFound(true)
+          setBaselineUploadMessage({ ok: false, text: 'Upload succeeded but baseline not found.' })
+        }
+      } catch (uploadError) {
+        setBaselineUploadMessage({ ok: false, text: `Upload failed: ${uploadError.message}` })
+      } finally {
+        setIsUploadingBaseline(false)
+        fileInputEvent.target.value = ''  // reset file input so same file can be re-selected
+      }
+    }
+    fileReader.readAsText(selectedFile)
   }
 
   const expandAll = useCallback(() => { baselineTreeRef.current?.expandAll(); liveTreeRef.current?.expandAll() }, [])
@@ -182,87 +315,87 @@ export default function ComparisonPage() {
             </p>
           </div>
           <div className="cp-header-actions">
-            {severity && <span className="cp-severity-badge" style={{ background: `${SEV_COLOR[severity]}18`, color: SEV_COLOR[severity], border: `1px solid ${SEV_COLOR[severity]}40` }}>{severity.toUpperCase()}</span>}
-            {policyData?.nonCompliant > 0 && <span className="cp-severity-badge" style={{ background: '#dc262618', color: '#dc2626', border: '1px solid #dc262640' }}>POLICY: {policyData.nonCompliant} VIOLATION(S)</span>}
+            {driftSeverity && <span className="cp-severity-badge" style={{ background: `${SEV_COLOR[driftSeverity]}18`, color: SEV_COLOR[driftSeverity], border: `1px solid ${SEV_COLOR[driftSeverity]}40` }}>{driftSeverity.toUpperCase()}</span>}
+            {policyComplianceData?.nonCompliant > 0 && <span className="cp-severity-badge" style={{ background: '#dc262618', color: '#dc2626', border: '1px solid #dc262640' }}>POLICY: {policyComplianceData.nonCompliant} VIOLATION(S)</span>}
             <label className="cp-btn cp-btn--secondary" style={{ cursor: 'pointer' }}>
-              <input type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} disabled={uploading} />
+              <input type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} disabled={isUploadingBaseline} />
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload</span>
-              {uploading ? 'Uploading...' : 'Upload Baseline'}
+              {isUploadingBaseline ? 'Uploading...' : 'Upload Baseline'}
             </label>
-            {differences.length > 0 && !noBaseline && (
-              <button className={`cp-btn ${severity === 'low' ? 'cp-btn--green' : 'cp-btn--primary'}`} onClick={handleRemediate} disabled={remediating || remediated}>
-                {remediating ? <><div className="cp-spinner" />{severity === 'low' ? 'Applying...' : 'Sending...'}</> :
-                 remediated ? (severity === 'low' ? '✓ Remediated!' : '✓ Request Sent!') :
-                 severity === 'low' ? 'Apply Fix Now' : 'Request Approval'}
+            {fieldDifferences.length > 0 && !baselineNotFound && (
+              <button className={`cp-btn ${driftSeverity === 'low' ? 'cp-btn--green' : 'cp-btn--primary'}`} onClick={handleRemediate} disabled={isRemediating || remediationSucceeded}>
+                {isRemediating ? <><div className="cp-spinner" />{driftSeverity === 'low' ? 'Applying...' : 'Sending...'}</> :
+                 remediationSucceeded ? (driftSeverity === 'low' ? '✓ Remediated!' : '✓ Request Sent!') :
+                 driftSeverity === 'low' ? 'Apply Fix Now' : 'Request Approval'}
               </button>
             )}
           </div>
         </header>
 
         {/* Alerts */}
-        {uploadMsg && <div className={`cp-alert cp-alert--${uploadMsg.ok ? 'success' : 'error'}`}>{uploadMsg.text}</div>}
-        {remediateErr && <div className="cp-alert cp-alert--error">Failed to remediate: {remediateErr}</div>}
-        {remediated && remediateDiff !== null && (
+        {baselineUploadMessage && <div className={`cp-alert cp-alert--${baselineUploadMessage.ok ? 'success' : 'error'}`}>{baselineUploadMessage.text}</div>}
+        {remediationError && <div className="cp-alert cp-alert--error">Failed to remediate: {remediationError}</div>}
+        {remediationSucceeded && remediationDiffSummary !== null && (
           <div className="cp-alert cp-alert--success">
-            <strong>{severity === 'low' ? '✓ Remediation applied.' : '✓ Approval request sent.'}</strong>
-            {remediateDiff.length > 0 && <span> {remediateDiff.length} field change(s) queued.</span>}
+            <strong>{driftSeverity === 'low' ? '✓ Remediation applied.' : '✓ Approval request sent.'}</strong>
+            {remediationDiffSummary.length > 0 && <span> {remediationDiffSummary.length} field change(s) queued.</span>}
           </div>
         )}
 
         {/* AI cards */}
-        {(aiLoading || aiExplanation) && (
+        {(isAiLoading || aiDriftExplanation) && (
           <div className="cp-ai-card cp-ai-card--blue">
             <span className="material-symbols-outlined">smart_toy</span>
             <div>
               <div className="cp-ai-label">AI Security Analysis</div>
-              <div className="cp-ai-text">{aiLoading ? 'Analysing drift with Azure OpenAI...' : aiExplanation}</div>
+              <div className="cp-ai-text">{isAiLoading ? 'Analysing drift with Azure OpenAI...' : aiDriftExplanation}</div>
             </div>
           </div>
         )}
-        {aiRecommend && (
+        {aiRemediationRecommendation && (
           <div className="cp-ai-card cp-ai-card--green">
             <span className="material-symbols-outlined">lightbulb</span>
             <div>
               <div className="cp-ai-label">AI Remediation Recommendation</div>
-              <div className="cp-ai-text">{aiRecommend}</div>
+              <div className="cp-ai-text">{aiRemediationRecommendation}</div>
             </div>
           </div>
         )}
 
         {/* Loading */}
-        {loading && <div className="cp-loading"><div className="cp-loading-ring" /><span>Loading golden baseline...</span></div>}
+        {isLoadingBaseline && <div className="cp-loading"><div className="cp-loading-ring" /><span>Loading golden baseline...</span></div>}
 
         {/* No baseline */}
-        {!loading && noBaseline && (
+        {!isLoadingBaseline && baselineNotFound && (
           <div className="cp-card cp-card--center">
             <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#c2c7d0' }}>layers</span>
             <p>No golden baseline found for <strong>{displayName}</strong>.</p>
-            <button className="cp-btn cp-btn--primary" onClick={handleRemediate} disabled={remediating || remediated}>
-              {remediating ? 'Seeding...' : remediated ? '✓ Done!' : 'Promote Current State as Baseline'}
+            <button className="cp-btn cp-btn--primary" onClick={handleRemediate} disabled={isRemediating || remediationSucceeded}>
+              {isRemediating ? 'Seeding...' : remediationSucceeded ? '✓ Done!' : 'Promote Current State as Baseline'}
             </button>
           </div>
         )}
 
         {/* Changes summary */}
-        {!loading && baseline && (
+        {!isLoadingBaseline && baselineConfig && (
           <div className="cp-card">
             <div className="cp-card-header">
               <span className="material-symbols-outlined" style={{ color: '#0060a9' }}>info</span>
-              <h3>{differences.length === 0 ? 'In sync with baseline' : `${differences.length} change(s) detected`}</h3>
-              {differences.length === 0 && <span className="cp-sync-badge">✓ No drift</span>}
+              <h3>{fieldDifferences.length === 0 ? 'In sync with baseline' : `${fieldDifferences.length} change(s) detected`}</h3>
+              {fieldDifferences.length === 0 && <span className="cp-sync-badge">✓ No drift</span>}
             </div>
-            {differences.length > 0 && (
+            {fieldDifferences.length > 0 && (
               <div className="cp-changes-list">
-                {differences.map((d, i) => (
-                  <div key={i} className={`cp-change cp-change--${d.type}`}>
+                {fieldDifferences.map((diffItem, diffIndex) => (
+                  <div key={diffIndex} className={`cp-change cp-change--${diffItem.type}`}>
                     <div className="cp-change-header">
-                      <span className={`cp-change-badge cp-change-badge--${d.type}`}>{d.label}</span>
-                      <code className="cp-change-path">{d.path}</code>
+                      <span className={`cp-change-badge cp-change-badge--${diffItem.type}`}>{diffItem.label}</span>
+                      <code className="cp-change-path">{diffItem.path}</code>
                     </div>
                     <div className="cp-change-values">
-                      {d.oldValue !== undefined && <ValueChip value={d.oldValue} variant="old" />}
-                      {d.oldValue !== undefined && d.newValue !== undefined && <span className="cp-arrow">→</span>}
-                      {d.newValue !== undefined && <ValueChip value={d.newValue} variant="new" />}
+                      {diffItem.oldValue !== undefined && <ValueChip value={diffItem.oldValue} variant="old" />}
+                      {diffItem.oldValue !== undefined && diffItem.newValue !== undefined && <span className="cp-arrow">→</span>}
+                      {diffItem.newValue !== undefined && <ValueChip value={diffItem.newValue} variant="new" />}
                     </div>
                   </div>
                 ))}
@@ -272,7 +405,7 @@ export default function ComparisonPage() {
         )}
 
         {/* JSON panels */}
-        {!loading && (baseline || passedLive) && (
+        {!isLoadingBaseline && (baselineConfig || passedLive) && (
           <div className="cp-json-row">
             <div className="cp-json-panel">
               <div className="cp-json-panel-header">
@@ -287,7 +420,7 @@ export default function ComparisonPage() {
                 </div>
               </div>
               <div className="cp-json-body">
-                {baseline ? <JsonTree ref={baselineTreeRef} data={baseline} /> : <div className="cp-json-empty">No baseline stored</div>}
+                {baselineConfig ? <JsonTree ref={baselineTreeRef} data={baselineConfig} /> : <div className="cp-json-empty">No baseline stored</div>}
               </div>
             </div>
             <div className="cp-json-panel">
