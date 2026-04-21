@@ -1,6 +1,5 @@
-// ============================================================
 // FILE: routes/remediate.js
-// ============================================================
+
 const router_remediate = require('express').Router()
 const fetch = require('node-fetch')
 const { ResourceManagementClient } = require('@azure/arm-resources')
@@ -80,7 +79,65 @@ router_remediate.post('/remediate', async (req, res) => {
       { ...baselineState, location }
     )
 
-    // Reverse-reference cleanup for NSG subnet associations
+    // ── Storage account child resource reconciliation ─────────────────────────
+    // ARM PUT on the storage account itself does not create/delete containers, shares,
+    // queues, or tables — these are child resources managed via separate ARM endpoints.
+    // We compare baseline._childConfig vs live._childConfig and reconcile the difference.
+    if (type.toLowerCase() === 'storageaccounts') {
+      const armBearerToken = await credential.getToken('https://management.azure.com/.default')
+
+      // Helper: call ARM REST API for storage child resource operations
+      async function callStorageChildApi(httpMethod, childResourcePath, requestBody = null) {
+        const armUrl = `https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${rgName}/providers/Microsoft.Storage/storageAccounts/${name}/${childResourcePath}?api-version=2023-01-01`
+        const fetchOptions = {
+          method: httpMethod,
+          headers: { 'Authorization': `Bearer ${armBearerToken.token}`, 'Content-Type': 'application/json' },
+        }
+        if (requestBody) fetchOptions.body = JSON.stringify(requestBody)
+        const httpResponse = await fetch(armUrl, fetchOptions)
+        if (!httpResponse.ok) {
+          const errorText = await httpResponse.text()
+          throw new Error(`Storage child API error ${httpResponse.status}: ${errorText}`)
+        }
+        return httpResponse
+      }
+
+      // Helper: reconcile one type of child resource (containers, shares, queues, or tables)
+      async function reconcileStorageChildResources(childResourceType, serviceBasePath, createBody) {
+        const baselineItems = (baselineState._childConfig?.[childResourceType] || []).map(item => item.name.toLowerCase())
+        const liveItems     = (liveState._childConfig?.[childResourceType]     || []).map(item => item.name.toLowerCase())
+
+        // Items in live but NOT in baseline → delete them
+        const itemsToDelete = liveItems.filter(itemName => !baselineItems.includes(itemName))
+        for (const itemName of itemsToDelete) {
+          try {
+            await callStorageChildApi('DELETE', `${serviceBasePath}/${itemName}`)
+            console.log(`[remediate] deleted ${childResourceType} item: ${itemName}`)
+          } catch (deleteError) {
+            console.warn(`[remediate] failed to delete ${childResourceType} item ${itemName}:`, deleteError.message)
+          }
+        }
+
+        // Items in baseline but NOT in live → create them
+        const itemsToCreate = baselineItems.filter(itemName => !liveItems.includes(itemName))
+        for (const itemName of itemsToCreate) {
+          try {
+            await callStorageChildApi('PUT', `${serviceBasePath}/${itemName}`, createBody)
+            console.log(`[remediate] created ${childResourceType} item: ${itemName}`)
+          } catch (createError) {
+            console.warn(`[remediate] failed to create ${childResourceType} item ${itemName}:`, createError.message)
+          }
+        }
+      }
+
+      await Promise.allSettled([
+        reconcileStorageChildResources('blobContainers',  'blobServices/default/containers',  { properties: {} }),
+        reconcileStorageChildResources('fileShares',      'fileServices/default/shares',       { properties: {} }),
+        reconcileStorageChildResources('storageQueues',   'queueServices/default/queues',      {}),
+        reconcileStorageChildResources('storageTables',   'tableServices/default/tables',      {}),
+      ])
+    }
+    // ── Storage account child resource reconciliation END ─────────────────────
     if (type.toLowerCase() === 'networksecuritygroups') {
       const baselineSubnets = (baselineState.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
       const liveSubnets     = (liveState.properties?.subnets    || []).map(s => s.id?.toLowerCase()).filter(Boolean)

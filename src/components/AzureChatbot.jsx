@@ -1,16 +1,44 @@
+// FILE: src/components/AzureChatbot.jsx
+// ROLE: Floating AI chatbot powered by Azure OpenAI (GPT-4o)
+
+// Props:
+//   context — optional { resourceId, driftSummary } injected into the system prompt
+//             so the AI can answer questions about the currently viewed resource
+
+// State:
+//   open     — whether the chat window is visible (toggled by the FAB button)
+//   messages — array of { role: 'user'|'assistant', content: string }
+//              the full conversation history sent to the API on each turn
+//   input    — the text currently typed in the input box
+//   loading  — true while waiting for the AI response (shows typing indicator)
+
+// sendMessage(messages, context):
+//   POSTs to POST /api/chat with the last 20 turns of conversation history
+//   The Express chat.js route calls Azure OpenAI with a system prompt that
+//   positions the AI as an Azure cloud expert, optionally injecting resource context
+
+// send():
+//   Appends the user message, clears the input, calls sendMessage(),
+//   appends the AI reply. On error, appends an error message instead.
+
+// bottomRef: ref to an empty div at the bottom of the message list
+//   scrollIntoView() is called on every new message to keep the latest visible
+
 import React, { useState, useRef, useEffect } from 'react'
 import './AzureChatbot.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 
-async function sendMessage(messages, context) {
-  const res = await fetch(`${API_BASE}/chat`, {
+// Sends the conversation history to POST /api/chat and returns the AI reply string
+// context is optional — if provided, it's injected into the system prompt
+async function sendMessage(conversationHistory, resourceContext) {
+  const httpResponse = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, context }),
+    body: JSON.stringify({ messages: conversationHistory, context: resourceContext }),
   })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()).reply
+  if (!httpResponse.ok) throw new Error(await httpResponse.text())
+  return (await httpResponse.json()).reply
 }
 
 export default function AzureChatbot({ context }) {
@@ -27,17 +55,23 @@ export default function AzureChatbot({ context }) {
   }, [messages, open])
 
   const send = async () => {
-    const text = input.trim()
-    if (!text || loading) return
-    const userMsg = { role: 'user', content: text }
-    setMessages(prev => [...prev, userMsg])
+    const trimmedInput = input.trim()
+    if (!trimmedInput || loading) return
+
+    // Build the new user message and append it to the conversation
+    const newUserMessage = { role: 'user', content: trimmedInput }
+    setMessages(previousMessages => [...previousMessages, newUserMessage])
     setInput('')
     setLoading(true)
     try {
-      const reply = await sendMessage([...messages, userMsg].filter(m => m.role !== 'assistant' || messages.indexOf(m) > 0), context)
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.message}` }])
+      // Send the full conversation history (excluding the initial assistant greeting)
+      const conversationHistory = [...messages, newUserMessage].filter(
+        msg => msg.role !== 'assistant' || messages.indexOf(msg) > 0
+      )
+      const aiReply = await sendMessage(conversationHistory, context)
+      setMessages(previousMessages => [...previousMessages, { role: 'assistant', content: aiReply }])
+    } catch (sendError) {
+      setMessages(previousMessages => [...previousMessages, { role: 'assistant', content: `Error: ${sendError.message}` }])
     } finally {
       setLoading(false)
     }
@@ -59,10 +93,10 @@ export default function AzureChatbot({ context }) {
 
           {/* Messages */}
           <div className="chatbot-messages">
-            {messages.map((m, i) => (
-              <div key={i} className={`chatbot-msg-row chatbot-msg-row--${m.role}`}>
-                <div className={`chatbot-msg-bubble chatbot-msg-bubble--${m.role}`}>
-                  {m.content}
+            {messages.map((chatMessage, messageIndex) => (
+              <div key={messageIndex} className={`chatbot-msg-row chatbot-msg-row--${chatMessage.role}`}>
+                <div className={`chatbot-msg-bubble chatbot-msg-bubble--${chatMessage.role}`}>
+                  {chatMessage.content}
                 </div>
               </div>
             ))}

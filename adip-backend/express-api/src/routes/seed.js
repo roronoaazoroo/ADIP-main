@@ -8,11 +8,11 @@ router_seed.post('/seed-baseline', async (req, res) => {
   if (!subscriptionId || !resourceGroupId || !resourceId)
     return res.status(400).json({ error: 'subscriptionId, resourceGroupId and resourceId required' })
   try {
-    const liveConfig = await getResourceConfigForSeed(subscriptionId, resourceGroupId, resourceId)
-    const saved = await saveBaselineForSeed(subscriptionId, resourceGroupId, resourceId, liveConfig)
-    res.json({ message: 'Golden baseline seeded from live config', baseline: saved })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
+    const currentLiveConfig = await getResourceConfigForSeed(subscriptionId, resourceGroupId, resourceId)
+    const savedBaselineDoc  = await saveBaselineForSeed(subscriptionId, resourceGroupId, resourceId, currentLiveConfig)
+    res.json({ message: 'Golden baseline seeded from live config', baseline: savedBaselineDoc })
+  } catch (seedError) {
+    res.status(500).json({ error: seedError.message })
   }
 })
 

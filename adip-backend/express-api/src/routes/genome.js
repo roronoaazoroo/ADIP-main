@@ -60,6 +60,22 @@ router.post('/genome/promote', async (req, res) => {
       return res.status(404).json({ error: 'Snapshot not found' })
     }
     await saveBaseline(subscriptionId, resourceGroupId || '', resourceId, snapshot.resourceState)
+
+    // Mark this snapshot as the active baseline; clear the flag on all others for this resource
+    try {
+      const genomeIndexTable = require('@azure/data-tables').TableClient.fromConnectionString(
+        process.env.STORAGE_CONNECTION_STRING, 'genomeIndex'
+      )
+      const promotedTimestamp = new Date().toISOString()
+      for await (const indexEntity of genomeIndexTable.listEntities({ queryOptions: { filter: `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}'` } })) {
+        await genomeIndexTable.upsertEntity({
+          ...indexEntity,
+          isCurrentBaseline: indexEntity.blobKey === blobKey,
+          promotedAt:        indexEntity.blobKey === blobKey ? promotedTimestamp : null,
+        }, 'Replace').catch(() => {})
+      }
+    } catch { /* non-fatal */ }
+
     res.json({ promoted: true, resourceId, blobKey })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })

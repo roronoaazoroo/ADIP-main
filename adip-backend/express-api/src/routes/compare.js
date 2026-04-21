@@ -9,13 +9,15 @@ const { explainDrift, reclassifySeverity } = require('../services/aiService')
 
 const { TableClient } = require('@azure/data-tables')
 
-function getSessionTable() {
+// Returns a Table Storage client for monitorSessions — stores active monitoring sessions
+function getMonitorSessionsTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'monitorSessions')
 }
 
-function sessionRowKey(subscriptionId, resourceGroupId, resourceId) {
-  const key = `${subscriptionId}:${resourceGroupId}:${resourceId || ''}`
-  return Buffer.from(key).toString('base64url').slice(0, 512)
+// Generates a stable Table Storage row key from the session scope
+function buildSessionRowKey(subscriptionId, resourceGroupId, resourceId) {
+  const compositeKey = `${subscriptionId}:${resourceGroupId}:${resourceId || ''}`
+  return Buffer.from(compositeKey).toString('base64url').slice(0, 512)
 }
 
 
@@ -23,37 +25,46 @@ function sessionRowKey(subscriptionId, resourceGroupId, resourceId) {
 // Full drift check pipeline: fetches live + baseline, diffs, classifies, runs AI, saves record, alerts
 async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
   console.log('[runDriftCheck] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupId, 'resourceId:', resourceId)
-  const [liveRaw, baseline] = await Promise.all([
+  const [currentLiveConfig, storedBaseline] = await Promise.all([
     getResourceConfig(subscriptionId, resourceGroupId, resourceId || null),
     getBaseline(subscriptionId, resourceId || resourceGroupId),
   ])
 
-  const differences = baseline?.resourceState ? diffObjects(baseline.resourceState, liveRaw) : []
-  const severity    = classifySeverity(differences)
-  const record = {
+  const detectedChanges = storedBaseline?.resourceState ? diffObjects(storedBaseline.resourceState, currentLiveConfig) : []
+  const driftSeverity   = classifySeverity(detectedChanges)
+  const driftRecord = {
     subscriptionId, resourceGroupId,
-    resourceId: resourceId || null, resourceGroup: resourceGroupId,
-    liveState: liveRaw, baselineState: baseline?.resourceState || null,
-    differences, severity, changeCount: differences.length,
-    detectedAt: new Date().toISOString(),
+    resourceId:    resourceId || null,
+    resourceGroup: resourceGroupId,
+    liveState:     currentLiveConfig,
+    baselineState: storedBaseline?.resourceState || null,
+    differences:   detectedChanges,
+    severity:      driftSeverity,
+    changeCount:   detectedChanges.length,
+    detectedAt:    new Date().toISOString(),
   }
 
-  if (differences.length > 0) {
-    const [aiExplanation, aiSeverity] = await Promise.allSettled([
-      explainDrift(record), reclassifySeverity(record),
-    ]).then(r => r.map(x => x.value ?? null))
+  if (detectedChanges.length > 0) {
+    // Run AI explanation and severity re-classification in parallel (non-blocking)
+    const [aiExplanationResult, aiSeverityResult] = await Promise.allSettled([
+      explainDrift(driftRecord), reclassifySeverity(driftRecord),
+    ]).then(results => results.map(result => result.value ?? null))
 
-    if (aiExplanation) record.aiExplanation = aiExplanation
-    if (aiSeverity) {
-      record.aiSeverity = aiSeverity.severity; record.aiReasoning = aiSeverity.reasoning
-      const order = ['none','low','medium','high','critical']
-      if (order.indexOf(aiSeverity.severity) > order.indexOf(record.severity)) record.severity = aiSeverity.severity
+    if (aiExplanationResult) driftRecord.aiExplanation = aiExplanationResult
+    if (aiSeverityResult) {
+      driftRecord.aiSeverity  = aiSeverityResult.severity
+      driftRecord.aiReasoning = aiSeverityResult.reasoning
+      // AI can only escalate severity, never reduce it
+      const severityOrder = ['none', 'low', 'medium', 'high', 'critical']
+      if (severityOrder.indexOf(aiSeverityResult.severity) > severityOrder.indexOf(driftRecord.severity)) {
+        driftRecord.severity = aiSeverityResult.severity
+      }
     }
-    await saveDriftRecord(record)
-    broadcastDriftEvent(record)
+    await saveDriftRecord(driftRecord)
+    broadcastDriftEvent(driftRecord)
   }
-  console.log('[runDriftCheck] ends — severity:', record.severity, 'changes:', differences.length)
-  return record
+  console.log('[runDriftCheck] ends — severity:', driftRecord.severity, 'changes:', detectedChanges.length)
+  return driftRecord
 }
 // ── runDriftCheck END ────────────────────────────────────────────────────────
 
@@ -67,33 +78,33 @@ router.post('/compare', async (req, res) => {
 router.post('/monitor/start', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId, intervalMs = 60000 } = req.body
   if (!subscriptionId || !resourceGroupId) return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
-  const rk = sessionRowKey(subscriptionId, resourceGroupId, resourceId)
+  const sessionTableRowKey = buildSessionRowKey(subscriptionId, resourceGroupId, resourceId)
   try {
-    await getSessionTable().upsertEntity({
+    await getMonitorSessionsTable().upsertEntity({
       partitionKey:    'session',
-      rowKey:          rk,
+      rowKey:          sessionTableRowKey,
       subscriptionId,
       resourceGroupId,
       resourceId:      resourceId || '',
-      intervalMs:      Math.max(Number(intervalMs), 60000),
+      intervalMs:      Math.max(Number(intervalMs), 60000),  // minimum 1 minute
       active:          true,
       startedAt:       new Date().toISOString(),
     }, 'Replace')
-    res.json({ monitoring: true, key: rk })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    res.json({ monitoring: true, key: sessionTableRowKey })
+  } catch (startError) { res.status(500).json({ error: startError.message }) }
 })
 
 router.post('/monitor/stop', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId } = req.body
-  const rk = sessionRowKey(subscriptionId, resourceGroupId, resourceId)
+  const sessionTableRowKey = buildSessionRowKey(subscriptionId, resourceGroupId, resourceId)
   try {
-    await getSessionTable().upsertEntity({
-      partitionKey: 'session', rowKey: rk,
+    await getMonitorSessionsTable().upsertEntity({
+      partitionKey: 'session', rowKey: sessionTableRowKey,
       subscriptionId, resourceGroupId, resourceId: resourceId || '',
       active: false,
     }, 'Merge')
-    res.json({ monitoring: false, key: rk })
-  } catch (err) { res.status(500).json({ error: err.message }) }
+    res.json({ monitoring: false, key: sessionTableRowKey })
+  } catch (stopError) { res.status(500).json({ error: stopError.message }) }
 })
 
 module.exports = router

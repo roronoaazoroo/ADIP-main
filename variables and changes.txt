@@ -1,0 +1,184 @@
+ DashboardHome.jsx done. Here's a summary of every rename:
+
+| Old | New | What it stores |
+|---|---|---|
+| subs | subscriptionList | Array of Azure subscriptions |
+| rgs | resourceGroupList | Array of resource groups |
+| totalRes | totalResourceCount | Count of all resources |
+| activeSub | activeSubscriptionId | The selected subscription ID |
+| stats | todayStats | Today's stats from /api/stats/today |
+| driftEvents | recentChangeEvents | Recent ARM change events for the table |
+| loading | isLoadingData | Whether data is being fetched |
+| search | searchText | Text in the search box |
+| emptyFilters | defaultFilters | The default filter state |
+| openFilter | openFilterKey | Which dropdown is open |
+| todayMidnight | todayMidnightISO | Midnight ISO timestamp |
+| load | loadDashboardData | Main data fetch function |
+| getSince | getStartTimeFromFilter | Converts time filter to ISO timestamp |
+| filterOptions | filterDropdownConfig | Dropdown labels/icons/options |
+| applyClientFilters | applyClientSideFilters | Client-side filter function |
+| filtered | filteredChangeEvents | Final filtered event list |
+| totalChanges | kpiTotalChangesAllTime | KPI: all-time change count |
+| totalDrifted | kpiResourcesChangedToday | KPI: resources changed today |
+| totalRGs | kpiResourceGroupCount | KPI: resource group count |
+| ev | changeEvent | A single change event in the table row |
+| resName | resourceShortName | Last segment of the ARM resource ID |
+| op | shortOperationName | Shortened operation name |
+| isDelete | isDeleteEvent | Whether the event is a deletion |
+
+
+DriftScanner.jsx done. Key renames:
+
+| Old | New | What it is |
+|---|---|---|
+| scope | socketScope | The subscription/RG/resource object passed to Socket.IO |
+| handleConfigUpdate | handleLiveConfigUpdate | Called when a live Socket.IO event arrives |
+| getDemoConfig | getDemoConfigForSelectedScope | Returns hardcoded demo data when offline |
+| configPromise | armConfigFetchPromise | The in-flight ARM config fetch |
+| idx | animationStepIndex | Which animation step is currently playing |
+| cfg | fetchedConfig | The ARM config returned by the fetch |
+| toCache | resourcesToCacheForDiff | Resources to seed into the diff cache |
+| statsResources | loadedResourceCount | Resource count for the stats bar |
+| statsTags | loadedTagCount | Tag count for the stats bar |
+| statsRegion | loadedRegion | Azure region for the stats bar |
+| totalEvents | liveEventCount | Badge count on the Activity tab |
+| s / rg / r | sub / resourceGroup / res | Options in the dropdowns |
+| a / i | anomaly / anomalyIndex | Anomaly card items |
+
+
+ ComparisonPage.jsx done. Key renames:
+
+| Old | New | What it stores |
+|---|---|---|
+| baseline | baselineConfig | Stripped golden baseline JSON |
+| differences | fieldDifferences | Array of {path, type, oldValue, newValue} diff items |
+| severity | driftSeverity | critical / high / medium / low |
+| loading | isLoadingBaseline | Whether baseline fetch is in progress |
+| noBaseline | baselineNotFound | Whether no baseline blob exists |
+| remediating | isRemediating | Whether ARM PUT / approval request is in progress |
+| remediated | remediationSucceeded | Whether remediation completed successfully |
+| remediateErr | remediationError | Error message from failed remediation |
+| remediateDiff | remediationDiffSummary | Diff shown in the success banner |
+| policyData | policyComplianceData | Azure Policy compliance result |
+| aiExplanation | aiDriftExplanation | OpenAI plain-English drift explanation |
+| aiRecommend | aiRemediationRecommendation | OpenAI remediation recommendation |
+| aiLoading | isAiLoading | Whether AI explanation is being fetched |
+| uploading | isUploadingBaseline | Whether file upload is in progress |
+| uploadMsg | baselineUploadMessage | Upload success/error message |
+| normBaseline | strippedBaseline | Baseline after volatile fields stripped |
+| normLive | strippedLive | Live config after volatile fields stripped |
+| rawDiff | rawDiffResult | Raw output from deepDiff() |
+| fmtDiff | formattedDiffItems | Formatted diff array |
+| d / i | diffItem / diffIndex | Single diff item in the changes list |
+
+
+GenomePage.jsx done. Key renames:
+
+| Old | New | What it stores |
+|---|---|---|
+| snapshots | snapshotList | Array of all snapshots for this resource |
+| loading | isLoadingSnapshots | Whether snapshot list is being fetched |
+| selected | selectedSnapshot | The snapshot open in the JSON viewer |
+| label | snapshotLabelInput | Text in the label input field |
+| saving | isSavingSnapshot | Whether a save is in progress |
+| actionMsg | actionFeedbackMessage | Success/error message after any action |
+| acting | activeActionBlobKey | blobKey of the snapshot being acted on |
+| load | loadSnapshots | Fetches the snapshot list from API |
+| snap | snapshot | Single snapshot in the timeline map |
+| isRgLevel | isResourceGroupLevel | Whether this is an RG-level snapshot |
+| displayName | resourceDisplayName | Human-readable name in the subtitle |
+
+
+ useDriftSocket.js done. Key renames:
+
+| Old | New | What it is |
+|---|---|---|
+| _localEvents / _setLocalEvents | localEventList / setLocalEventList | Fallback local state when no external state provided |
+| changeEvents | liveEventList | The active event list (external or local) |
+| setChangeEvents | setLiveEventList | Setter for the active event list |
+| socket | socketConnection | The Socket.IO client instance |
+| event (in handler) | incomingDriftEvent | A single event received from the server |
+| matchesSub | eventMatchesSubscription | Whether event's subscription matches scope |
+| matchesRG | eventMatchesResourceGroup | Whether event's RG matches scope |
+| matchesRes | eventMatchesResource | Whether event's resource matches scope |
+| key | dedupKey | The deduplication key |
+
+
+ api.js done. What changed:
+
+- Full file header listing all 20+ functions grouped by feature
+- Every function has a comment explaining: what it does, what it returns, which endpoint it calls, and what the backend does with it
+- All console.log statements removed (they were noise in every API call)
+- Fixed the misplaced comment on cacheState (was labelled fetchDriftEvents)
+- response → httpResponse, config → requestConfig, url → fullUrl in apiRequest
+- params → queryParams in every function that builds URL params
+- record → driftRecord in fetchAiExplanation and fetchAiRecommendation
+- Bundle size dropped slightly (234.96 KB vs 238 KB) — the removed console.logs were included in the bundle
+
+
+LiveActivityFeed.jsx
+- u → sessionUser (in resolveUser)
+- c / p / ov / nv → changeItem / fieldPath / oldValueStr / newValueStr (in downloadCSV)
+- changes → changesText, a → downloadLink, csv → csvContent
+- user → callerDisplayName, resName → resourceShortName, resType → resourceTypeName
+- isDelete → isDeleteEvent, isCreate → isCreateEvent, action → actionLabel
+- azureTime → formattedEventTime, op → shortOperationName
+- c / i → changeItem / changeIndex (in change row map)
+- segs → pathSegments, dp → displayPath, dOld → displayOldValue, dNew → displayNewValue
+- typeClass → changeTypeCssClass
+
+
+AzureChatbot.jsx
+- m / i → chatMessage / messageIndex
+- text → trimmedInput, userMsg → newUserMessage, reply → aiReply, e → sendError
+- prev → previousMessages, res → httpResponse
+- sendMessage(messages, context) → sendMessage(conversationHistory, resourceContext)
+
+
+scanSubscription:
+- blobSvc / baseCtr / driftCtr → blobStorageClient / baselinesContainer / driftRecordsContainer
+- getDriftIndex() → getDriftIndexTable()
+- rgName / resource → resourceGroupName / resourceToScan
+- parts / provider / type / name → resourceIdParts / providerNamespace / resourceTypeName / resourceName
+- apiVersion → armApiVersion, liveRaw / live → liveConfigRaw / liveConfigStripped
+- baseline / baseState / changes / severity → baselineDocument / baselineConfigStripped / detectedChanges / driftSeverity
+- record → driftRecord, rk → tableRowKey
+- subClient / subCount / resourceCount / driftCount → subscriptionClient / subscriptionsScanned / resourcesChecked / driftsRecorded
+- sub / rgs / rg / r / i → subscription / allResourceGroups / resourceGroup / resource / batchStart
+
+
+seedBaseline:
+- blobService / baselineCtr → blobStorageClient / baselinesContainer
+- getResourceConfig() → fetchLiveArmConfig()
+- parts / provider / type / name → resourceIdParts / providerNamespace / resourceTypeName / resourceName
+- liveConfig / key / doc → currentLiveConfig / baselineBlobKey / baselineDocument
+
+
+sendAlert:
+- ALERT_LEVELS → ALERT_SEVERITY_LEVELS
+- record → driftRecord, connStr → acsConnectionString
+- recipients → recipientEmailList, e → addr
+- resourceName → resourceShortName, color → severityColor, baseUrl → expressPublicUrl
+- changes → changesForEmail, token → remediationToken
+- diffRows → emailDiffTableRows, c / col → changeItem / changeColor
+- client / poller → acsEmailClient / emailSendPoller
+
+
+socketService.js — event → driftEvent, room → targetRoom, removed console.logs, added comment explaining the room format.
+
+policyService.js — client → policyClient, results → policyStateResults, parts/provider/type/name →
+resourceIdParts/providerNamespace/resourceTypeName/resourceName, resourceScope → resourceScopePath, r → state → policyState,
+nonCompliant/compliant → nonCompliantStates/compliantStates, formatState → formatPolicyState, removed all console.logs.
+
+aiService.js — chat() → callAzureOpenAI(), res → httpResponse, url → openAiUrl, data → responseData, record → driftRecord in all
+functions, c → changeItem in map callbacks, response → aiResponseText, summary → driftSummaryForAI, r → driftRecord, parsed →
+parsedAnomalies, removed all console.logs.
+
+azureResourceService.js — client → armClient, subs → subscriptionList, s → subscription, rgs → resourceGroupList, rg → resourceGroup,
+r → resource, parts/provider/type/name → resourceIdParts/providerNamespace/resourceTypeName/resourceName, apiVersion → armApiVersion
+, resource → resourceConfig, children → childResourceDefs, results → childFetchResults, c/i → childDef/index, cacheKey →
+providerTypeCacheKey, providerInfo → providerDetails, resourceType → matchingType, apiVersions/stable/version →
+availableVersions/stableVersions/resolvedVersion, match/versions/stable/fallback →
+versionMatch/supportedVersions/stableVersions/correctedVersion.
+
+

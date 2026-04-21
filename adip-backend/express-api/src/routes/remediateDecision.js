@@ -1,6 +1,5 @@
-// ============================================================
 // FILE: routes/remediateDecision.js
-// ============================================================
+
 const router_remediateDecision = require('express').Router()
 const { getBaseline: getBaselineForDecision, saveBaseline: saveBaselineForDecision } = require('../services/blobService')
 const { getResourceConfig: getResourceConfigForDecision }  = require('../services/azureResourceService')
@@ -137,6 +136,61 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
           } catch (e) { console.warn('[decision] subnet dissociate failed:', e.message) }
         }
       }
+
+      // ── Storage account child resource reconciliation ─────────────────────
+      // ARM PUT does not create/delete containers, shares, queues, or tables.
+      // Compare baseline._childConfig vs current live._childConfig and reconcile.
+      if (type.toLowerCase() === 'storageaccounts') {
+        const fetch = require('node-fetch')
+        const armBearerToken = await credential.getToken('https://management.azure.com/.default')
+
+        // Fetch current live child resources to know what exists right now
+        const currentLiveConfig = await getResourceConfigForDecision(subscriptionId, rgName, resourceId).catch(() => ({}))
+
+        async function callStorageChildApi(httpMethod, childResourcePath, requestBody = null) {
+          const armUrl = `https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${rgName}/providers/Microsoft.Storage/storageAccounts/${name}/${childResourcePath}?api-version=2023-01-01`
+          const fetchOptions = {
+            method: httpMethod,
+            headers: { 'Authorization': `Bearer ${armBearerToken.token}`, 'Content-Type': 'application/json' },
+          }
+          if (requestBody) fetchOptions.body = JSON.stringify(requestBody)
+          const httpResponse = await fetch(armUrl, fetchOptions)
+          if (!httpResponse.ok) throw new Error(`Storage child API ${httpResponse.status}: ${await httpResponse.text()}`)
+        }
+
+        async function reconcileStorageChildResources(childResourceType, serviceBasePath, createBody) {
+          const baselineItems = (baselineState._childConfig?.[childResourceType] || []).map(item => item.name.toLowerCase())
+          const liveItems     = (currentLiveConfig._childConfig?.[childResourceType] || []).map(item => item.name.toLowerCase())
+
+          // In live but NOT in baseline → delete
+          for (const itemName of liveItems.filter(n => !baselineItems.includes(n))) {
+            try {
+              await callStorageChildApi('DELETE', `${serviceBasePath}/${itemName}`)
+              console.log(`[decision] deleted ${childResourceType}: ${itemName}`)
+            } catch (deleteError) {
+              console.warn(`[decision] failed to delete ${childResourceType} ${itemName}:`, deleteError.message)
+            }
+          }
+
+          // In baseline but NOT in live → create
+          for (const itemName of baselineItems.filter(n => !liveItems.includes(n))) {
+            try {
+              await callStorageChildApi('PUT', `${serviceBasePath}/${itemName}`, createBody)
+              console.log(`[decision] created ${childResourceType}: ${itemName}`)
+            } catch (createError) {
+              console.warn(`[decision] failed to create ${childResourceType} ${itemName}:`, createError.message)
+            }
+          }
+        }
+
+        await Promise.allSettled([
+          reconcileStorageChildResources('blobContainers',  'blobServices/default/containers',  { properties: {} }),
+          reconcileStorageChildResources('fileShares',      'fileServices/default/shares',       { properties: {} }),
+          reconcileStorageChildResources('storageQueues',   'queueServices/default/queues',      {}),
+          reconcileStorageChildResources('storageTables',   'tableServices/default/tables',      {}),
+        ])
+      }
+      // ── Storage account child resource reconciliation END ──────────────────
 
       console.log('[GET /remediate-decision] ends — approved and applied')
       return res.send(html('✓ Remediation Applied',

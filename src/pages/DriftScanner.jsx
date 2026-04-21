@@ -1,3 +1,16 @@
+// FILE: src/pages/DriftScanner.jsx
+// ROLE: Resource selection, live config viewer, and real-time drift activity feed
+
+// What this page does:
+//   - Lets the user pick a Subscription → Resource Group → Resource from dropdowns
+//   - On Submit: fetches live ARM config, shows it as a JSON tree, starts Socket.IO
+//     monitoring, seeds the diff cache, fetches policy compliance and AI anomalies
+//   - Live Activity Feed tab: shows real-time ARM change events pushed via Socket.IO
+//   - On Stop: clears monitoring session, resets all state
+//   - Navigate to Comparison Page or Genome Page via toolbar buttons
+
+// State is stored in DashboardContext so selections persist across page navigation
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import JsonTree from '../components/JsonTree'
@@ -54,22 +67,32 @@ export default function DriftScanner() {
     savedSubscription: subscription, savedResourceGroup: resourceGroup,
   })
 
-  const scope = useMemo(
+  // scope: the currently selected subscription/RG/resource — passed to useDriftSocket
+  // Socket.IO uses this to join the correct room and filter incoming events
+  const socketScope = useMemo(
     () => ({ subscriptionId: subscription, resourceGroup, resourceId: resource || null }),
     [subscription, resourceGroup, resource]
   )
 
-  const handleConfigUpdate = useCallback((event) => {
-    if (!event.resourceId && !event.resourceGroup) return
-    if (resource && event.liveState) {
-      setConfigData(event.liveState)
+  // Called by useDriftSocket whenever a live resourceChange event arrives
+  // If the event includes the new live state, use it directly (faster)
+  // Otherwise re-fetch from ARM to keep the JSON tree current
+  const handleLiveConfigUpdate = useCallback((incomingEvent) => {
+    if (!incomingEvent.resourceId && !incomingEvent.resourceGroup) return
+    if (resource && incomingEvent.liveState) {
+      // Event includes the new config — update the JSON tree immediately
+      setConfigData(incomingEvent.liveState)
     } else {
+      // Re-fetch from ARM to get the latest config
       fetchResourceConfiguration(subscription, resourceGroup, resource || null)
-        .then(cfg => { if (cfg) setConfigData(cfg) }).catch(() => {})
+        .then(freshConfig => { if (freshConfig) setConfigData(freshConfig) }).catch(() => {})
     }
   }, [subscription, resourceGroup, resource, setConfigData])
 
-  const { socketConnected, clearDriftEvents } = useDriftSocket(scope, isSubmitted, handleConfigUpdate, driftEvents, setDriftEvents)
+  // Connect to Socket.IO — receives real-time ARM change events for the selected scope
+  // socketConnected: true when the WebSocket connection is active
+  // clearDriftEvents: resets the live activity feed (called on Stop)
+  const { socketConnected, clearDriftEvents } = useDriftSocket(socketScope, isSubmitted, handleLiveConfigUpdate, driftEvents, setDriftEvents)
 
   useEffect(() => () => { if (scanInterval.current) clearInterval(scanInterval.current) }, [])
 
@@ -82,79 +105,143 @@ export default function DriftScanner() {
     return () => clearInterval(id)
   }, [isSubmitted, subscription, resourceGroup, resource])
 
-  const getDemoConfig = () => {
-    const cfg = RESOURCE_CONFIGS[resourceGroup]
-    if (!cfg) return null
+  // Returns hardcoded demo config when the backend is unreachable (isDemoMode = true)
+  // Looks up the selected resource group in RESOURCE_CONFIGS, then finds the specific resource if one is selected
+  const getDemoConfigForSelectedScope = () => {
+    const demoConfigForGroup = RESOURCE_CONFIGS[resourceGroup]
+    if (!demoConfigForGroup) return null
     if (resource) {
-      const resName = resources.find(r => r.id === resource)?.name
-      return cfg.resources?.find(r => r.name === resName) ?? cfg
+      const selectedResourceName = resources.find(r => r.id === resource)?.name
+      return demoConfigForGroup.resources?.find(r => r.name === selectedResourceName) ?? demoConfigForGroup
     }
-    return cfg
+    return demoConfigForGroup
   }
 
+  // handleSubmit — called when the user clicks 'Submit Scan'
+  // 1. Plays through the LIVE_EVENTS_TEMPLATE animation steps (progress bar)
+  // 2. Fetches live ARM config from /api/configuration (or demo config if offline)
+  // 3. On success: sets isSubmitted=true (unblocks Socket.IO), seeds the diff cache,
+  //    starts monitoring session, fetches policy compliance and AI anomalies
   const handleSubmit = () => {
     if (!subscription || !resourceGroup || isScanning) return
+
+    // Reset all state before starting a new scan
     setIsScanning(true)
     setIsSubmitted(false)
     setConfigData(null)
     setLiveEvents([])
     setScanProgress(0)
 
-    const configPromise = isDemoMode
-      ? new Promise(resolve => setTimeout(() => resolve(getDemoConfig()), LIVE_EVENTS_TEMPLATE.length * 200))
+    // Start the ARM config fetch in parallel with the animation
+    const armConfigFetchPromise = isDemoMode
+      ? new Promise(resolve => setTimeout(() => resolve(getDemoConfigForSelectedScope()), LIVE_EVENTS_TEMPLATE.length * 200))
       : fetchResourceConfiguration(subscription, resourceGroup, resource || null)
 
-    let idx = 0
+    // Play through animation steps one by one, then resolve the config fetch
+    let animationStepIndex = 0
     scanInterval.current = setInterval(() => {
-      if (idx < LIVE_EVENTS_TEMPLATE.length) {
-        setLiveEvents(prev => [...prev, { ...LIVE_EVENTS_TEMPLATE[idx], timestamp: new Date().toLocaleTimeString(), id: Date.now() + idx }])
-        setScanProgress(Math.round(((idx + 1) / LIVE_EVENTS_TEMPLATE.length) * 100))
-        idx++
+      if (animationStepIndex < LIVE_EVENTS_TEMPLATE.length) {
+        // Add the next animation step to the live events feed
+        setLiveEvents(prev => [...prev, {
+          ...LIVE_EVENTS_TEMPLATE[animationStepIndex],
+          timestamp: new Date().toLocaleTimeString(),
+          id: Date.now() + animationStepIndex,
+        }])
+        setScanProgress(Math.round(((animationStepIndex + 1) / LIVE_EVENTS_TEMPLATE.length) * 100))
+        animationStepIndex++
       } else {
+        // Animation done — wait for the ARM fetch to complete
         clearInterval(scanInterval.current)
-        configPromise
-          .then(cfg => {
-            if (cfg) {
+        armConfigFetchPromise
+          .then(fetchedConfig => {
+            if (fetchedConfig) {
+              // Config loaded — unlock the Socket.IO event handler and show the JSON tree
               setIsSubmitted(true)
-              setConfigData(cfg)
-              fetchPolicyCompliance(subscription, resourceGroup, resource || null).then(p => setPolicyData(p)).catch(() => {})
+              setConfigData(fetchedConfig)
+
+              // Fetch Azure Policy compliance state for the selected scope
+              fetchPolicyCompliance(subscription, resourceGroup, resource || null)
+                .then(policyResult => setPolicyData(policyResult)).catch(() => {})
+
               if (!isDemoMode) {
-                fetchAnomalies(subscription).then(r => setAnomalies(r?.anomalies || [])).catch(() => {})
-                const toCache = cfg.resources ? cfg.resources.filter(r => r.id) : (cfg.id ? [cfg] : [])
-                toCache.forEach(r => cacheState(r.id, r).catch(() => {}))
+                // Fetch AI anomaly detection across last 50 drift records
+                fetchAnomalies(subscription)
+                  .then(anomalyResult => setAnomalies(anomalyResult?.anomalies || [])).catch(() => {})
+
+                // Seed the diff cache so the first Socket.IO event has a previous state to diff against
+                const resourcesToCacheForDiff = fetchedConfig.resources
+                  ? fetchedConfig.resources.filter(r => r.id)
+                  : (fetchedConfig.id ? [fetchedConfig] : [])
+                resourcesToCacheForDiff.forEach(r => cacheState(r.id, r).catch(() => {}))
+
+                // Store the current scope so handleStop knows what session to stop
                 monitorScope.current = { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || null }
                 setIsMonitoring(true)
+
+                // Add a 'now listening' message to the activity feed
+                const monitoredName = resource
+                  ? resources.find(r => r.id === resource)?.name
+                  : resourceGroups.find(rg => rg.id === resourceGroup)?.name
                 setLiveEvents(prev => [...prev, {
-                  message: `Listening for live changes on ${resource ? resources.find(r => r.id === resource)?.name : resourceGroups.find(rg => rg.id === resourceGroup)?.name}`,
-                  timestamp: new Date().toLocaleTimeString(), id: Date.now(),
+                  message: `Listening for live changes on ${monitoredName}`,
+                  timestamp: new Date().toLocaleTimeString(),
+                  id: Date.now(),
                 }])
               }
             }
           })
-          .catch(err => {
-            setLiveEvents(prev => [...prev, { type: 'stop', message: `API Error: ${err.message}`, timestamp: new Date().toLocaleTimeString(), id: Date.now() }])
+          .catch(fetchError => {
+            setLiveEvents(prev => [...prev, {
+              type: 'stop',
+              message: `API Error: ${fetchError.message}`,
+              timestamp: new Date().toLocaleTimeString(),
+              id: Date.now(),
+            }])
           })
           .finally(() => setIsScanning(false))
       }
     }, 10)
   }
 
+  // handleStop — called when the user clicks the Stop button
+  // Stops the animation interval, calls /api/monitor/stop to deactivate the session
+  // in monitorSessions Table, and resets all page state back to defaults
   const handleStop = () => {
+    // Stop the scan animation interval if it's still running
     if (scanInterval.current) clearInterval(scanInterval.current)
+
+    // Tell the backend to mark this monitoring session as inactive in Table Storage
     if (isMonitoring && monitorScope.current) {
       const { subscriptionId, resourceGroupId, resourceId } = monitorScope.current
       stopMonitoring(subscriptionId, resourceGroupId, resourceId).catch(() => {})
       monitorScope.current = null
     }
-    setIsScanning(false); setIsMonitoring(false); setIsSubmitted(false)
-    setConfigData(null); setLiveEvents([]); setScanProgress(0)
-    setPolicyData(null); setAnomalies([]); clearDriftEvents()
+
+    // Reset all page state
+    setIsScanning(false)
+    setIsMonitoring(false)
+    setIsSubmitted(false)   // re-gates the Socket.IO event handler
+    setConfigData(null)
+    setLiveEvents([])
+    setScanProgress(0)
+    setPolicyData(null)
+    setAnomalies([])
+    clearDriftEvents()      // clears the live activity feed
   }
 
-  const statsResources = configData?.resources ? configData.resources.length : (configData ? 1 : 0)
-  const statsTags = configData?.resourceGroup ? Object.keys(configData.resourceGroup.tags ?? {}).length : Object.keys(configData?.tags ?? {}).length
-  const statsRegion = configData?.resourceGroup?.location ?? configData?.location ?? '—'
-  const totalEvents = driftEvents.length
+  // Number of resources in the loaded config (shown in the stats bar)
+  const loadedResourceCount = configData?.resources ? configData.resources.length : (configData ? 1 : 0)
+
+  // Number of tags on the resource group or resource (shown in the stats bar)
+  const loadedTagCount = configData?.resourceGroup
+    ? Object.keys(configData.resourceGroup.tags ?? {}).length
+    : Object.keys(configData?.tags ?? {}).length
+
+  // Azure region of the selected resource or resource group
+  const loadedRegion = configData?.resourceGroup?.location ?? configData?.location ?? '—'
+
+  // Total number of live drift events received via Socket.IO (shown as badge on Activity tab)
+  const liveEventCount = driftEvents.length
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
   return (
     <div className="ds-root">
@@ -184,7 +271,7 @@ export default function DriftScanner() {
                 </div>
               )}
               {isDemoMode && <span className="ds-demo-badge">Demo Mode</span>}
-              {configData && <div className="ds-resources-badge">{statsResources} Resource{statsResources !== 1 ? 's' : ''} Active</div>}
+              {configData && <div className="ds-resources-badge">{loadedResourceCount} Resource{loadedResourceCount !== 1 ? 's' : ''} Active</div>}
             </div>
           </header>
 
@@ -194,20 +281,20 @@ export default function DriftScanner() {
               <div className="ds-filter-field">
                 <label className="ds-filter-label">Subscription</label>
                 <select className="ds-filter-select" value={subscription}
-                  onChange={e => { const v = e.target.value; setSubscription(v); setResourceGroup(''); setResource(''); setConfigData(null); fetchRGs(v) }}
+                  onChange={e => { const selectedSubId = e.target.value; setSubscription(selectedSubId); setResourceGroup(''); setResource(''); setConfigData(null); fetchRGs(selectedSubId) }}
                   disabled={scopeLoading && !subscriptions.length} id="filter-subscription">
                   <option value="">Select subscription...</option>
-                  {subscriptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {subscriptions.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
                 </select>
               </div>
 
               <div className="ds-filter-field">
                 <label className="ds-filter-label">Resource Group</label>
                 <select className="ds-filter-select" value={resourceGroup}
-                  onChange={e => { const v = e.target.value; setResourceGroup(v); setResource(''); setConfigData(null); fetchResources(subscription, v) }}
+                  onChange={e => { const selectedRgId = e.target.value; setResourceGroup(selectedRgId); setResource(''); setConfigData(null); fetchResources(subscription, selectedRgId) }}
                   disabled={!subscription || scopeLoading} id="filter-resource-group">
                   <option value="">Select resource group...</option>
-                  {resourceGroups.map(rg => <option key={rg.id} value={rg.id}>{rg.name}</option>)}
+                  {resourceGroups.map(resourceGroup => <option key={resourceGroup.id} value={resourceGroup.id}>{resourceGroup.name}</option>)}
                 </select>
               </div>
 
@@ -217,7 +304,7 @@ export default function DriftScanner() {
                   onChange={e => setResource(e.target.value)}
                   disabled={!resourceGroup || scopeLoading} id="filter-resource">
                   <option value="">All resources</option>
-                  {resources.map(r => <option key={r.id} value={r.id}>{r.name} ({r.type})</option>)}
+                  {resources.map(res => <option key={res.id} value={res.id}>{res.name} ({res.type})</option>)}
                 </select>
               </div>
 
@@ -236,9 +323,9 @@ export default function DriftScanner() {
             {/* Stats */}
             {configData && !isScanning && (
               <div className="ds-stats-row">
-                <div className="ds-stat-pill ds-stat-pill--info"><span className="ds-stat-val">{statsResources}</span> resources</div>
-                <div className="ds-stat-pill ds-stat-pill--ok"><span className="ds-stat-val">{statsTags}</span> tags</div>
-                <div className="ds-stat-pill ds-stat-pill--region"><span className="ds-stat-val">{statsRegion}</span></div>
+                <div className="ds-stat-pill ds-stat-pill--info"><span className="ds-stat-val">{loadedResourceCount}</span> resources</div>
+                <div className="ds-stat-pill ds-stat-pill--ok"><span className="ds-stat-val">{loadedTagCount}</span> tags</div>
+                <div className="ds-stat-pill ds-stat-pill--region"><span className="ds-stat-val">{loadedRegion}</span></div>
                 {policyData?.nonCompliant > 0 && (
                   <div className="ds-stat-pill" style={{ color: '#dc2626' }}>
                     <span className="ds-stat-val" style={{ color: '#dc2626' }}>{policyData.nonCompliant}</span> policy violations
@@ -251,10 +338,10 @@ export default function DriftScanner() {
             {anomalies?.length > 0 && (
               <div className="ds-anomalies">
                 <span className="ds-anomaly-label">AI Anomalies</span>
-                {anomalies.slice(0, 2).map((a, i) => (
-                  <div key={i} className="ds-anomaly-card">
-                    <div className="ds-anomaly-title">{a.title}</div>
-                    <div className="ds-anomaly-desc">{a.description}</div>
+                {anomalies.slice(0, 2).map((anomaly, anomalyIndex) => (
+                  <div key={anomalyIndex} className="ds-anomaly-card">
+                    <div className="ds-anomaly-title">{anomaly.title}</div>
+                    <div className="ds-anomaly-desc">{anomaly.description}</div>
                   </div>
                 ))}
               </div>
@@ -279,7 +366,7 @@ export default function DriftScanner() {
                 <button className={`ds-tab-btn ${activeTab === 'activity' ? 'ds-tab-btn--active' : ''}`}
                   onClick={() => setActiveTab('activity')} id="tab-activity">
                   Live Activity Feed
-                  {totalEvents > 0 && <span className="ds-tab-badge">{totalEvents}</span>}
+                  {liveEventCount > 0 && <span className="ds-tab-badge">{liveEventCount}</span>}
                 </button>
               </div>
 

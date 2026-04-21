@@ -4,33 +4,37 @@ const fetch  = require('node-fetch')
 
 // AI operations are handled by the aiOperations Azure Function
 // Express proxies to the Function App — frontend keeps calling /api/ai/*
-function getFunctionUrl(operation) {
-  const base = process.env.FUNCTION_APP_URL?.replace(/\/$/, '') || 'https://adip-func-001.azurewebsites.net/api'
-  const key  = process.env.AI_FUNCTION_KEY || ''
-  return `${base}/ai/${operation}${key ? `?code=${key}` : ''}`
+// Builds the full URL for the aiOperations Azure Function
+// Appends the function key as ?code= if AI_FUNCTION_KEY is set in .env
+function buildAiFunctionUrl(operationName) {
+  const functionAppBaseUrl = process.env.FUNCTION_APP_URL?.replace(/\/$/, '') || 'https://adip-func-001.azurewebsites.net/api'
+  const functionAuthKey    = process.env.AI_FUNCTION_KEY || ''
+  return `${functionAppBaseUrl}/ai/${operationName}${functionAuthKey ? `?code=${functionAuthKey}` : ''}`
 }
 
-async function proxyPost(operation, body) {
-  const res = await fetch(getFunctionUrl(operation), {
+// Forwards a POST request to the aiOperations Function and returns the JSON response
+async function forwardPostToAiFunction(operationName, requestBody) {
+  const httpResponse = await fetch(buildAiFunctionUrl(operationName), {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
+    body:    JSON.stringify(requestBody),
   })
-  if (!res.ok) throw new Error(`AI Function error ${res.status}: ${await res.text()}`)
-  return res.json()
+  if (!httpResponse.ok) throw new Error(`AI Function error ${httpResponse.status}: ${await httpResponse.text()}`)
+  return httpResponse.json()
 }
 
-async function proxyGet(operation, query) {
-  const params = new URLSearchParams(query).toString()
-  const url    = getFunctionUrl(operation) + (params ? `&${params}` : '')
-  const res    = await fetch(url)
-  if (!res.ok) throw new Error(`AI Function error ${res.status}: ${await res.text()}`)
-  return res.json()
+// Forwards a GET request to the aiOperations Function and returns the JSON response
+async function forwardGetToAiFunction(operationName, queryParams) {
+  const queryString  = new URLSearchParams(queryParams).toString()
+  const fullUrl      = buildAiFunctionUrl(operationName) + (queryString ? `&${queryString}` : '')
+  const httpResponse = await fetch(fullUrl)
+  if (!httpResponse.ok) throw new Error(`AI Function error ${httpResponse.status}: ${await httpResponse.text()}`)
+  return httpResponse.json()
 }
 
-router.post('/ai/explain',    async (req, res) => { try { res.json(await proxyPost('explain',    req.body)) } catch (e) { res.status(500).json({ error: e.message }) } })
-router.post('/ai/severity',   async (req, res) => { try { res.json(await proxyPost('severity',   req.body)) } catch (e) { res.status(500).json({ error: e.message }) } })
-router.post('/ai/recommend',  async (req, res) => { try { res.json(await proxyPost('recommend',  req.body)) } catch (e) { res.status(500).json({ error: e.message }) } })
-router.get('/ai/anomalies',   async (req, res) => { try { res.json(await proxyGet('anomalies',   req.query)) } catch (e) { res.status(500).json({ error: e.message }) } })
+router.post('/ai/explain',   async (req, res) => { try { res.json(await forwardPostToAiFunction('explain',   req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
+router.post('/ai/severity',  async (req, res) => { try { res.json(await forwardPostToAiFunction('severity',  req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
+router.post('/ai/recommend', async (req, res) => { try { res.json(await forwardPostToAiFunction('recommend', req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
+router.get('/ai/anomalies',  async (req, res) => { try { res.json(await forwardGetToAiFunction('anomalies',  req.query)) } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 
 module.exports = router

@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/blobService.js
 // ROLE: All Azure Blob Storage and Table Storage reads/writes for the Express API
-//
+
 // What this file owns:
 //   - saveBaseline() / getBaseline(): golden baseline blobs in 'baselines' container
 //   - saveDriftRecord() / getDriftRecords(): drift detection results in 'drift-records'
@@ -12,13 +11,13 @@
 //     in 'baseline-genome' container + 'genomeIndex' Table
 //   - All blob keys use base64url(resourceId) so ARM resource IDs (which contain /)
 //     are safe to use as blob filenames
-//
+
 // Pattern: every blob write is paired with a Table Storage upsert (the index).
 //   Table = fast O(filtered) query to find which blobs to fetch.
 //   Blob  = full JSON document storage.
-//
+
 // Called by: drift.js, baseline.js, genome.js, compare.js, queuePoller.js, app.js
-// ============================================================
+
 const { BlobServiceClient } = require('@azure/storage-blob')
 const { TableClient, odata } = require('@azure/data-tables')
 
@@ -209,7 +208,7 @@ async function listGenomeSnapshots(subscriptionId, resourceId, limit = 50) {
   for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
     if (results.length >= limit) break
     const doc = await readBlob('baseline-genome', entity.blobKey)
-    if (doc) results.push({ ...doc, _blobKey: entity.blobKey, rolledBackAt: entity.rolledBackAt || null })
+    if (doc) results.push({ ...doc, _blobKey: entity.blobKey, rolledBackAt: entity.rolledBackAt || null, isCurrentBaseline: entity.isCurrentBaseline || false })
   }
   return results.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))
 }
@@ -304,10 +303,19 @@ async function saveChangeRecord(record) {
 // ── saveChangeRecord END ──────────────────────────────────────────────────────
 
 // ── getRecentChanges START ────────────────────────────────────────────────────
-// Queries changesIndex Table for last N hours, fetches full blobs for detail
+// Queries changesIndex Table for last N hours and returns index fields directly.
+// Results are cached in-memory for 10 seconds to avoid hammering Table Storage
+// on every dashboard auto-refresh cycle.
+const _recentChangesCache = new Map()  // key: cacheKey string → { data, expiresAt }
+
 async function getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since, limit = 200 }) {
   const tc = tableClient('changesIndex')
   if (!tc) return []
+
+  // Cache key includes all filter params so different filters get separate cache entries
+  const cacheKey = `${subscriptionId}|${resourceGroup||''}|${caller||''}|${changeType||''}|${since}|${limit}`
+  const cachedEntry = _recentChangesCache.get(cacheKey)
+  if (cachedEntry && cachedEntry.expiresAt > Date.now()) return cachedEntry.data
 
   let filter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${since}'`
   if (resourceGroup) filter += ` and resourceGroup eq '${resourceGroup}'`
@@ -317,27 +325,33 @@ async function getRecentChanges({ subscriptionId, resourceGroup, caller, changeT
   for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
     if (results.length >= limit) break
     if (caller && entity.caller !== caller) continue
-    // Read full blob for complete detail
-    const doc = await readBlob('all-changes', entity.blobKey).catch(() => null)
-    if (doc) results.push(doc)
-    else {
-      // Fallback: use index entity fields if blob missing
-      results.push({
-        subscriptionId,
-        resourceId:    entity.resourceId    || '',
-        resourceGroup: entity.resourceGroup || '',
-        eventType:     entity.eventType     || '',
-        operationName: entity.operationName || '',
-        changeType:    entity.changeType    || 'modified',
-        caller:        entity.caller        || '',
-        detectedAt:    entity.detectedAt    || '',
-        _blobKey:      entity.blobKey,
-      })
-    }
+    // Return index fields directly — no blob read needed for the dashboard table
+    results.push({
+      subscriptionId,
+      resourceId:    entity.resourceId    || '',
+      resourceGroup: entity.resourceGroup || '',
+      eventType:     entity.eventType     || '',
+      operationName: entity.operationName || '',
+      changeType:    entity.changeType    || 'modified',
+      caller:        entity.caller        || '',
+      detectedAt:    entity.detectedAt    || '',
+      changeCount:   entity.changeCount   || 0,
+      severity:      entity.severity      || '',
+      _blobKey:      entity.blobKey,
+    })
   }
-  return results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+  const sortedResults = results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+
+  // Cache for 10 seconds — short enough to show new events quickly
+  _recentChangesCache.set(cacheKey, { data: sortedResults, expiresAt: Date.now() + 10000 })
+  // Prune stale entries to prevent unbounded growth
+  for (const [key, entry] of _recentChangesCache) {
+    if (entry.expiresAt < Date.now()) _recentChangesCache.delete(key)
+  }
+
+  return sortedResults
 }
-// ── getRecentChanges END ──────────────────────────────────────────────────────
+// ── getRecentChanges END ────────────────────────────────────────────────────── ──────────────────────────────────────────────────────
 
 
 // Returns total permanent change count for a subscription (all time)
