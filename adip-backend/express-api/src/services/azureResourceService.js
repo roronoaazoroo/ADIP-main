@@ -1,4 +1,3 @@
-// ============================================================
 // FILE: services/azureResourceService.js
 // ROLE: All Azure Resource Manager (ARM) API calls — subscriptions, RGs, resources, API versions
 //
@@ -11,7 +10,7 @@
 //     checks API_VERSION_MAP first, then queries ARM dynamically, caches result
 //   fetchWithFallback(client, rg, provider, type, name, apiVersion)
 //     — ARM GET with automatic API version correction on 400 errors
-// ============================================================
+
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { SubscriptionClient } = require('@azure/arm-subscriptions')
 const { DefaultAzureCredential } = require('@azure/identity')

@@ -1,6 +1,5 @@
-// ============================================================
 // FILE: routes/remediate.js
-// ============================================================
+
 const router_remediate = require('express').Router()
 const fetch = require('node-fetch')
 const { ResourceManagementClient } = require('@azure/arm-resources')

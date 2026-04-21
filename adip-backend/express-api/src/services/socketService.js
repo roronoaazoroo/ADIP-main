@@ -1,9 +1,8 @@
-// ============================================================
 // FILE: services/socketService.js
 // ROLE: Thin wrapper around global.io to broadcast drift events to connected browsers
 // global.io is set in app.js — this wrapper keeps routes decoupled from app.js
 // Room format: subscriptionId:resourceGroup (lowercased, matches app.js join logic)
-// ============================================================
+
 
 
 // ── broadcastDriftEvent START ────────────────────────────────────────────────

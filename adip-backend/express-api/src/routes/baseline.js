@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: routes/baseline.js
-// ROLE: GET /api/baselines — fetch golden baseline | POST /api/baselines — save new baseline
-// ============================================================
+// ROLE: GET /api/baselines — fetch golden baseline | POST
+
 const router_baseline = require('express').Router()
 const { getBaseline, saveBaseline } = require('../services/blobService')
  

@@ -1,8 +1,7 @@
  
-// ============================================================
 // FILE: routes/configuration.js
 // ROLE: GET /api/configuration — fetches full live ARM config for a resource or resource group
-// ============================================================
+
 const router_configuration = require('express').Router()
 const { getResourceConfig: getResourceConfigForRoute } = require('../services/azureResourceService')
  

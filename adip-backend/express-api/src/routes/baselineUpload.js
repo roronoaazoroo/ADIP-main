@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: routes/baselineUpload.js
 // ROLE: POST /api/baselines/upload — accepts a JSON file as the new golden baseline
-// ============================================================
+
 const router_baselineUpload = require('express').Router()
 const { upsertBaseline } = require('../services/blobService')
  

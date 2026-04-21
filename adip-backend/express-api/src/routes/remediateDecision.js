@@ -1,6 +1,5 @@
-// ============================================================
 // FILE: routes/remediateDecision.js
-// ============================================================
+
 const router_remediateDecision = require('express').Router()
 const { getBaseline: getBaselineForDecision, saveBaseline: saveBaselineForDecision } = require('../services/blobService')
 const { getResourceConfig: getResourceConfigForDecision }  = require('../services/azureResourceService')
