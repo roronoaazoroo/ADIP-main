@@ -1,6 +1,5 @@
-// ============================================================
 // FILE: routes/remediateRequest.js
-// ============================================================
+
 const router_remediateRequest = require('express').Router()
 const fetch = require('node-fetch')
  

@@ -1,4 +1,3 @@
-// ============================================================
 // FILE: services/aiService.js
 // ROLE: Azure OpenAI integration — all AI features for drift analysis
 //
@@ -9,7 +8,7 @@
 //   reclassifySeverity(driftRecord)   — AI severity override (can only escalate)
 //   getRemediationRecommendation(driftRecord) — what reverting to baseline will do
 //   detectAnomalies(recentDriftRecords) — pattern detection across last 50 records
-// ============================================================
+
 const fetch = require('node-fetch')
 
 const ENDPOINT   = () => process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')

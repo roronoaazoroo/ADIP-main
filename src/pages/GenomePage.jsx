@@ -95,6 +95,7 @@ export default function GenomePage() {
     try {
       await promoteGenomeSnapshot(subscriptionId, resourceGroupId, resourceId, snapshotToPromote._blobKey)
       setActionFeedbackMessage({ ok: true, text: 'Promoted to golden baseline.' })
+      loadSnapshots()
     } catch (promoteError) {
       setActionFeedbackMessage({ ok: false, text: promoteError.message })
     } finally {
@@ -209,8 +210,9 @@ export default function GenomePage() {
                 <div className="gp-snap-actions">
                   <button className="gp-snap-btn gp-snap-btn--green"
                     onClick={e => { e.stopPropagation(); handlePromote(snapshot) }}
-                    disabled={activeActionBlobKey === snapshot._blobKey}>
-                    {activeActionBlobKey === snapshot._blobKey ? '...' : 'Set as Baseline'}
+                    disabled={activeActionBlobKey === snapshot._blobKey || snapshot.isCurrentBaseline}
+                    title={snapshot.isCurrentBaseline ? 'This snapshot is already the active baseline' : 'Promote this snapshot to golden baseline'}>
+                    {activeActionBlobKey === snapshot._blobKey ? '...' : snapshot.isCurrentBaseline ? 'Current Baseline' : 'Set as Baseline'}
                   </button>
                   <button className="gp-snap-btn gp-snap-btn--red"
                     onClick={e => { e.stopPropagation(); handleRollback(snapshot) }}

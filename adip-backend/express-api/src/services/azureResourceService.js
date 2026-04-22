@@ -1,4 +1,3 @@
-// ============================================================
 // FILE: services/azureResourceService.js
 // ROLE: All Azure Resource Manager (ARM) API calls — subscriptions, RGs, resources, API versions
 //
@@ -11,7 +10,7 @@
 //     checks API_VERSION_MAP first, then queries ARM dynamically, caches result
 //   fetchWithFallback(client, rg, provider, type, name, apiVersion)
 //     — ARM GET with automatic API version correction on 400 errors
-// ============================================================
+
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { SubscriptionClient } = require('@azure/arm-subscriptions')
 const { DefaultAzureCredential } = require('@azure/identity')
@@ -149,6 +148,7 @@ async function listResources(subscriptionId, resourceGroupName) {
 
 
 // Child resource paths to fetch and merge for each parent resource type
+// Each entry: { child: ARM child resource type, name: resource name, apiVersion }
 const CHILD_RESOURCES = {
   storageaccounts: [
     { child: 'blobServices',  name: 'default', apiVersion: '2023-01-01' },
@@ -160,6 +160,62 @@ const CHILD_RESOURCES = {
     { child: 'config', name: 'web', apiVersion: '2023-01-01' },
   ],
 }
+
+// Storage container/share/queue/table list API versions
+const STORAGE_LIST_API_VERSION = '2023-01-01'
+
+// ── fetchStorageChildItems START ─────────────────────────────────────────────
+// Lists the actual containers, file shares, queues, and tables inside a storage account
+// These are user-created resources that live under the service paths:
+//   blobServices/default/containers, fileServices/default/shares,
+//   queueServices/default/queues, tableServices/default/tables
+// The ARM SDK's ResourceManagementClient doesn't expose these nested list endpoints,
+// so we call the ARM REST API directly using the module-level DefaultAzureCredential
+async function fetchStorageChildItems(subscriptionId, resourceGroupName, storageAccountName) {
+  console.log('[fetchStorageChildItems] starts — account:', storageAccountName)
+
+  const storageChildItems = {}
+  const fetch = require('node-fetch')
+
+  // Get a bearer token using the same credential used for all other ARM calls
+  const armBearerToken = await credential.getToken('https://management.azure.com/.default')
+
+  // Helper: calls a storage account child list endpoint and returns the items array
+  async function listStorageChildResources(childResourcePath) {
+    const armListUrl = `https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}/${childResourcePath}?api-version=${STORAGE_LIST_API_VERSION}`
+    try {
+      const httpResponse = await fetch(armListUrl, {
+        headers: { 'Authorization': `Bearer ${armBearerToken.token}`, 'Content-Type': 'application/json' }
+      })
+      if (!httpResponse.ok) return []
+      const responseData = await httpResponse.json()
+      return (responseData.value || []).map(item => ({
+        name:       item.name,
+        id:         item.id,
+        properties: item.properties,
+      }))
+    } catch {
+      return []  // non-fatal — some storage accounts may not have all service types enabled
+    }
+  }
+
+  const [blobContainers, fileShares, storageQueues, storageTables] = await Promise.all([
+    listStorageChildResources('blobServices/default/containers'),
+    listStorageChildResources('fileServices/default/shares'),
+    listStorageChildResources('queueServices/default/queues'),
+    listStorageChildResources('tableServices/default/tables'),
+  ])
+
+  if (blobContainers.length)  storageChildItems.blobContainers  = blobContainers
+  if (fileShares.length)      storageChildItems.fileShares      = fileShares
+  if (storageQueues.length)   storageChildItems.storageQueues   = storageQueues
+  if (storageTables.length)   storageChildItems.storageTables   = storageTables
+
+  console.log('[fetchStorageChildItems] ends — containers:', blobContainers.length,
+    'shares:', fileShares.length, 'queues:', storageQueues.length, 'tables:', storageTables.length)
+  return storageChildItems
+}
+// ── fetchStorageChildItems END ───────────────────────────────────────────────
 
 
 // ── fetchWithFallback START ──────────────────────────────────────────────────
@@ -187,7 +243,6 @@ async function fetchWithFallback(client, rg, provider, type, name, apiVersion) {
 }
 // ── fetchWithFallback END ────────────────────────────────────────────────────
 
-
 // ── getResourceConfig START ──────────────────────────────────────────────────
 // Fetches the live ARM configuration for a specific resource or all resources in a resource group
 // Also fetches child resources (e.g. blobServices) and merges them into _childConfig
@@ -203,19 +258,29 @@ async function getResourceConfig(subscriptionId, resourceGroupName, resourceId) 
 
     const resource = await fetchWithFallback(client, resourceGroupName, provider, type, name, apiVersion)
 
-    const children = CHILD_RESOURCES[type.toLowerCase()] || []
-    if (children.length) {
-      console.log('[getResourceConfig] fetching', children.length, 'child resource(s) for type:', type)
-      const results = await Promise.allSettled(
-        children.map(c =>
-          client.resources.get(resourceGroupName, provider, `${type}/${name}`, c.child, c.name, c.apiVersion)
+    const childResourceDefinitions = CHILD_RESOURCES[type.toLowerCase()] || []
+    if (childResourceDefinitions.length) {
+      console.log('[getResourceConfig] fetching', childResourceDefinitions.length, 'child resource(s) for type:', type)
+      const childFetchResults = await Promise.allSettled(
+        childResourceDefinitions.map(childDefinition =>
+          client.resources.get(resourceGroupName, provider, `${type}/${name}`, childDefinition.child, childDefinition.name, childDefinition.apiVersion)
             .catch(() => null)
         )
       )
       resource._childConfig = {}
-      children.forEach((c, i) => {
-        if (results[i].value) resource._childConfig[c.child] = results[i].value
+      childResourceDefinitions.forEach((childDefinition, index) => {
+        if (childFetchResults[index].value) resource._childConfig[childDefinition.child] = childFetchResults[index].value
       })
+    }
+
+    // For storage accounts: also list the actual containers, file shares, queues, and tables
+    // These are user-created resources that the service settings (blobServices/default) don't include
+    if (type.toLowerCase() === 'storageaccounts') {
+      const storageChildItems = await fetchStorageChildItems(subscriptionId, resourceGroupName, name)
+      if (Object.keys(storageChildItems).length > 0) {
+        resource._childConfig = resource._childConfig || {}
+        Object.assign(resource._childConfig, storageChildItems)
+      }
     }
 
     console.log('[getResourceConfig] ends — single resource')

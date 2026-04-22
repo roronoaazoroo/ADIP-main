@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: routes/subscriptions.js
 // ROLE: GET /api/subscriptions — returns all Azure subscriptions the credential can access
-// ============================================================
+
 const router_subscriptions = require('express').Router()
 const { listSubscriptions } = require('../services/azureResourceService')
  

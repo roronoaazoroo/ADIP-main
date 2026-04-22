@@ -297,7 +297,7 @@ export default function DashboardHome() {
         caller:        callerFilter,
         changeType:    changeTypeFilter,
         hours:         hoursToFetch,
-        limit:         200,
+        limit:         100,
       }).catch(() => [])
       setRecentChangeEvents(Array.isArray(changeEvents) ? changeEvents : [])
 

@@ -10,7 +10,11 @@ const API_VER    = '2024-10-21'
 
 // ── chat START ────────────────────────────────────────────────────────────────
 async function chat(systemPrompt, userContent, maxTokens = 400) {
-  if (!ENDPOINT() || !API_KEY()) throw new Error('Azure OpenAI not configured')
+  console.log('[chat] starts')
+  if (!ENDPOINT() || !API_KEY()) {
+    console.log('[chat] ends — Azure OpenAI not configured')
+    throw new Error('Azure OpenAI not configured')
+  }
   const url = `${ENDPOINT()}/openai/deployments/${DEPLOYMENT()}/chat/completions?api-version=${API_VER}`
   const res  = await fetch(url, {
     method:  'POST',
@@ -21,27 +25,36 @@ async function chat(systemPrompt, userContent, maxTokens = 400) {
       temperature: 0.3,
     }),
   })
-  if (!res.ok) throw new Error(`OpenAI API error ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    console.log('[chat] ends — OpenAI API error:', res.status)
+    throw new Error(`OpenAI API error ${res.status}: ${await res.text()}`)
+  }
   const data = await res.json()
-  return data.choices[0]?.message?.content?.trim() || ''
+  const result = data.choices[0]?.message?.content?.trim() || ''
+  console.log('[chat] ends')
+  return result
 }
 // ── chat END ──────────────────────────────────────────────────────────────────
 
 
 // ── explainDrift START ────────────────────────────────────────────────────────
 async function explainDrift(record) {
+  console.log('[explainDrift] starts')
   const changes = (record.differences || record.changes || [])
     .map(c => c.sentence || `${c.type} ${c.path}`).slice(0, 15).join('\n')
-  return chat(
+  const result = await chat(
     'You are an Azure security expert. Explain this configuration drift in plain English in 3-4 sentences. Focus on security implications. No markdown, no bullet points.',
     `Resource: ${record.resourceId?.split('/').pop()} (type: ${record.resourceId?.split('/')[7] || 'unknown'})\nResource Group: ${record.resourceGroup}\nChanges:\n${changes}`
   )
+  console.log('[explainDrift] ends')
+  return result
 }
 // ── explainDrift END ──────────────────────────────────────────────────────────
 
 
 // ── reclassifySeverity START ──────────────────────────────────────────────────
 async function reclassifySeverity(record) {
+  console.log('[reclassifySeverity] starts')
   const changes = (record.differences || record.changes || [])
     .map(c => c.sentence || `${c.type} ${c.path}: ${JSON.stringify(c.oldValue)} → ${JSON.stringify(c.newValue)}`)
     .slice(0, 10).join('\n')
@@ -50,26 +63,35 @@ async function reclassifySeverity(record) {
     `Resource type: ${record.resourceId?.split('/')[7] || 'unknown'}\nRule-based severity: ${record.severity}\nChanges:\n${changes}`,
     150
   )
-  return JSON.parse(response.replace(/```json|```/g, '').trim())
+  const parsed = JSON.parse(response.replace(/```json|```/g, '').trim())
+  console.log('[reclassifySeverity] ends')
+  return parsed
 }
 // ── reclassifySeverity END ────────────────────────────────────────────────────
 
 
 // ── getRemediationRecommendation START ────────────────────────────────────────
 async function getRemediationRecommendation(record) {
+  console.log('[getRemediationRecommendation] starts')
   const changes = (record.differences || record.changes || [])
     .map(c => c.sentence || `${c.type} ${c.path}`).slice(0, 10).join('\n')
-  return chat(
+  const result = await chat(
     'You are an Azure cloud architect. Give a 2-3 sentence remediation recommendation. Explain what reverting to baseline will do and whether it is safe. No markdown.',
     `Resource: ${record.resourceId?.split('/').pop()}\nChanges to revert:\n${changes}`
   )
+  console.log('[getRemediationRecommendation] ends')
+  return result
 }
 // ── getRemediationRecommendation END ─────────────────────────────────────────
 
 
 // ── detectAnomalies START ─────────────────────────────────────────────────────
 async function detectAnomalies(driftRecords) {
-  if (!driftRecords?.length) return []
+  console.log('[detectAnomalies] starts')
+  if (!driftRecords?.length) {
+    console.log('[detectAnomalies] ends — no drift records provided')
+    return []
+  }
   const summary = driftRecords.slice(0, 50).map(r => ({
     resource: r.resourceId?.split('/').pop() || 'unknown',
     rg:       r.resourceGroup,
@@ -84,13 +106,16 @@ async function detectAnomalies(driftRecords) {
     500
   )
   const parsed = JSON.parse(response.replace(/```json|```/g, '').trim())
-  return Array.isArray(parsed) ? parsed : []
+  const result = Array.isArray(parsed) ? parsed : []
+  console.log('[detectAnomalies] ends — anomalies found:', result.length)
+  return result
 }
 // ── detectAnomalies END ───────────────────────────────────────────────────────
 
 
-// ── getDriftRecords for anomalies ─────────────────────────────────────────────
+// ── getDriftRecordsForAnomaly START ───────────────────────────────────────────
 async function getDriftRecordsForAnomaly(subscriptionId) {
+  console.log('[getDriftRecordsForAnomaly] starts — subscriptionId:', subscriptionId)
   const { TableClient } = require('@azure/data-tables')
   const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
   const blobSvc = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
@@ -103,53 +128,86 @@ async function getDriftRecordsForAnomaly(subscriptionId) {
     const doc = await readBlob(driftCtr, entity.blobKey)
     if (doc) results.push(doc)
   }
-  return results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+  const sorted = results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+  console.log('[getDriftRecordsForAnomaly] ends — records fetched:', sorted.length)
+  return sorted
 }
-// ── getDriftRecords END ───────────────────────────────────────────────────────
+// ── getDriftRecordsForAnomaly END ─────────────────────────────────────────────
 
 
 // ── Main handler START ────────────────────────────────────────────────────────
 module.exports = async function (context, req) {
+  console.log('[mainHandler] starts — operation:', context.bindingData.operation)
   const operation = context.bindingData.operation?.toLowerCase()
 
   try {
     switch (operation) {
 
       case 'explain': {
-        if (req.method !== 'POST') { context.res = { status: 405, body: { error: 'POST required' } }; return }
+        console.log('[mainHandler] routing to explainDrift')
+        if (req.method !== 'POST') {
+          console.log('[mainHandler] ends — 405 wrong method for explain')
+          context.res = { status: 405, body: { error: 'POST required' } }
+          return
+        }
         const explanation = await explainDrift(req.body)
         context.res = { status: 200, body: { explanation } }
+        console.log('[mainHandler] ends — explain success')
         break
       }
 
       case 'severity': {
-        if (req.method !== 'POST') { context.res = { status: 405, body: { error: 'POST required' } }; return }
+        console.log('[mainHandler] routing to reclassifySeverity')
+        if (req.method !== 'POST') {
+          console.log('[mainHandler] ends — 405 wrong method for severity')
+          context.res = { status: 405, body: { error: 'POST required' } }
+          return
+        }
         const result = await reclassifySeverity(req.body)
         context.res = { status: 200, body: result || {} }
+        console.log('[mainHandler] ends — severity success')
         break
       }
 
       case 'recommend': {
-        if (req.method !== 'POST') { context.res = { status: 405, body: { error: 'POST required' } }; return }
+        console.log('[mainHandler] routing to getRemediationRecommendation')
+        if (req.method !== 'POST') {
+          console.log('[mainHandler] ends — 405 wrong method for recommend')
+          context.res = { status: 405, body: { error: 'POST required' } }
+          return
+        }
         const recommendation = await getRemediationRecommendation(req.body)
         context.res = { status: 200, body: { recommendation } }
+        console.log('[mainHandler] ends — recommend success')
         break
       }
 
       case 'anomalies': {
-        if (req.method !== 'GET') { context.res = { status: 405, body: { error: 'GET required' } }; return }
+        console.log('[mainHandler] routing to detectAnomalies')
+        if (req.method !== 'GET') {
+          console.log('[mainHandler] ends — 405 wrong method for anomalies')
+          context.res = { status: 405, body: { error: 'GET required' } }
+          return
+        }
         const subscriptionId = req.query.subscriptionId
-        if (!subscriptionId) { context.res = { status: 400, body: { error: 'subscriptionId required' } }; return }
+        if (!subscriptionId) {
+          console.log('[mainHandler] ends — 400 missing subscriptionId')
+          context.res = { status: 400, body: { error: 'subscriptionId required' } }
+          return
+        }
         const records   = await getDriftRecordsForAnomaly(subscriptionId)
         const anomalies = await detectAnomalies(records)
         context.res = { status: 200, body: { anomalies } }
+        console.log('[mainHandler] ends — anomalies success')
         break
       }
 
       default:
+        console.log('[mainHandler] ends — 404 unknown operation:', operation)
         context.res = { status: 404, body: { error: `Unknown AI operation: ${operation}` } }
     }
   } catch (err) {
+    console.log('[mainHandler] ends — caught error:', err.message)
     context.log.error(`[aiOperations/${operation}] error:`, err.message)
     context.res = { status: 500, body: { error: err.message } }
   }

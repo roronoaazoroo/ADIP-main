@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: routes/policy.js
 // ROLE: GET /api/policy/compliance — returns Azure Policy compliance state (read-only)
-// ============================================================
+
 const router_policy = require('express').Router()
 const { getPolicyCompliance } = require('../services/policyService')
  

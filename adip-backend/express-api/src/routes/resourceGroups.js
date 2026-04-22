@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: routes/resourceGroups.js
 // ROLE: GET /api/subscriptions/:id/resource-groups — lists all RGs in a subscription
-// ============================================================
+
 const router_resourceGroups = require('express').Router()
 const { listResourceGroups } = require('../services/azureResourceService')
  

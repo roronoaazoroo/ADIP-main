@@ -26,11 +26,12 @@ router_drift.get('/drift-events', async (req, res) => {
 // Returns all changes from all-changes blob in last 24h (or custom window)
 // Supports filters: subscriptionId, resourceGroup, caller, changeType, limit
 router_drift.get('/changes/recent', async (req, res) => {
-  const { subscriptionId, resourceGroup, caller, changeType, hours = 24, limit = 200 } = req.query
+  const { subscriptionId, resourceGroup, caller, changeType, hours = 24, limit = 100 } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   try {
     const sinceTimestamp      = new Date(Date.now() - Number(hours) * 3600 * 1000).toISOString()
-    const recentChangeRecords = await getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since: sinceTimestamp, limit: Number(limit) })
+    // Cap at 100 — dashboard only renders 100 rows, fetching more wastes Table Storage reads
+    const recentChangeRecords = await getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since: sinceTimestamp, limit: Math.min(Number(limit), 100) })
     res.json(recentChangeRecords)
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
