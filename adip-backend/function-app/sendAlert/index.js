@@ -21,20 +21,30 @@ const { EmailClient } = require('@azure/communication-email')
 // Only send alerts for these severity levels — medium/low are handled differently
 const ALERT_SEVERITY_LEVELS = ['critical', 'high']
 
+// ── Main handler START ────────────────────────────────────────────────────────
 module.exports = async function (context, req) {
+  console.log('[sendAlert mainHandler] starts')
   const driftRecord = req.body
+
   if (!driftRecord || !ALERT_SEVERITY_LEVELS.includes(driftRecord.severity)) {
+    console.log('[sendAlert mainHandler] ends — skipped, severity not alertable:', driftRecord?.severity)
     context.res = { status: 200, body: { skipped: true } }
     return
   }
 
+  console.log('[sendAlert mainHandler] processing — severity:', driftRecord.severity, 'resourceId:', driftRecord.resourceId)
+
   const acsConnectionString = process.env.COMMS_CONNECTION_STRING
   // Parse comma-separated recipient list from env (e.g. 'admin@co.com,ops@co.com')
   const recipientEmailList  = (process.env.ALERT_RECIPIENT_EMAIL || '').split(',').map(addr => addr.trim()).filter(Boolean)
+
   if (!acsConnectionString || !recipientEmailList.length) {
+    console.log('[sendAlert mainHandler] ends — 400 missing ACS config — connectionString:', !!acsConnectionString, 'recipients:', recipientEmailList.length)
     context.res = { status: 400, body: { error: 'COMMS_CONNECTION_STRING or ALERT_RECIPIENT_EMAIL not configured' } }
     return
   }
+
+  console.log('[sendAlert mainHandler] sending to recipients:', recipientEmailList.length, 'address(es)')
 
   // Extract display values from the drift record
   const resourceShortName = driftRecord.resourceId?.split('/').pop() ?? driftRecord.resourceId
@@ -44,19 +54,24 @@ module.exports = async function (context, req) {
   // Limit to 10 changes to keep the email readable
   const changesForEmail   = (driftRecord.differences || driftRecord.changes || []).slice(0, 10)
 
+  // ── Token generation START ────────────────────────────────────────────────
   // Build the remediation token — base64url-encoded JSON with resource identifiers
   // This token is decoded by /api/remediate-decision when the admin clicks Approve/Reject
+  console.log('[sendAlert tokenGeneration] starts')
   const remediationToken = Buffer.from(JSON.stringify({
     resourceId:     driftRecord.resourceId,
     resourceGroup:  driftRecord.resourceGroup,
     subscriptionId: driftRecord.subscriptionId,
     detectedAt:     driftRecord.detectedAt,
   })).toString('base64url')
-
   const approveUrl = `${expressPublicUrl}/api/remediate-decision?action=approve&token=${remediationToken}`
   const rejectUrl  = `${expressPublicUrl}/api/remediate-decision?action=reject&token=${remediationToken}`
+  console.log('[sendAlert tokenGeneration] ends — approveUrl constructed, expressPublicUrl:', expressPublicUrl)
+  // ── Token generation END ──────────────────────────────────────────────────
 
+  // ── Email HTML build START ────────────────────────────────────────────────
   // Build HTML table rows for each changed field
+  console.log('[sendAlert emailHtmlBuild] starts — changes to render:', changesForEmail.length)
   const changeTypeColors = { modified: '#d97706', added: '#16a34a', removed: '#dc2626' }
   const emailDiffTableRows = changesForEmail.map(changeItem => {
     const changeColor = changeTypeColors[changeItem.type] || '#6b7280'
@@ -83,7 +98,11 @@ module.exports = async function (context, req) {
     </div>
   </div>
 </div>`
+  console.log('[sendAlert emailHtmlBuild] ends — HTML email built')
+  // ── Email HTML build END ──────────────────────────────────────────────────
 
+  // ── ACS email send START ──────────────────────────────────────────────────
+  console.log('[sendAlert acsEmailSend] starts — subject: [ADIP]', severityLabel, 'Drift —', resourceShortName)
   try {
     const acsEmailClient  = new EmailClient(acsConnectionString)
     const emailSendPoller = await acsEmailClient.beginSend({
@@ -95,10 +114,18 @@ module.exports = async function (context, req) {
         plainText: `ADIP Drift Alert\nSeverity: ${severityLabel}\nResource: ${resourceShortName}\nChanges: ${changesForEmail.length}\nDetected: ${driftRecord.detectedAt}`,
       },
     })
+    console.log('[sendAlert acsEmailSend] polling until done — waiting for ACS delivery confirmation')
     await emailSendPoller.pollUntilDone()
+    console.log('[sendAlert acsEmailSend] ends — email delivered successfully')
+    // ── ACS email send END ────────────────────────────────────────────────────
+
     context.res = { status: 200, body: { sent: true } }
+    console.log('[sendAlert mainHandler] ends — email sent successfully to', recipientEmailList.length, 'recipient(s)')
   } catch (err) {
+    console.log('[sendAlert acsEmailSend] ends — email delivery failed:', err.message)
     context.log.error('[sendAlert] email failed:', err.message)
+    console.log('[sendAlert mainHandler] ends — caught error:', err.message)
     context.res = { status: 500, body: { error: err.message } }
   }
 }
+// ── Main handler END ──────────────────────────────────────────────────────────

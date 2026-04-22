@@ -21,50 +21,66 @@ const { API_VERSION_MAP }          = require('adip-shared/constants')
 const blobStorageClient  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
 const baselinesContainer = blobStorageClient.getContainerClient('baselines')
 
-// ── getResourceConfig START ───────────────────────────────────────────────────
-// Fetches live ARM config for a specific resource or full resource group
+// ── fetchLiveArmConfig START ──────────────────────────────────────────────────
 // Fetches the current live ARM config for a specific resource or a full resource group
 // If resourceId is a full ARM ID (/subscriptions/...), fetches that specific resource
 // Otherwise fetches all resources in the resource group
 async function fetchLiveArmConfig(subscriptionId, resourceGroupId, resourceId) {
+  console.log('[fetchLiveArmConfig] starts — subscriptionId:', subscriptionId, 'resourceGroupId:', resourceGroupId, 'resourceId:', resourceId)
   const azureCredential = new DefaultAzureCredential()
   const armClient       = new ResourceManagementClient(azureCredential, subscriptionId)
 
   if (resourceId && resourceId.startsWith('/subscriptions/')) {
     // Parse the ARM resource ID: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+    console.log('[fetchLiveArmConfig] fetching single resource — parsing ARM ID')
     const resourceIdParts   = resourceId.split('/')
     const providerNamespace = resourceIdParts[6]
     const resourceTypeName  = resourceIdParts[7]
     const resourceName      = resourceIdParts[8]
     const armApiVersion     = API_VERSION_MAP[resourceTypeName?.toLowerCase()] || '2021-04-01'
-    return armClient.resources.get(resourceIdParts[4], providerNamespace, '', resourceTypeName, resourceName, armApiVersion)
+    console.log('[fetchLiveArmConfig] ARM ID parsed — provider:', providerNamespace, 'type:', resourceTypeName, 'name:', resourceName, 'apiVersion:', armApiVersion)
+    const result = await armClient.resources.get(resourceIdParts[4], providerNamespace, '', resourceTypeName, resourceName, armApiVersion)
+    console.log('[fetchLiveArmConfig] ends — single resource fetched')
+    return result
   }
 
+  // Resource group level — list all resources in the RG
+  console.log('[fetchLiveArmConfig] fetching RG-level config for:', resourceGroupId)
   const resources = []
   for await (const r of armClient.resources.listByResourceGroup(resourceGroupId, { expand: 'properties' })) {
     resources.push(r)
   }
   const rg = await armClient.resourceGroups.get(resourceGroupId)
+  console.log('[fetchLiveArmConfig] ends — RG-level config fetched, resources found:', resources.length)
   return { resourceGroup: rg, resources }
 }
-// ── getResourceConfig END ─────────────────────────────────────────────────────
+// ── fetchLiveArmConfig END ────────────────────────────────────────────────────
 
 
 // ── Main handler START ────────────────────────────────────────────────────────
 module.exports = async function (context, req) {
+  console.log('[seedBaseline mainHandler] starts')
   const { subscriptionId, resourceGroupId, resourceId } = req.body || {}
 
   if (!subscriptionId || !resourceGroupId || !resourceId) {
+    console.log('[seedBaseline mainHandler] ends — 400 missing required fields — subscriptionId:', !!subscriptionId, 'resourceGroupId:', !!resourceGroupId, 'resourceId:', !!resourceId)
     context.res = { status: 400, body: { error: 'subscriptionId, resourceGroupId and resourceId required' } }
     return
   }
 
-  try {
-    // Fetch the current live config from ARM
-    const currentLiveConfig = await fetchLiveArmConfig(subscriptionId, resourceGroupId, resourceId)
+  console.log('[seedBaseline mainHandler] processing — resourceId:', resourceId)
 
+  try {
+    // ── Live config fetch START ─────────────────────────────────────────────
+    console.log('[seedBaseline liveConfigFetch] starts')
+    const currentLiveConfig = await fetchLiveArmConfig(subscriptionId, resourceGroupId, resourceId)
+    console.log('[seedBaseline liveConfigFetch] ends — live config retrieved')
+    // ── Live config fetch END ───────────────────────────────────────────────
+
+    // ── Baseline blob write START ───────────────────────────────────────────
     // Build the baseline document and save it to blob storage
-    const baselineBlobKey = blobKey(resourceId)
+    const baselineBlobKey  = blobKey(resourceId)
+    console.log('[seedBaseline baselineBlobWrite] starts — blobKey:', baselineBlobKey)
     const baselineDocument = {
       id:             baselineBlobKey,
       subscriptionId,
@@ -74,12 +90,15 @@ module.exports = async function (context, req) {
       active:         true,
       promotedAt:     new Date().toISOString(),
     }
-
     await writeBlob(baselinesContainer, baselineBlobKey, baselineDocument)
+    console.log('[seedBaseline baselineBlobWrite] ends — baseline blob saved to baselines container')
+    // ── Baseline blob write END ─────────────────────────────────────────────
 
     context.res = { status: 200, body: { message: 'Golden baseline seeded from live config', baseline: baselineDocument } }
     context.log(`[seedBaseline] seeded baseline for ${resourceId}`)
+    console.log('[seedBaseline mainHandler] ends — baseline seeded successfully for resourceId:', resourceId)
   } catch (err) {
+    console.log('[seedBaseline mainHandler] ends — caught error:', err.message)
     context.log.error('[seedBaseline] error:', err.message)
     context.res = { status: 500, body: { error: err.message } }
   }

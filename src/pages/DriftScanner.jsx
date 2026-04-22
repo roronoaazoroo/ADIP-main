@@ -159,20 +159,20 @@ export default function DriftScanner() {
               setIsSubmitted(true)
               setConfigData(fetchedConfig)
 
-              // Fetch Azure Policy compliance state for the selected scope
-              fetchPolicyCompliance(subscription, resourceGroup, resource || null)
-                .then(policyResult => setPolicyData(policyResult)).catch(() => {})
+              // // Fetch Azure Policy compliance state for the selected scope
+              // fetchPolicyCompliance(subscription, resourceGroup, resource || null)
+              //   .then(policyResult => setPolicyData(policyResult)).catch(() => {})
 
               if (!isDemoMode) {
                 // Fetch AI anomaly detection across last 50 drift records
-                fetchAnomalies(subscription)
-                  .then(anomalyResult => setAnomalies(anomalyResult?.anomalies || [])).catch(() => {})
+                // fetchAnomalies(subscription)
+                //   .then(anomalyResult => setAnomalies(anomalyResult?.anomalies || [])).catch(() => {})
 
                 // Seed the diff cache so the first Socket.IO event has a previous state to diff against
-                const resourcesToCacheForDiff = fetchedConfig.resources
-                  ? fetchedConfig.resources.filter(r => r.id)
-                  : (fetchedConfig.id ? [fetchedConfig] : [])
-                resourcesToCacheForDiff.forEach(r => cacheState(r.id, r).catch(() => {}))
+                // const resourcesToCacheForDiff = fetchedConfig.resources
+                //   ? fetchedConfig.resources.filter(r => r.id)
+                //   : (fetchedConfig.id ? [fetchedConfig] : [])
+                // resourcesToCacheForDiff.forEach(r => cacheState(r.id, r).catch(() => {}))
 
                 // Store the current scope so handleStop knows what session to stop
                 monitorScope.current = { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || null }
@@ -200,7 +200,7 @@ export default function DriftScanner() {
           })
           .finally(() => setIsScanning(false))
       }
-    }, 10)
+    }, 1)
   }
 
   // handleStop — called when the user clicks the Stop button

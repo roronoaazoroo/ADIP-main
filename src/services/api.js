@@ -94,19 +94,19 @@ export async function uploadBaseline(subscriptionId, resourceGroupId, resourceId
 // Returns severity-classified drift records from 'drift-records' blob + driftIndex Table
 // These are only created when detectDrift Function finds a deviation from baseline
 // Calls GET /api/drift-events
-export async function fetchDriftEvents(subscriptionId, { resourceGroup, severity, since, caller, limit = 50 } = {}) {
-  const queryParams = new URLSearchParams({ subscriptionId, limit })
-  if (resourceGroup) queryParams.set('resourceGroup', resourceGroup)
-  if (severity)      queryParams.set('severity', severity)
-  if (since)         queryParams.set('since', since)
-  if (caller)        queryParams.set('caller', caller)
-  return apiRequest(`/drift-events?${queryParams}`)
-}
+// export async function fetchDriftEvents(subscriptionId, { resourceGroup, severity, since, caller, limit = 500 } = {}) {
+//   const queryParams = new URLSearchParams({ subscriptionId, limit })
+//   if (resourceGroup) queryParams.set('resourceGroup', resourceGroup)
+//   if (severity)      queryParams.set('severity', severity)
+//   if (since)         queryParams.set('since', since)
+//   if (caller)        queryParams.set('caller', caller)
+//   return apiRequest(`/drift-events?${queryParams}`)
+// }
 
 // Returns ALL ARM change events from 'all-changes' blob + changesIndex Table
 // Includes every write/delete, not just baseline deviations — used by DashboardHome table
 // Calls GET /api/changes/recent
-export async function fetchRecentChanges(subscriptionId, { resourceGroup, caller, changeType, hours = 24, limit = 200 } = {}) {
+export async function fetchRecentChanges(subscriptionId, { resourceGroup, caller, changeType, hours = 24, limit = 20 } = {}) {
   const queryParams = new URLSearchParams({ subscriptionId, hours, limit })
   if (resourceGroup) queryParams.set('resourceGroup', resourceGroup)
   if (caller)        queryParams.set('caller', caller)
@@ -177,11 +177,11 @@ export async function stopMonitoring(subscriptionId, resourceGroupId, resourceId
 // Returns Azure Policy compliance state for a resource or resource group
 // Returns { total, nonCompliant, compliant, violations[] }
 // Calls GET /api/policy/compliance → PolicyInsightsClient
-export async function fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId = null) {
-  const queryParams = new URLSearchParams({ subscriptionId, resourceGroupId })
-  if (resourceId) queryParams.set('resourceId', resourceId)
-  return apiRequest(`/policy/compliance?${queryParams}`)
-}
+// export async function fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId = null) {
+//   const queryParams = new URLSearchParams({ subscriptionId, resourceGroupId })
+//   if (resourceId) queryParams.set('resourceId', resourceId)
+//   return apiRequest(`/policy/compliance?${queryParams}`)
+// }
 
 
 // ── AI Features ───────────────────────────────────────────────────────────────
@@ -203,9 +203,9 @@ export async function fetchAiRecommendation(driftRecord) {
 // Requests AI anomaly detection across the last 50 drift records
 // Returns { anomalies: [{ title, description, severity, affectedResource }] }
 // Calls GET /api/ai/anomalies → Express proxy → aiOperations Azure Function → GPT-4o
-export async function fetchAnomalies(subscriptionId) {
-  return apiRequest(`/ai/anomalies?subscriptionId=${subscriptionId}`)
-}
+// export async function fetchAnomalies(subscriptionId) {
+//   return apiRequest(`/ai/anomalies?subscriptionId=${subscriptionId}`)
+// }
 
 
 // ── Configuration Genome ──────────────────────────────────────────────────────
