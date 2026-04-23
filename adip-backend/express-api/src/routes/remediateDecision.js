@@ -199,11 +199,11 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
     } else {
       // ── Reject: promote current live state as new baseline ─────────────────
       const liveState = await getResourceConfigForDecision(subscriptionId, resourceGroup, resourceId)
-      await saveBaselineForDecision(subscriptionId, resourceGroup, resourceId, liveState)
+      // await saveBaselineForDecision(subscriptionId, resourceGroup, resourceId, liveState)
  
       console.log('[GET /remediate-decision] ends — rejected (drift accepted as baseline)')
       return res.send(html('Drift Accepted',
-        `The current configuration of <strong>${resourceName}</strong> has been accepted as the new baseline.`, '#6b7280'))
+        `Auto remediation on the current configuration <strong>${resourceName}</strong> has been rejected`, '#6b7280'))
     }
   } catch (err) {
     console.log('[GET /remediate-decision] ends — error:', err.message)

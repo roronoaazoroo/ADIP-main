@@ -21,4 +21,3 @@ router_subscriptions.get('/subscriptions', async (req, res) => {
 // ── GET /api/subscriptions END ───────────────────────────────────────────────
  
 module.exports = router_subscriptions
- 
