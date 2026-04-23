@@ -69,6 +69,12 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
       }
  
       const VOLATILE_D = ['etag','changedTime','createdTime','provisioningState','lastModifiedAt','systemData','_ts','_etag','_rid','_self','id']
+      // Additional read-only fields ARM rejects on PUT
+      const READONLY_PROPERTIES_D = [
+        'instanceView', 'powerState', 'statuses', 'resources', 'latestModelApplied', 'vmId', 'timeCreated',
+        // NSG: defaultSecurityRules are system-managed; subnets are back-references set via subnet PUT not NSG PUT
+        'defaultSecurityRules', 'resourceGuid', 'networkInterfaces', 'subnets',
+      ]
  
       // ── strip (decision) START ─────────────────────────────────────────────
       // Strips volatile ARM fields from the baseline before applying ARM PUT
@@ -81,7 +87,7 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
         }
         if (obj && typeof obj === 'object') {
           const r = Object.fromEntries(
-            Object.entries(obj).filter(([k]) => !VOLATILE_D.includes(k)).map(([k,v]) => [k, strip(v)])
+            Object.entries(obj).filter(([k]) => !VOLATILE_D.includes(k) && !READONLY_PROPERTIES_D.includes(k)).map(([k,v]) => [k, strip(v)])
           )
           console.log('[decision.strip] ends — object')
           return r
@@ -119,21 +125,38 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
 
       // Reverse-reference cleanup for NSG subnet associations
       if (type.toLowerCase() === 'networksecuritygroups') {
-        const baselineSubnets = (baselineState.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
-        const liveNsg = await armClient.resources.get(rgName, provider, '', type, name, apiVersion).catch(() => ({}))
-        const liveSubnets = (liveNsg.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
-        for (const subnetId of liveSubnets.filter(id => !baselineSubnets.includes(id))) {
+        const vnetApiVersion    = await getApiVersionForDecision(subscriptionId, 'Microsoft.Network', 'virtualNetworks')
+        const baselineSubnetIds = (baselineStateStripped.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
+        const currentNsg        = await armClient.resources.get(rgName, provider, '', type, name, apiVersion).catch(() => ({}))
+        const liveSubnetIds     = (currentNsg.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
+
+        // Subnets in live but NOT in baseline → dissociate (remove NSG from subnet)
+        for (const subnetId of liveSubnetIds.filter(id => !baselineSubnetIds.includes(id))) {
           try {
-            const sp = subnetId.split('/')
-            const vnetRg = sp[4], vnetName = sp[8], subnetName = sp[10]
+            const subnetIdParts = subnetId.split('/')
+            const vnetRg = subnetIdParts[4], vnetName = subnetIdParts[8], subnetName = subnetIdParts[10]
             if (!vnetRg || !vnetName || !subnetName) continue
-            const vnetApi = await getApiVersionForDecision(subscriptionId, 'Microsoft.Network', 'virtualNetworks')
-            const subnet = await armClient.resources.get(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi)
-            if (subnet.properties?.networkSecurityGroup) {
-              delete subnet.properties.networkSecurityGroup
-              await armClient.resources.beginCreateOrUpdateAndWait(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi, subnet)
+            const subnetConfig = await armClient.resources.get(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApiVersion)
+            if (subnetConfig.properties?.networkSecurityGroup) {
+              delete subnetConfig.properties.networkSecurityGroup
+              await armClient.resources.beginCreateOrUpdateAndWait(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApiVersion, subnetConfig)
+              console.log(`[decision] dissociated subnet ${subnetName} from NSG`)
             }
-          } catch (e) { console.warn('[decision] subnet dissociate failed:', e.message) }
+          } catch (dissociateError) { console.warn('[decision] dissociate failed:', dissociateError.message) }
+        }
+
+        // Subnets in baseline but NOT in live → re-associate (add NSG back to subnet)
+        for (const subnetId of baselineSubnetIds.filter(id => !liveSubnetIds.includes(id))) {
+          try {
+            const subnetIdParts = subnetId.split('/')
+            const vnetRg = subnetIdParts[4], vnetName = subnetIdParts[8], subnetName = subnetIdParts[10]
+            if (!vnetRg || !vnetName || !subnetName) continue
+            const subnetConfig = await armClient.resources.get(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApiVersion)
+            subnetConfig.properties = subnetConfig.properties || {}
+            subnetConfig.properties.networkSecurityGroup = { id: resourceId }  // re-attach this NSG
+            await armClient.resources.beginCreateOrUpdateAndWait(vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApiVersion, subnetConfig)
+            console.log(`[decision] re-associated subnet ${subnetName} with NSG`)
+          } catch (reassociateError) { console.warn('[decision] re-associate failed:', reassociateError.message) }
         }
       }
 

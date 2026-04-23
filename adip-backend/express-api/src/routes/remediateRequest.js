@@ -1,7 +1,7 @@
 // FILE: routes/remediateRequest.js
 
 const router_remediateRequest = require('express').Router()
-const fetch = require('node-fetch')
+const { sendDriftAlertEmail } = require('../services/alertService')
  
 // ── POST /api/remediate-request START ────────────────────────────────────────
 // Sends a drift approval email to admins without applying remediation; waits for email click
@@ -14,20 +14,14 @@ router_remediateRequest.post('/remediate-request', async (req, res) => {
   }
  
   try {
-    // POST to Logic App → sendAlert Function → ACS email with Approve/Reject links
-    const alertLogicAppUrl = process.env.ALERT_LOGIC_APP_URL
-    if (alertLogicAppUrl && ['critical', 'high'].includes(severity)) {
-      await fetch(alertLogicAppUrl, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscriptionId, resourceGroup: resourceGroupId, resourceId,
-          severity: severity || 'high',
-          changeCount: differences?.length || changes?.length || 0,
-          differences: differences || changes || [],
-          detectedAt: new Date().toISOString(),
-        }),
-      }).catch(() => {})
-    }
+    // Send alert email — sendDriftAlertEmail handles the severity check (only critical/high get emails)
+    await sendDriftAlertEmail({
+      subscriptionId, resourceGroup: resourceGroupId, resourceId,
+      severity: severity || 'high',
+      changeCount: differences?.length || changes?.length || 0,
+      differences: differences || changes || [],
+      detectedAt: new Date().toISOString(),
+    })
     res.json({ requested: true, message: 'Approval email sent to administrators.' })
     console.log('[POST /remediate-request] ends — email sent')
   } catch (requestError) {

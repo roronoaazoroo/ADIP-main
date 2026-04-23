@@ -19,6 +19,7 @@ const cors = require('cors')
 const http = require('http')
 const { Server } = require('socket.io')
 const { startQueuePoller } = require('./services/queuePoller')
+const { sendDriftAlertEmail } = require('./services/alertService')
 const fetch = require('node-fetch')
 
 const app = express()
@@ -135,8 +136,7 @@ app.post('/internal/drift-event', express.json(), (req, res) => {
       ? `${event.subscriptionId}:${event.resourceGroup}`.toLowerCase()
       : event.subscriptionId.toLowerCase()
     io.to(room).emit('resourceChange', event)  // unified event name
-    const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
-    if (logicAppUrl && ['critical', 'high'].includes(event.severity)) fetch(logicAppUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(event) }).catch(() => {})
+    sendDriftAlertEmail(event).catch(() => {})  // fire-and-forget
   }
   res.sendStatus(200)
   console.log('[POST /internal/drift-event] ends')
@@ -161,8 +161,6 @@ function startAfterHoursAlertCheck() {
     if (now.getHours() < 19) return              // before 7pm — skip
     if (lastFiredDate === today) return           // already fired today — skip
 
-    const logicAppUrl = process.env.ALERT_LOGIC_APP_URL
-    if (!logicAppUrl) return
 
     try {
       const { getDriftRecords } = require('./services/blobService')
@@ -178,11 +176,7 @@ function startAfterHoursAlertCheck() {
       console.log(`[after-hours-alert] ${todayCritical.length} critical drift(s) found after 19:00 — sending alerts`)
 
       for (const record of todayCritical) {
-        await fetch(logicAppUrl, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ ...record, afterHoursAlert: true }),
-        }).catch(e => console.error('[after-hours-alert] fetch failed:', e.message))
+        await sendDriftAlertEmail({ ...record, afterHoursAlert: true })
       }
 
       lastFiredDate = today
