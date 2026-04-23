@@ -132,8 +132,8 @@ export default function ComparisonPage() {
     setIsLoadingBaseline(true)
 
     // Fetch policy compliance in the background (non-blocking)
-    fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId)
-      .then(setPolicyComplianceData).catch(() => {})
+    // fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId)
+    //   .then(setPolicyComplianceData).catch(() => {})
 
     // Fetch the golden baseline blob for this resource
     fetchBaseline(subscriptionId, effectiveId).then(baselineDocument => {

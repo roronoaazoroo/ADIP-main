@@ -22,7 +22,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
 import NavBar from '../components/NavBar'
-import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchDriftEvents, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
+import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
 import './DashboardHome.css'
 
 // ── Filter dropdown component ─────────────────────────────────────────────────

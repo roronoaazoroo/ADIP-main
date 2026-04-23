@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom'
 import JsonTree from '../components/JsonTree'
 import { useAzureScope } from '../hooks/useAzureScope'
 import { useDriftSocket } from '../hooks/useDriftSocket'
-import { fetchResourceConfiguration, stopMonitoring, fetchPolicyCompliance, cacheState, fetchAnomalies } from '../services/api'
+import {fetchResourceConfiguration, stopMonitoring, cacheState } from '../services/api'
 import './DriftScanner.css'
 import { useDashboard } from '../context/DashboardContext'
 import LiveActivityFeed from '../components/LiveActivityFeed'
@@ -169,10 +169,10 @@ export default function DriftScanner() {
                 //   .then(anomalyResult => setAnomalies(anomalyResult?.anomalies || [])).catch(() => {})
 
                 // Seed the diff cache so the first Socket.IO event has a previous state to diff against
-                // const resourcesToCacheForDiff = fetchedConfig.resources
-                //   ? fetchedConfig.resources.filter(r => r.id)
-                //   : (fetchedConfig.id ? [fetchedConfig] : [])
-                // resourcesToCacheForDiff.forEach(r => cacheState(r.id, r).catch(() => {}))
+                const resourcesToCacheForDiff = fetchedConfig.resources
+                  ? fetchedConfig.resources.filter(r => r.id)
+                  : (fetchedConfig.id ? [fetchedConfig] : [])
+                resourcesToCacheForDiff.forEach(r => cacheState(r.id, r).catch(() => {}))
 
                 // Store the current scope so handleStop knows what session to stop
                 monitorScope.current = { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || null }

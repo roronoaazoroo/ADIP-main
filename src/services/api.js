@@ -177,11 +177,11 @@ export async function stopMonitoring(subscriptionId, resourceGroupId, resourceId
 // Returns Azure Policy compliance state for a resource or resource group
 // Returns { total, nonCompliant, compliant, violations[] }
 // Calls GET /api/policy/compliance → PolicyInsightsClient
-// export async function fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId = null) {
-//   const queryParams = new URLSearchParams({ subscriptionId, resourceGroupId })
-//   if (resourceId) queryParams.set('resourceId', resourceId)
-//   return apiRequest(`/policy/compliance?${queryParams}`)
-// }
+export async function fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId = null) {
+  const queryParams = new URLSearchParams({ subscriptionId, resourceGroupId })
+  if (resourceId) queryParams.set('resourceId', resourceId)
+  return apiRequest(`/policy/compliance?${queryParams}`)
+}
 
 
 // ── AI Features ───────────────────────────────────────────────────────────────
