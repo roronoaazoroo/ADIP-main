@@ -95,8 +95,12 @@ module.exports = async function (context, req) {
   // Pass the resourceId and subscriptionId extracted from the Event Grid payload
   const resourceId     = eventData.resourceUri || firstEvent?.subject || ''
   const subscriptionId = eventData.subscriptionId || resourceId.split('/')?.[2] || ''
+  const caller         = eventData.claims?.name
+    || eventData.claims?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn']
+    || eventData.caller
+    || 'System'
 
-  console.log('[eventGridRouter] calling detectDrift — resourceId:', resourceId)
+  console.log('[eventGridRouter] calling detectDrift — resourceId:', resourceId, 'caller:', caller)
 
   const detectDriftUrl = DETECT_DRIFT_FUNCTION_KEY
     ? `${DETECT_DRIFT_FUNCTION_URL}?code=${DETECT_DRIFT_FUNCTION_KEY}`
@@ -106,7 +110,7 @@ module.exports = async function (context, req) {
     const detectDriftResponse = await fetch(detectDriftUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ resourceId, subscriptionId }),
+      body:    JSON.stringify({ resourceId, subscriptionId, caller }),
     })
 
     if (!detectDriftResponse.ok) {

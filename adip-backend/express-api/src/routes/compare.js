@@ -37,6 +37,7 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     differences:   detectedChanges,
     severity:      driftSeverity,
     changeCount:   detectedChanges.length,
+    caller:        'manual-compare',
     detectedAt:    new Date().toISOString(),
   }
 

@@ -272,3 +272,37 @@ export default {
   fetchResources,
   fetchResourceConfiguration,
 }
+
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+// Generates a drift analysis report and saves it to blob storage
+export async function generateDriftReport(subscriptionId, periodDays = 7, sendEmail = false) {
+  return apiRequest('/reports/generate', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, periodDays, sendEmail }),
+  })
+}
+
+// Returns list of saved reports for a subscription
+export async function fetchSavedReports(subscriptionId) {
+  return apiRequest(`/reports?subscriptionId=${encodeURIComponent(subscriptionId)}`)
+}
+
+// Returns the URL to view a specific report inline
+export function getReportViewUrl(blobKey) {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+  return `${API_BASE_URL}/reports/view?blobKey=${encodeURIComponent(blobKey)}`
+}
+
+// Deletes a saved report blob
+export async function deleteReport(blobKey) {
+  return apiRequest(`/reports?blobKey=${encodeURIComponent(blobKey)}`, { method: 'DELETE' })
+}
+
+// ── Change Attribution ───────────────────────────────────────────────────────
+
+// Returns per-caller change and drift counts for a subscription
+export async function fetchChangeAttribution(subscriptionId, days = 30) {
+  return apiRequest(`/attribution?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
+}

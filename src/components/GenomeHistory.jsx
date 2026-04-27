@@ -1,17 +1,15 @@
-// ============================================================
 // FILE: src/components/GenomeHistory.jsx
 // ROLE: Displays the full activity history for a resource's genome snapshots
-//
+
 // Shows every genome event in chronological order:
 //   created   — snapshot was saved
 //   promoted  — snapshot was set as the golden baseline
 //   rolledBack — resource was reverted to this snapshot via ARM PUT
 //   deleted   — snapshot was deleted
-//
+
 // Props:
 //   subscriptionId — Azure subscription ID
 //   resourceId     — Full ARM resource ID
-// ============================================================
 import React, { useState, useEffect } from 'react'
 import { fetchGenomeHistory } from '../services/api'
 

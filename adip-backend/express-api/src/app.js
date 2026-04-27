@@ -72,6 +72,8 @@ app.use('/api', require('./routes/remediateDecision'))
 app.use('/api', require('./routes/remediateRequest'))
 app.use('/api', require('./routes/ai'))
 app.use('/api', require('./routes/genome'))
+app.use('/api', require('./routes/reports'))
+app.use('/api', require('./routes/attribution'))
 app.use('/api', require('./routes/chat'))
 
 
