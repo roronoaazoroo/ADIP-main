@@ -213,6 +213,15 @@ export async function fetchAiRecommendation(driftRecord) {
 // Returns all versioned snapshots for a resource, sorted newest-first
 // Each snapshot: { _blobKey, savedAt, label, resourceState, rolledBackAt }
 // Calls GET /api/genome → reads genomeIndex Table + baseline-genome blobs
+// Returns all rollback events for a resource (snapshots that were rolled back to)
+// Used by the Rollback History tab on GenomePage
+// Returns the full genome activity history for a resource
+// Includes: created, rolledBack, promoted, deleted events
+export async function fetchGenomeHistory(subscriptionId, resourceId) {
+  const queryParams = new URLSearchParams({ subscriptionId, resourceId })
+  return apiRequest(`/genome/history?${queryParams}`)
+}
+
 export async function fetchGenomeSnapshots(subscriptionId, resourceId, limit = 50) {
   const queryParams = new URLSearchParams({ subscriptionId, limit })
   if (resourceId) queryParams.set('resourceId', resourceId)

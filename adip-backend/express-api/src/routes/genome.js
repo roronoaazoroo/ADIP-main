@@ -148,11 +148,83 @@ router.post('/genome/rollback', async (req, res) => {
 })
 // ── POST /api/genome/rollback END ────────────────────────────────────────────
 
+// GET /api/genome/history — returns the full activity history for a resource's genomes
+// Includes: snapshots created, snapshots deleted (tracked via deletedAt), rollbacks, and baseline promotions
+// Used by the Genome History tab on GenomePage
+router.get('/genome/history', async (req, res) => {
+  console.log('[GET /genome/history] starts')
+  const { subscriptionId, resourceId } = req.query
+  if (!subscriptionId || !resourceId) {
+    console.log('[GET /genome/history] ends — missing required params')
+    return res.status(400).json({ error: 'subscriptionId and resourceId required' })
+  }
+  try {
+    const genomeTable = getGenomeIndexTable()
+    const filter = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}'`
+    const historyEvents = []
+
+    for await (const entity of genomeTable.listEntities({ queryOptions: { filter } })) {
+      const snapshotLabel = entity.label || 'snapshot'
+      const blobKey       = entity.blobKey
+
+      // Event: snapshot created
+      historyEvents.push({
+        eventType:  'created',
+        eventAt:    entity.savedAt,
+        blobKey,
+        snapshotLabel,
+        isCurrentBaseline: entity.isCurrentBaseline || false,
+      })
+
+      // Event: rolled back to this snapshot
+      if (entity.rolledBackAt) {
+        historyEvents.push({
+          eventType:  'rolledBack',
+          eventAt:    entity.rolledBackAt,
+          blobKey,
+          snapshotLabel,
+          isCurrentBaseline: entity.isCurrentBaseline || false,
+        })
+      }
+
+      // Event: promoted to baseline
+      if (entity.promotedAt) {
+        historyEvents.push({
+          eventType:  'promoted',
+          eventAt:    entity.promotedAt,
+          blobKey,
+          snapshotLabel,
+          isCurrentBaseline: entity.isCurrentBaseline || false,
+        })
+      }
+
+      // Event: deleted (tracked via deletedAt field set on soft-delete)
+      if (entity.deletedAt) {
+        historyEvents.push({
+          eventType:  'deleted',
+          eventAt:    entity.deletedAt,
+          blobKey,
+          snapshotLabel,
+          isCurrentBaseline: false,
+        })
+      }
+    }
+
+    // Sort all events newest first
+    historyEvents.sort((a, b) => new Date(b.eventAt) - new Date(a.eventAt))
+    res.json(historyEvents)
+    console.log('[GET /genome/history] ends — found:', historyEvents.length, 'events')
+  } catch (routeError) { res.status(500).json({ error: routeError.message }) }
+})
+
 // POST /api/genome/delete
 router.post('/genome/delete', async (req, res) => {
   const { subscriptionId, blobKey } = req.body
   if (!subscriptionId || !blobKey) return res.status(400).json({ error: 'subscriptionId and blobKey required' })
   try {
+    // Record deletedAt on the Table entity before removing the blob
+    // This preserves the deletion event in genome history
+    await updateGenomeFlag(subscriptionId, blobKey, blobKey, 'deletedAt', new Date().toISOString()).catch(() => {})
     await deleteGenomeSnapshot(subscriptionId, blobKey)
     res.json({ deleted: true, blobKey })
   } catch (routeError) { res.status(500).json({ error: routeError.message }) }

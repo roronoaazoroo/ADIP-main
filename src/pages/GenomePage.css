@@ -72,3 +72,141 @@
   .gp-headline { font-size: 24px; }
   .gp-header { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Rollback History tab ─────────────────────────────────────────────────── */
+.gp-tab-bar {
+  display: flex;
+  gap: 4px;
+  background: #f3f3f6;
+  padding: 5px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+  width: fit-content;
+}
+
+.gp-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.gp-tab-btn:hover { color: #003359; }
+.gp-tab-btn--active {
+  background: #fff;
+  color: #003359;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.gp-history-panel {
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: 0 4px 24px rgba(31,97,154,0.07);
+  animation: gp-panel-in 0.3s ease;
+}
+@keyframes gp-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.gp-rollback-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.gp-rollback-history-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.gp-rollback-event {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 14px;
+  transition: background 0.15s;
+  position: relative;
+}
+.gp-rollback-event:hover {
+  background: rgba(243,243,246,0.6);
+}
+
+/* Timeline connector line between dots */
+.gp-rollback-event:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  top: 36px;
+  bottom: -16px;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+.gp-rollback-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #003359, #0060a9);
+  margin-top: 3px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(0,96,169,0.15);
+  position: relative;
+  z-index: 1;
+}
+
+.gp-rollback-event-content { flex: 1; }
+
+.gp-rollback-event-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.gp-rollback-event-time {
+  font-size: 13px;
+  font-weight: 600;
+  color: #003359;
+}
+
+.gp-rollback-event-detail {
+  font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.5;
+}
+.gp-rollback-event-detail strong {
+  color: #374151;
+  font-weight: 600;
+}
+
+.gp-rollback-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.gp-rollback-badge--active {
+  background: rgba(5,150,105,0.08);
+  color: #059669;
+  border: 1px solid rgba(5,150,105,0.2);
+}

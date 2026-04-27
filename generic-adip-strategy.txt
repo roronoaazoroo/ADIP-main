@@ -1,0 +1,84 @@
+What "generic desktop app" means for ADIP:
+
+The user runs it once, logs in with their Azure account, and ADIP automatically provisions everything it needs in their subscription
+— Storage Account, Function App, Event Grid, Logic Apps — then starts monitoring. No manual .env editing, no Azure Portal setup.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+How to achieve it — 3 layers:
+
+Layer 1 — Auto-provisioning (the hard part)
+
+Replace the manual Azure resource setup with a single npm run setup command that:
+1. Runs az login (or opens browser for MSAL login)
+2. Detects the user's subscription
+3. Deploys all required Azure resources via Bicep/ARM template (az deployment group create)
+4. Reads the outputs (connection strings, URLs, keys) and writes them to .env automatically
+
+This is a one-time setup script — ~100 lines of Node.js + one Bicep file. The Bicep file defines all 8 Azure resources (Storage,
+Function App, Event Grid, Logic Apps, ACS, OpenAI). Azure does the provisioning.
+
+Layer 2 — Zero-config startup
+
+Replace the hardcoded .env with Azure Key Vault or Azure App Configuration:
+- On first run: write all generated config to Key Vault
+- On every subsequent run: read config from Key Vault using DefaultAzureCredential
+- User never touches .env again
+
+Layer 3 — Desktop packaging (optional)
+
+Package the whole thing as a desktop app using Electron or Tauri:
+- Bundles Node.js + Express + React into a single .exe/.dmg
+- User double-clicks, browser opens, ADIP runs locally
+- No npm start needed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+What's already generic:
+
+- DefaultAzureCredential already picks up whoever is logged in via az login — works for any Azure account
+- All API calls already take subscriptionId as a parameter — works for any subscription
+- Tables use PartitionKey = subscriptionId — already multi-tenant by design
+
+What needs to be built:
+
+| Component | What | Effort |
+|---|---|---|
+| scripts/setup.js | Auto-provision Azure resources via Bicep | Medium |
+| infra/main.bicep | Bicep template for all 8 resources | Medium |
+| scripts/configure.js | Read Bicep outputs → write .env | Low |
+| Key Vault integration | Store/read config from Key Vault | Low |
+| Electron wrapper | Package as desktop app | Low |
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+Realistic flow after implementation:
+
+User downloads ADIP
+→ Runs: npm run setup
+→ Browser opens: "Sign in with Microsoft"
+→ User logs in with their Azure account
+→ ADIP asks: "Which subscription? Which resource group?"
+→ Deploys all Azure resources automatically (~3 minutes)
+→ Writes config to Key Vault
+→ Starts the app
+→ Everything works — their resources, their data, their Azure
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+Can it be done with Contributor access?
+
+Yes — Contributor can create all the resources ADIP needs. The only exception is if the user's subscription has zero quota for
+certain services (like we hit with App Service in West US 2). The setup script can detect this and suggest an alternative region.
+
+Is it worth building?
+
+For a project defense — absolutely. "One command setup for any Azure account" is a compelling demo. It transforms ADIP from "a
+project that works on one machine" to "a product anyone can deploy."
+
+Want me to build the setup script and Bicep template?
