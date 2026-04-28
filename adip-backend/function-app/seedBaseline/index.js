@@ -16,8 +16,8 @@ const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')
 const { BlobServiceClient }        = require('@azure/storage-blob')
 
-const { blobKey, writeBlob }       = require('adip-shared/blobHelpers')
-const { API_VERSION_MAP }          = require('adip-shared/constants')
+const { blobKey, writeBlob }       = require('../shared/blobHelpers')
+const { API_VERSION_MAP }          = require('../shared/constants')
 
 // Connect to the 'baselines' blob container where golden baseline JSON documents are stored
 const blobStorageClient  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)

@@ -27,10 +27,10 @@ const { DefaultAzureCredential }   = require('@azure/identity')
 const { BlobServiceClient }        = require('@azure/storage-blob')
 const fetch                        = require('node-fetch')
 
-const { strip, diffObjects }       = require('adip-shared/diff')
-const { classifySeverity }         = require('adip-shared/severity')
-const { blobKey, driftKey, readBlob, writeBlob } = require('adip-shared/blobHelpers')
-const { API_VERSION_MAP }          = require('adip-shared/constants')
+const { strip, diffObjects }       = require('../shared/diff')
+const { classifySeverity }         = require('../shared/severity')
+const { blobKey, driftKey, readBlob, writeBlob } = require('../shared/blobHelpers')
+const { API_VERSION_MAP }          = require('../shared/constants')
 
 // Connect to Azure Blob Storage using the connection string from .env
 const blobStorageClient     = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)

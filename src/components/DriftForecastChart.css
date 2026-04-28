@@ -1,0 +1,116 @@
+/* FILE: src/components/DriftForecastChart.css */
+
+.dfc-wrap {
+  width: 100%;
+}
+
+/* ── Controls ── */
+.dfc-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.dfc-range-btn {
+  background: #0f1623;
+  border: 1px solid #2d3748;
+  color: #64748b;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.dfc-range-btn:hover { border-color: #1995ff; color: #e2e8f0; }
+.dfc-range-btn--active { background: #1e3a5f; border-color: #1995ff; color: #60a5fa; font-weight: 600; }
+
+.dfc-sev-filter {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.dfc-sev-btn {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+  opacity: 0.45;
+}
+.dfc-sev-btn--active { opacity: 1; }
+
+/* ── Chart container ── */
+.dfc-chart-area {
+  position: relative;
+  width: 100%;
+}
+
+.dfc-svg-wrap {
+  width: 100%;
+  overflow: visible;
+}
+
+/* Bars */
+.dfc-bar { cursor: pointer; transition: opacity 0.12s; }
+.dfc-bar:hover { opacity: 0.75; }
+
+/* Tooltip */
+.dfc-tooltip {
+  position: absolute;
+  background: #0f1623;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #e2e8f0;
+  pointer-events: none;
+  z-index: 20;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  transform: translateX(-50%);
+}
+.dfc-tooltip-date { font-weight: 600; margin-bottom: 6px; color: #94a3b8; font-size: 11px; }
+.dfc-tooltip-row { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; }
+.dfc-tooltip-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 5px; }
+.dfc-tooltip-total { border-top: 1px solid #2d3748; margin-top: 6px; padding-top: 6px; font-weight: 600; }
+
+/* Legend */
+.dfc-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.dfc-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; cursor: pointer; }
+.dfc-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* Summary stats */
+.dfc-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.dfc-stat {
+  background: #0f1623;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 10px 16px;
+  flex: 1;
+  min-width: 100px;
+}
+.dfc-stat-value { font-size: 22px; font-weight: 700; color: #e2e8f0; }
+.dfc-stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+.dfc-empty { color: #64748b; font-size: 13px; text-align: center; padding: 32px 0; }
+.dfc-loading { display: flex; align-items: center; gap: 10px; color: #64748b; font-size: 13px; padding: 24px 0; }
+.dfc-spinner {
+  width: 16px; height: 16px; border: 2px solid #2d3748;
+  border-top-color: #1995ff; border-radius: 50%;
+  animation: dfc-spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes dfc-spin { to { transform: rotate(360deg); } }

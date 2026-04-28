@@ -75,6 +75,7 @@ app.use('/api', require('./routes/genome'))
 app.use('/api', require('./routes/reports'))
 app.use('/api', require('./routes/attribution'))
 app.use('/api', require('./routes/chat'))
+app.use('/api', require('./routes/rgPrediction'))
 
 
 

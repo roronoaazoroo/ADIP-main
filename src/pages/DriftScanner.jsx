@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import ForceGraph2D from 'react-force-graph-2d'
+// import ForceGraph2D from 'react-force-graph-2d'
 import JsonTree from '../components/JsonTree'
 import { useAzureScope } from '../hooks/useAzureScope'
 import { useDriftSocket } from '../hooks/useDriftSocket'
@@ -197,18 +197,14 @@ export default function DriftScanner() {
                   id: Date.now(),
                 }])
                 
-                // Fetch Drift Prediction (Feature 2)
-                setIsPredictionLoading(true)
-                setTimeout(() => {
-                  setDriftPrediction({
-                    likelihood: 'HIGH',
-                    predictedDays: 3,
-                    fieldsAtRisk: ['properties.networkAcls.defaultAction', 'tags.environment'],
-                    reasoning: 'This resource has drifted 4 times in the last 30 days, averaging every 7 days. The last drift was 4 days ago. Network ACL changes are the most common pattern.',
-                    basedOn: '4 drift events over 30 days'
-                  })
-                  setIsPredictionLoading(false)
-                }, 1500)
+                // Fetch Drift Prediction — real AI call (only when a specific resource is selected)
+                if (resource) {
+                  setIsPredictionLoading(true)
+                  fetchDriftPrediction(subscription, resource)
+                    .then(pred => setDriftPrediction(pred))
+                    .catch(e => setDriftPrediction({ error: e.message }))
+                    .finally(() => setIsPredictionLoading(false))
+                }
 
                 // Fetch Dependency Graph (Feature 7)
                 setIsGraphLoading(true)
@@ -379,48 +375,20 @@ export default function DriftScanner() {
               </div>
             )}
 
-            {/* AI Anomalies & Drift Prediction (Feature 2) */}
-            {(anomalies?.length > 0 || driftPrediction || isPredictionLoading) && (
+            {/* AI Anomalies */}
+            {anomalies?.length > 0 && (
               <div className="ds-anomalies" style={{ marginTop: '16px' }}>
                 <span className="ds-anomaly-label">AI Insights</span>
-                
-                {/* Anomalies */}
-                {anomalies?.slice(0, 1).map((anomaly, anomalyIndex) => (
-                  <div key={anomalyIndex} className="ds-anomaly-card">
+                {anomalies.slice(0, 1).map((anomaly, i) => (
+                  <div key={i} className="ds-anomaly-card">
                     <div className="ds-anomaly-title">{anomaly.title}</div>
                     <div className="ds-anomaly-desc">{anomaly.description}</div>
                   </div>
                 ))}
-                
-                {/* Prediction Card */}
-                {isPredictionLoading ? (
-                  <div className="ds-scanning" style={{ background: 'var(--panel-bg)', padding: '16px', borderRadius: '8px' }}>
-                    <div className="ds-scanning-ring"/> Computing drift prediction...
-                  </div>
-                ) : driftPrediction ? (
-                  <div className="ds-anomaly-card" style={{ borderLeft: '4px solid #ef4444', marginTop: '12px', background: 'var(--panel-bg)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div className="ds-anomaly-title">
-                        <span className="material-symbols-outlined" style={{fontSize: 16, verticalAlign: 'middle', marginRight: 4, color: '#ef4444'}}>psychology</span> 
-                        Drift Prediction
-                      </div>
-                      <span style={{ background: '#ef444420', color: '#ef4444', padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 'bold' }}>
-                        {driftPrediction.likelihood} LIKELIHOOD
-                      </span>
-                    </div>
-                    <div className="ds-anomaly-desc">
-                      <div><strong style={{ color: 'var(--text-primary)' }}>Predicted next drift:</strong> ~{driftPrediction.predictedDays} days</div>
-                      <div style={{ marginTop: 6 }}><strong style={{ color: 'var(--text-primary)' }}>Fields at risk:</strong></div>
-                      <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
-                        {driftPrediction.fieldsAtRisk.map(f => <li key={f}><code style={{ background: 'var(--bg-lighter)', padding: '2px 4px', borderRadius: '4px', fontSize: '11px' }}>{f}</code></li>)}
-                      </ul>
-                      <div style={{ fontStyle: 'italic', marginTop: 8, color: 'var(--text-secondary)' }}>"{driftPrediction.reasoning}"</div>
-                      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--border-strong)' }}>Based on {driftPrediction.basedOn}</div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             )}
+
+
           </section>
 
           {/* Progress */}
