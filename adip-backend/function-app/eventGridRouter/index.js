@@ -1,9 +1,8 @@
-// ============================================================
 // FILE: adip-backend/function-app/eventGridRouter/index.js
 // ROLE: Azure Function — replaces adip-logic-app Logic App
-//
+
 // Trigger: HTTP POST from Azure Event Grid (webhook subscription)
-//
+
 // What this function does:
 //   1. Handles the Event Grid webhook validation handshake
 //      (Event Grid sends a SubscriptionValidationEvent on first setup —
@@ -15,12 +14,10 @@
 //   3. For events that pass the filter: calls the detectDrift Azure Function
 //      with { resourceId, subscriptionId } extracted from the event payload
 //   4. Returns the detectDrift response to Event Grid
-//
+
 // Replaces: adip-logic-app Logic App
 // Called by: Azure Event Grid (ResourceWriteSuccess / ResourceDeleteSuccess events)
 // Calls: detectDrift Azure Function
-// ============================================================
-'use strict'
 'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const fetch = require('node-fetch')

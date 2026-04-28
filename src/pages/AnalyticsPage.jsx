@@ -11,7 +11,6 @@ import { useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
 import ReportsDashboard from '../components/ReportsDashboard'
-import ChangeAttribution from '../components/ChangeAttribution'
 import './AnalyticsPage.css'
 
 // ── Mock data generators ──────────────────────────────────────────────────────
@@ -230,7 +229,6 @@ const TABS = [
   { key: 'trends', label: 'Drift Analysis & Trends', icon: 'trending_up' },
   { key: 'impact', label: 'Drift Impact Analysis', icon: 'assessment' },
   { key: 'forecast', label: 'Prediction & Forecasting', icon: 'psychology' },
-  { key: 'attribution', label: 'Change Attribution', icon: 'group' },
   { key: 'reports', label: 'Reports', icon: 'summarize' },
 ]
 

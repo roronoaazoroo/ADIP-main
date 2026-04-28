@@ -1,10 +1,9 @@
-// ============================================================
 // FILE: adip-backend/function-app/driftAlertRouter/index.js
 // ROLE: Azure Function — replaces adip-drift-alert Logic App
-//
+
 // Trigger: HTTP POST from Express API
 //   Called by: remediateRequest.js, remediate.js, app.js (after-hours check)
-//
+
 // What this function does:
 //   1. Receives a drift event payload from Express
 //   2. Checks if severity is 'critical' or 'high'
@@ -12,12 +11,11 @@
 //   3. If severity passes: calls the sendAlert Azure Function
 //      which builds the HTML email and sends it via Azure Communication Services
 //   4. Returns { alerted: true } on success
-//
+
 // Replaces: adip-drift-alert Logic App
 // Called by: Express API (remediateRequest.js, remediate.js, app.js)
 // Calls: sendAlert Azure Function
-// ============================================================
-'use strict'
+
 'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const fetch = require('node-fetch')

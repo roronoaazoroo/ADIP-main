@@ -6,6 +6,31 @@ const { getResourceConfig } = require('../services/azureResourceService')
 const { getBaseline, saveDriftRecord } = require('../services/blobService')
 const { broadcastDriftEvent } = require('../services/socketService')
 const { explainDrift, reclassifySeverity } = require('../services/aiService')
+const { TableClient } = require('@azure/data-tables')
+
+// Loads active suppression rules for a subscription from Table Storage
+async function loadSuppressionRules(subscriptionId) {
+  try {
+    const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'suppressionRules')
+    const rules = []
+    for await (const entity of tc.listEntities({ queryOptions: { filter: `PartitionKey eq '${subscriptionId}'` } })) {
+      rules.push({ fieldPath: entity.fieldPath, resourceType: entity.resourceType || 'All' })
+    }
+    return rules
+  } catch {
+    return []  // non-fatal — if table missing, no suppression applied
+  }
+}
+
+// Returns true if a diff change should be suppressed based on active rules
+function isSuppressed(change, rules, resourceType) {
+  const changePath = (change.path || '').toLowerCase()
+  return rules.some(rule => {
+    const ruleField = rule.fieldPath.toLowerCase()
+    const typeMatch = rule.resourceType === 'All' || (resourceType || '').toLowerCase().includes(rule.resourceType.toLowerCase())
+    return typeMatch && (changePath === ruleField || changePath.startsWith(ruleField + '.') || changePath.startsWith(ruleField + ' '))
+  })
+}
 
 // getMonitorSessionsTableClient imported above from blobService — infrastructure stays in the service layer
 
@@ -18,7 +43,7 @@ function buildSessionRowKey(subscriptionId, resourceGroupId, resourceId) {
 
 // ── runDriftCheck START ──────────────────────────────────────────────────────
 // Full drift check pipeline: fetches live + baseline, diffs, classifies, runs AI, saves record, alerts
-async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
+async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller = '') {
   console.log('[runDriftCheck] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupId, 'resourceId:', resourceId)
   if (!subscriptionId || !resourceGroupId) throw new Error('runDriftCheck requires subscriptionId and resourceGroupId')
   const [currentLiveConfig, storedBaseline] = await Promise.all([
@@ -26,8 +51,11 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     getBaseline(subscriptionId, resourceId || resourceGroupId),
   ])
 
-  const detectedChanges = storedBaseline?.resourceState ? diffObjects(storedBaseline.resourceState, currentLiveConfig) : []
-  const driftSeverity   = classifySeverity(detectedChanges)
+  const rawChanges       = storedBaseline?.resourceState ? diffObjects(storedBaseline.resourceState, currentLiveConfig) : []
+  const suppressionRules = await loadSuppressionRules(subscriptionId)
+  const resourceType     = currentLiveConfig?.type || ''
+  const detectedChanges  = rawChanges.filter(c => !isSuppressed(c, suppressionRules, resourceType))
+  const driftSeverity    = classifySeverity(detectedChanges)
   const driftRecord = {
     subscriptionId, resourceGroupId,
     resourceId:    resourceId || null,
@@ -37,7 +65,7 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     differences:   detectedChanges,
     severity:      driftSeverity,
     changeCount:   detectedChanges.length,
-    caller:        'manual-compare',
+    caller:        caller || '',
     detectedAt:    new Date().toISOString(),
   }
 
@@ -67,9 +95,9 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
 
 router.post('/compare', async (req, res) => {
   console.log('[POST /compare] starts')
-  const { subscriptionId, resourceGroupId, resourceId } = req.body
+  const { subscriptionId, resourceGroupId, resourceId, caller } = req.body
   if (!subscriptionId || !resourceGroupId) return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
-  try { res.json(await runDriftCheck(subscriptionId, resourceGroupId, resourceId || null)) }
+  try { res.json(await runDriftCheck(subscriptionId, resourceGroupId, resourceId || null, caller || '')) }
   catch (compareError) { res.status(500).json({ error: compareError.message }) }
 })
 router.post('/monitor/start', async (req, res) => {

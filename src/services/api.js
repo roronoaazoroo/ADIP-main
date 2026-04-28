@@ -306,3 +306,43 @@ export async function deleteReport(blobKey) {
 export async function fetchChangeAttribution(subscriptionId, days = 30) {
   return apiRequest(`/attribution?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
 }
+
+// ── Dependency Graph ─────────────────────────────────────────────────────────
+
+export async function fetchDependencyGraph(subscriptionId, resourceGroupId) {
+  return apiRequest(`/dependency-graph?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceGroupId=${encodeURIComponent(resourceGroupId)}`)
+}
+
+// ── Suppression Rules ────────────────────────────────────────────────────────
+
+export async function fetchSuppressionRules(subscriptionId) {
+  return apiRequest(`/suppression-rules?subscriptionId=${encodeURIComponent(subscriptionId)}`)
+}
+
+export async function createSuppressionRule(subscriptionId, fieldPath, resourceType, reason) {
+  return apiRequest('/suppression-rules', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, fieldPath, resourceType, reason }),
+  })
+}
+
+export async function deleteSuppressionRule(subscriptionId, rowKey) {
+  return apiRequest(`/suppression-rules/${encodeURIComponent(rowKey)}?subscriptionId=${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' })
+}
+
+// ── Remediation Schedule ─────────────────────────────────────────────────────
+
+export async function scheduleRemediation({ subscriptionId, resourceGroupId, resourceId, severity, scheduledAt, autoApprovalHours }) {
+  return apiRequest('/remediation-schedule', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, severity, scheduledAt, autoApprovalHours }),
+  })
+}
+
+export async function fetchRemediationSchedules(subscriptionId) {
+  return apiRequest(`/remediation-schedule?subscriptionId=${encodeURIComponent(subscriptionId)}`)
+}
+
+export async function cancelRemediationSchedule(subscriptionId, rowKey) {
+  return apiRequest(`/remediation-schedule/${encodeURIComponent(rowKey)}?subscriptionId=${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' })
+}

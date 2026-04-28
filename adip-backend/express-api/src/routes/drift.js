@@ -44,16 +44,13 @@ router_drift.get('/stats/today', async (req, res) => {
   const { subscriptionId } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
 
-  const since = new Date()
-  since.setHours(0, 0, 0, 0)
-  const sinceISO = since.toISOString()
+  // Rolling last 24 hours — not midnight-based
+  const sinceISO = new Date(Date.now() - 86400000).toISOString()
 
   try {
-    // Query changesIndex (all ARM events today) for accurate counts
     const tc = getChangesIndexTableClient()
-    const filter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${sinceISO}'`
+    const filter = `PartitionKey eq '${subscriptionId}' and Timestamp ge datetime'${sinceISO}'`
 
-    // Use Sets to count unique resources, RGs, and callers
     const uniqueResourceIds    = new Set()
     const uniqueResourceGroups = new Set()
     const uniqueCallerNames    = new Set()
@@ -66,15 +63,12 @@ router_drift.get('/stats/today', async (req, res) => {
       if (changeEntity.caller)        uniqueCallerNames.add(changeEntity.caller)
     }
 
-    const allTimeTotal = await getTotalChangesCount(subscriptionId).catch(() => 0)
-
     res.json({
       totalChanges:  totalChangesToday,
-      totalDrifted:  uniqueResourceIds.size,    // unique resources with at least one change today
+      totalDrifted:  uniqueResourceIds.size,
       totalRGs:      uniqueResourceGroups.size,
       uniqueCallers: [...uniqueCallerNames],
       since:         sinceISO,
-      allTimeTotal,
     })
   } catch (statsError) { res.status(500).json({ error: statsError.message }) }
 })

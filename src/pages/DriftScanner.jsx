@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import ForceGraph2D from 'react-force-graph-2d'
+import DependencyGraph from '../components/DependencyGraph'
 import JsonTree from '../components/JsonTree'
 import { useAzureScope } from '../hooks/useAzureScope'
 import { useDriftSocket } from '../hooks/useDriftSocket'
@@ -49,9 +49,7 @@ export default function DriftScanner() {
   const [driftPrediction, setDriftPrediction] = useState(null)
   const [isPredictionLoading, setIsPredictionLoading] = useState(false)
 
-  // Feat 7: Dependency Graph
-  const [graphData, setGraphData] = useState({ nodes: [], links: [] })
-  const [isGraphLoading, setIsGraphLoading] = useState(false)
+  // Feat 7: Dependency Graph — no local state needed, DependencyGraph.jsx manages its own fetch
 
   const {
     subscription, setSubscription,
@@ -210,30 +208,7 @@ export default function DriftScanner() {
                   setIsPredictionLoading(false)
                 }, 1500)
 
-                // Fetch Dependency Graph (Feature 7)
-                setIsGraphLoading(true)
-                setTimeout(() => {
-                  setGraphData({
-                    nodes: [
-                      { id: 'vnet', name: 'adip-vnet', type: 'VNet', color: '#1995ff', val: 5 },
-                      { id: 'subnet', name: 'default', type: 'Subnet', color: '#10b981', val: 4 },
-                      { id: 'nsg', name: 'testing-vm-nsg', type: 'NSG', color: '#ef4444', val: 6, isDrifted: true },
-                      { id: 'nic', name: 'testing-vm-nic', type: 'NIC', color: '#8b5cf6', val: 3 },
-                      { id: 'vm', name: 'testing-vm', type: 'VM', color: '#f97316', val: 8 },
-                      { id: 'disk', name: 'testing-vm_OsDisk', type: 'Disk', color: '#94a3b8', val: 3 },
-                      { id: 'ip', name: 'testing-vm-ip', type: 'PublicIP', color: '#06b6d4', val: 3 }
-                    ],
-                    links: [
-                      { source: 'vnet', target: 'subnet', name: 'contains' },
-                      { source: 'subnet', target: 'nsg', name: 'protected by' },
-                      { source: 'nic', target: 'nsg', name: 'uses' },
-                      { source: 'vm', target: 'nic', name: 'attached to' },
-                      { source: 'vm', target: 'disk', name: 'attached to' },
-                      { source: 'nic', target: 'ip', name: 'assigned' }
-                    ]
-                  })
-                  setIsGraphLoading(false)
-                }, 1200)
+                // Dependency Graph is fetched on-demand by DependencyGraph.jsx when the tab is opened
               }
             }
           })
@@ -274,7 +249,6 @@ export default function DriftScanner() {
     setPolicyData(null)
     setAnomalies([])
     setDriftPrediction(null)
-    setGraphData({ nodes: [], links: [] })
     clearDriftEvents()      // clears the live activity feed
   }
 
@@ -509,26 +483,18 @@ export default function DriftScanner() {
             {/* Dependency Graph Tab (Feature 7) */}
             {activeTab === 'graph' && (
               <div className="ds-graph-inner" style={{ height: '700px', width: '100%', position: 'relative', overflow: 'hidden', background: 'var(--panel-bg)', borderRadius: '0 0 12px 12px' }}>
-                {isGraphLoading ? (
-                  <div className="ds-scanning"><div className="ds-scanning-ring" /> Building graph layout...</div>
-                ) : (
-                  <ForceGraph2D
-                    graphData={graphData}
-                    nodeLabel={node => `${node.name} (${node.type}) ${node.isDrifted ? ' - DRIFTED RECENTLY' : ''}`}
-                    nodeColor={node => node.isDrifted ? '#ef4444' : node.color}
-                    nodeRelSize={6}
-                    linkColor={() => '#64748b'}
-                    linkDirectionalArrowLength={3.5}
-                    linkDirectionalArrowRelPos={1}
-                    onNodeClick={node => navigate('/comparison', { state: { subscriptionId: subscription || 'sub-1', resourceGroupId: resourceGroup || 'rg-1', resourceId: node.id, resourceName: node.name } })}
-                  />
-                )}
-                <div style={{ position: 'absolute', top: 16, right: 16, background: 'var(--panel-bg)', padding: '12px', border: '1px solid var(--border-light)', borderRadius: '8px', zIndex: 10, fontSize: '13px' }}>
-                  <strong>Legend</strong>
-                  <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}><span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: '#ef4444', marginRight: 8 }}/> Drifted Node</div>
-                  <div style={{ display: 'flex', alignItems: 'center', marginTop: 4 }}><span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: '#1995ff', marginRight: 8 }}/> VNet/Subnet</div>
-                  <div style={{ display: 'flex', alignItems: 'center', marginTop: 4 }}><span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: '#f97316', marginRight: 8 }}/> Compute</div>
-                </div>
+                <DependencyGraph
+                  subscriptionId={subscription}
+                  resourceGroupId={resourceGroup}
+                  onNodeClick={node => navigate('/comparison', {
+                    state: {
+                      subscriptionId:  subscription,
+                      resourceGroupId: resourceGroup,
+                      resourceId:      node.id,
+                      resourceName:    node.name,
+                    }
+                  })}
+                />
               </div>
             )}
           </div>

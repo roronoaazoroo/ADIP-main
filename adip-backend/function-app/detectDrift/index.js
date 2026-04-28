@@ -1,4 +1,3 @@
-'use strict'
 // FILE: adip-backend/function-app/detectDrift/index.js
 // ROLE: Azure Function — detects drift between live ARM config and stored baseline
 
@@ -21,6 +20,7 @@
 // Deployed to: adip-func-001 (Azure Functions, West US 2, Consumption plan)
 // Auth level:  function (requires ?code= key in URL)
 
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')

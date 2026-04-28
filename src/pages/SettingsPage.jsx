@@ -12,6 +12,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
+import SuppressionRules from '../components/SuppressionRules'
 import './SettingsPage.css'
 
 // ── Toggle Switch ────────────────────────────────────────────────────────────
@@ -122,13 +123,6 @@ export default function SettingsPage() {
     () => document.documentElement.getAttribute('data-theme') || 'light'
   )
 
-  // ── Suppression Rules ────────────────────────────────────────────────────
-  const [suppressionRules, setSuppressionRules] = useState([
-    { id: 1, field: 'tags.environment', resourceType: 'All', reason: 'Controlled by external system' },
-    { id: 2, field: 'properties.provisioningState', resourceType: 'All', reason: 'Transient state changes' }
-  ])
-  const [newRuleField, setNewRuleField] = useState('')
-  const [newRuleReason, setNewRuleReason] = useState('')
 
   // Toggle dark/light theme
   const handleThemeChange = (newTheme) => {
@@ -406,54 +400,7 @@ export default function SettingsPage() {
           {/* ── Suppression Rules Section (Feature 12) ────────────────────── */}
           <div id="sp-section-suppression">
             <SectionCard icon="rule_folder" title="Drift Suppression Rules" badge="Rules">
-              <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>
-                Fields matching these rules will be ignored during baseline comparison and will not trigger drift alerts. Useful for expected tagging changes or transient properties.
-              </p>
-              
-              <div className="an-card-body an-card-body--table" style={{ border: '1px solid var(--border-light)', borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
-                <table className="an-table" style={{ margin: 0 }}>
-                  <thead>
-                    <tr><th>Field Path</th><th>Resource Type</th><th>Reason</th><th style={{width: 60}}>Action</th></tr>
-                  </thead>
-                  <tbody>
-                    {suppressionRules.map(rule => (
-                      <tr key={rule.id} className="an-tr">
-                        <td style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--bg-lighter)', padding: '2px 6px', borderRadius: 4, display: 'inline-block', margin: '8px' }}>{rule.field}</td>
-                        <td className="an-td-type">{rule.resourceType}</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{rule.reason}</td>
-                        <td>
-                          <button className="cp-toolbar-btn" onClick={() => setSuppressionRules(suppressionRules.filter(r => r.id !== rule.id))}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444' }}>delete</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={{ background: 'var(--bg-lighter)', padding: 16, borderRadius: 8 }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: 14 }}>Add New Rule</h4>
-                <div className="sp-form-grid" style={{ gap: 12 }}>
-                  <div className="sp-form-field">
-                    <label className="sp-form-label">Field Path (e.g. properties.networkAcls.defaultAction)</label>
-                    <input className="sp-input" value={newRuleField} onChange={e => setNewRuleField(e.target.value)} placeholder="Path to suppress" />
-                  </div>
-                  <div className="sp-form-field">
-                    <label className="sp-form-label">Reason</label>
-                    <input className="sp-input" value={newRuleReason} onChange={e => setNewRuleReason(e.target.value)} placeholder="Why is this suppressed?" />
-                  </div>
-                </div>
-                <button className="cp-btn cp-btn--secondary" style={{ marginTop: 12 }} onClick={() => {
-                  if (newRuleField) {
-                    setSuppressionRules([...suppressionRules, { id: Date.now(), field: newRuleField, resourceType: 'All', reason: newRuleReason || 'No reason provided' }])
-                    setNewRuleField('')
-                    setNewRuleReason('')
-                  }
-                }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Add Rule
-                </button>
-              </div>
+              <SuppressionRules subscriptionId={subscription} />
             </SectionCard>
           </div>
 

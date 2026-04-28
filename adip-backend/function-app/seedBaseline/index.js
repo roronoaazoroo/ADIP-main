@@ -10,7 +10,6 @@
 //   4. After this, ComparisonPage will diff future live configs against this snapshot
 
 'use strict'
-'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')

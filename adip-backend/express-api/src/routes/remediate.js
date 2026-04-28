@@ -17,7 +17,7 @@ const { stripVolatileFields } = require('../shared/armUtils')
 // Additional read-only fields ARM rejects on PUT (VM instanceView, power state, etc.)
  
  
-// strip() is now stripVolatileFields() from shared/armUtils.js
+// stripVolatileFields() is now stripVolatileFields() from shared/armUtils.js
  
  
 // ── POST /api/remediate START ────────────────────────────────────────────────
@@ -37,9 +37,9 @@ router_remediate.post('/remediate', async (req, res) => {
       return res.status(404).json({ error: 'No golden baseline found for this resource' })
     }
  
-    const baselineState = strip(baseline.resourceState)
+    const baselineState = stripVolatileFields(baseline.resourceState)
     const liveRaw       = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
-    const liveState     = strip(liveRaw)
+    const liveState     = stripVolatileFields(liveRaw)
     const differences   = diffObjects(liveState, baselineState)
  
     const remSeverity = classifySeverity(differences)
@@ -85,7 +85,7 @@ router_remediate.post('/remediate', async (req, res) => {
           if (subnetConfig.properties?.networkSecurityGroup) {
             delete subnetConfig.properties.networkSecurityGroup
             await armClient.resources.beginCreateOrUpdateAndWait(
-              vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi, strip(subnetConfig)
+              vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi, stripVolatileFields(subnetConfig)
             )
             console.log(`[remediate] dissociated subnet ${subnetName} from NSG ${name}`)
           }
@@ -105,7 +105,7 @@ router_remediate.post('/remediate', async (req, res) => {
           subnetConfig.properties = subnetConfig.properties || {}
           subnetConfig.properties.networkSecurityGroup = { id: resourceId }  // re-attach this NSG
           await armClient.resources.beginCreateOrUpdateAndWait(
-            vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi, strip(subnetConfig)
+            vnetRg, 'Microsoft.Network', `virtualNetworks/${vnetName}`, 'subnets', subnetName, vnetApi, stripVolatileFields(subnetConfig)
           )
           console.log(`[remediate] re-associated subnet ${subnetName} with NSG ${name}`)
         } catch (reassociateError) {

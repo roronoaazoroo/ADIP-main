@@ -1,4 +1,3 @@
-'use strict'
 // FILE: adip-backend/function-app/scanSubscription/index.js
 // ROLE: Azure Function — hourly full subscription sweep for drift
 
@@ -14,6 +13,7 @@
 
 // Counters: subCount, resourceCount, driftCount — logged at the end
 
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { SubscriptionClient }       = require('@azure/arm-subscriptions')

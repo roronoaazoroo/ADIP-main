@@ -36,16 +36,25 @@ export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, 
   // Ref to the scroll container — used to auto-scroll to the bottom on new events
   const logRef = useRef(null)
 
+  const isHumanCaller = (name) => {
+    if (!name || !name.trim()) return false
+    const c = name.trim().toLowerCase()
+    return c !== 'system' && !c.startsWith('system (') && c !== 'manual-compare' && !c.startsWith('azure ')
+  }
+
   // The currently selected user in the filter dropdown (empty string = show all users)
   const [selectedUserFilter, setSelectedUserFilter] = useState('')
 
-  // Unique list of caller names derived from driftEvents — populates the filter dropdown
-  const uniqueCallerNames = useMemo(() => [...new Set(driftEvents.map(resolveUser))].sort(), [driftEvents])
+  // Only human callers — exclude System/blank from feed and dropdown
+  const humanDriftEvents = useMemo(() => driftEvents.filter(ev => isHumanCaller(resolveUser(ev))), [driftEvents])
+
+  // Unique list of caller names derived from humanDriftEvents — populates the filter dropdown
+  const uniqueCallerNames = useMemo(() => [...new Set(humanDriftEvents.map(resolveUser))].sort(), [humanDriftEvents])
 
   // driftEvents after applying the user filter (or all events if no filter selected)
   const filteredDriftEvents = useMemo(
-    () => selectedUserFilter ? driftEvents.filter(ev => resolveUser(ev) === selectedUserFilter) : driftEvents,
-    [driftEvents, selectedUserFilter]
+    () => selectedUserFilter ? humanDriftEvents.filter(ev => resolveUser(ev) === selectedUserFilter) : humanDriftEvents,
+    [humanDriftEvents, selectedUserFilter]
   )
 
   useEffect(() => {

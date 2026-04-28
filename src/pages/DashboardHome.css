@@ -471,3 +471,15 @@
 }
 .bar-mode-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
 .bar-mode-btn--active { background: rgba(25,149,255,0.2); border-color: rgba(25,149,255,0.4); color: #1995ff; }
+
+/* ── Dashboard tabs ──────────────────────────────────────────────────────── */
+.dh-tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px; }
+.dh-tab-btn { background: none; border: none; color: #64748b; font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 6px 6px 0 0; cursor: pointer; }
+.dh-tab-btn--active { color: #1995ff; border-bottom: 2px solid #1995ff; }
+
+/* ── TopChangers widget ──────────────────────────────────────────────────── */
+.dh-top-changers { padding: 8px 0; }
+.dh-top-changers-empty { color: #64748b; font-size: 13px; padding: 16px 0; }
+.dh-top-changer-hero { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px; margin-bottom: 4px; }
+.dh-top-changer-name { font-size: 16px; font-weight: 700; color: #e2e8f0; }
+.dh-top-changer-stat { font-size: 13px; color: #94a3b8; margin-top: 2px; }

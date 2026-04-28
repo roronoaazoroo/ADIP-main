@@ -17,6 +17,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { diff as deepDiff } from 'deep-diff'
 import JsonTree from '../components/JsonTree'
 import NavBar from '../components/NavBar'
+import ScheduleRemediationModal from '../components/ScheduleRemediationModal'
 import { fetchBaseline, remediateToBaseline, fetchPolicyCompliance, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
 import { useDashboard } from '../context/DashboardContext'
 import './ComparisonPage.css'
@@ -123,7 +124,7 @@ export default function ComparisonPage() {
 
   // Feature 6: Schedule Remediation Modal
   const [showScheduleModal, setShowScheduleModal] = useState(false)
-  const [scheduleTime, setScheduleTime] = useState('')
+  const [scheduledConfirmation, setScheduledConfirmation] = useState(null)
   const [isPolicyCreated, setIsPolicyCreated] = useState(false)
 
   // Refs to the JsonTree components so we can call expandAll/collapseAll imperatively
@@ -498,30 +499,17 @@ export default function ComparisonPage() {
 
       {/* Feature 6: Schedule Remediation Modal */}
       {showScheduleModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="cp-card" style={{ width: 450, padding: 24, background: 'var(--panel-bg)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--primary)' }}>schedule</span> Schedule Remediation
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>
-              Select a maintenance window for auto-applying this fix. Set auto-approval if the admin doesn't respond within 24 hours. The drift severity will automatically escalate to Critical if it remains unresolved.
-            </p>
-            <div className="sp-form-field" style={{ marginBottom: 16 }}>
-              <label className="sp-form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, display: 'block' }}>Maintenance Window</label>
-              <input type="datetime-local" className="sp-input" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-light)', borderRadius: 4, background: 'var(--bg-lighter)', color: 'var(--text-primary)' }} />
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 24, cursor: 'pointer' }}>
-              <input type="checkbox" defaultChecked /> Enable Auto-Approval after 24h
-            </label>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <button className="cp-btn cp-btn--secondary" onClick={() => setShowScheduleModal(false)}>Cancel</button>
-              <button className="cp-btn cp-btn--primary" onClick={() => {
-                 setRemediationSucceeded(true)
-                 setShowScheduleModal(false)
-              }} disabled={!scheduleTime}>Confirm Schedule</button>
-            </div>
-          </div>
-        </div>
+        <ScheduleRemediationModal
+          subscriptionId={subscriptionId}
+          resourceGroupId={resourceGroupId}
+          resourceId={resourceId}
+          severity={driftSeverity}
+          onClose={() => setShowScheduleModal(false)}
+          onScheduled={schedule => {
+            setScheduledConfirmation(schedule)
+            setRemediationSucceeded(true)
+          }}
+        />
       )}
     </div>
   )
