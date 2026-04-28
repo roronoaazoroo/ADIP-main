@@ -30,18 +30,19 @@ async function loadSuppressionRules(subscriptionId) {
 
 // Returns true if a diff change should be suppressed based on active rules
 function isSuppressed(change, rules, resourceId, resourceGroupId) {
-  const changePath  = (change.path || '').toLowerCase()
-  const changeType  = (change.type || 'modified').toLowerCase()
+  // Normalize path: diff engine uses " → " as separator, rules use "." — unify to "."
+  const norm = p => (p || '').toLowerCase().replace(/ → /g, '.')
+  const changePath = norm(change.path)
+  const changeType = (change.type || 'modified').toLowerCase()
+
   return rules.some(rule => {
-    const ruleField = rule.fieldPath.toLowerCase()
-    // Scope match: rule applies if no scope set, or scope matches
+    const ruleField = norm(rule.fieldPath)
     const rgMatch  = !rule.resourceGroupId || (resourceGroupId || '').toLowerCase().includes(rule.resourceGroupId.toLowerCase())
     const resMatch = !rule.resourceId      || (resourceId      || '').toLowerCase() === rule.resourceId.toLowerCase()
     if (!rgMatch || !resMatch) return false
-    // Change type match: suppress all types if none specified, else check list
     const typeMatch = !rule.changeTypes.length || rule.changeTypes.includes(changeType) || rule.changeTypes.includes('all')
-    // Path match
-    const pathMatch = changePath === ruleField || changePath.startsWith(ruleField + '.') || changePath.startsWith(ruleField + ' ')
+    // Exact match OR changePath is a child field of ruleField
+    const pathMatch = changePath === ruleField || changePath.startsWith(ruleField + '.')
     return pathMatch && typeMatch
   })
 }

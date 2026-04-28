@@ -18,7 +18,7 @@ import { diff as deepDiff } from 'deep-diff'
 import JsonTree from '../components/JsonTree'
 import NavBar from '../components/NavBar'
 import ScheduleRemediationModal from '../components/ScheduleRemediationModal'
-import { fetchBaseline, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
+import { fetchBaseline, runCompare, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
 import { useDashboard } from '../context/DashboardContext'
 import { getControlsForPath } from '../utils/complianceMap'
 import './ComparisonPage.css'
@@ -138,49 +138,37 @@ export default function ComparisonPage() {
   const baselineTreeRef = useRef(null)
   const liveTreeRef = useRef(null)
 
-  // On mount: fetch the golden baseline and policy compliance in parallel
-  // Then compute the diff between baseline and the live config passed via navigation state
+  // On mount: call POST /api/compare (server-side diff with suppression rules applied)
+  // Suppression rules stored in Azure Table Storage are applied before returning diffs
   useEffect(() => {
-    if (!subscriptionId) return
+    if (!subscriptionId || !resourceGroupId) return
     setIsLoadingBaseline(true)
 
-    // Fetch policy compliance in the background (non-blocking)
-    // fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId)
-    //   .then(setPolicyComplianceData).catch(() => {})
+    runCompare(subscriptionId, resourceGroupId, resourceId || null)
+      .then(result => {
+        if (!result) { setBaselineNotFound(true); return }
 
-    // Fetch the golden baseline blob for this resource
-    fetchBaseline(subscriptionId, effectiveId).then(baselineDocument => {
-      if (baselineDocument?.resourceState) {
-        // Strip volatile fields before comparing so etag/provisioningState don't show as drift
-        const strippedBaseline = normaliseState(baselineDocument.resourceState)
-        const strippedLive     = normaliseState(passedLive)
-        setBaselineConfig(strippedBaseline)
+        // result.baselineState may be null if no baseline exists yet
+        if (!result.baselineState) { setBaselineNotFound(true); return }
 
-        // Run deep field-level diff
-        const rawDiffResult      = deepDiff(strippedBaseline, strippedLive) || []
-        const formattedDiffItems = formatDifferences(rawDiffResult)
-        setFieldDifferences(formattedDiffItems)
-        setDriftSeverity(classifySeverity(formattedDiffItems))
-        // If drift was found, fetch AI explanation in the background
-        if (formattedDiffItems.length > 0) {
+        setBaselineConfig(normaliseState(result.baselineState))
+        const diffs = result.differences || []
+        setFieldDifferences(diffs)
+        setDriftSeverity(classifySeverity(diffs))
+
+        if (diffs.length > 0) {
           setIsAiLoading(true)
           fetchAiExplanation({
-            resourceId,
-            resourceGroup: resourceGroupId,
-            subscriptionId,
-            severity: classifySeverity(formattedDiffItems),
-            differences: formattedDiffItems,
-            changes:     formattedDiffItems,
+            resourceId, resourceGroup: resourceGroupId, subscriptionId,
+            severity: classifySeverity(diffs), differences: diffs, changes: diffs,
           })
-            .then(aiResponse => setAiDriftExplanation(aiResponse?.explanation || null))
+            .then(r => setAiDriftExplanation(r?.explanation || null))
             .catch(() => {})
             .finally(() => setIsAiLoading(false))
         }
-      } else {
-        // No baseline stored for this resource
-        setBaselineNotFound(true)
-      }
-    }).catch(() => setBaselineNotFound(true)).finally(() => setIsLoadingBaseline(false))
+      })
+      .catch(() => setBaselineNotFound(true))
+      .finally(() => setIsLoadingBaseline(false))
   }, [subscriptionId, resourceId])
 
   // handleRemediate — called when the user clicks 'Apply Fix Now' or 'Request Approval'
@@ -274,12 +262,13 @@ export default function ComparisonPage() {
         // Re-fetch the baseline and recompute the diff
         const updatedBaselineDocument = await fetchBaseline(subscriptionId, effectiveId)
         if (updatedBaselineDocument?.resourceState) {
-          const newStrippedBaseline = normaliseState(updatedBaselineDocument.resourceState)
-          const strippedLive        = normaliseState(passedLive)
-          const newDiffItems        = formatDifferences(deepDiff(newStrippedBaseline, strippedLive) || [])
-          setBaselineConfig(newStrippedBaseline)
-          setFieldDifferences(newDiffItems)
-          setDriftSeverity(classifySeverity(newDiffItems))
+          // Re-run server-side compare so suppression rules are applied to the new baseline
+          const recompare = await runCompare(subscriptionId, resourceGroupId, resourceId || null).catch(() => null)
+          if (recompare?.baselineState) {
+            setBaselineConfig(normaliseState(recompare.baselineState))
+            setFieldDifferences(recompare.differences || [])
+            setDriftSeverity(classifySeverity(recompare.differences || []))
+          }
           setBaselineNotFound(false)
           setBaselineUploadMessage({ ok: true, text: 'Baseline uploaded and applied.' })
         } else {

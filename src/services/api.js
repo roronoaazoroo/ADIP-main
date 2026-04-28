@@ -73,6 +73,15 @@ export async function fetchResourceConfiguration(subscriptionId, resourceGroupId
 // Fetches the golden baseline blob for a resource from 'baselines' container
 // Returns { subscriptionId, resourceId, resourceState, promotedAt } or null if not found
 // Calls GET /api/baselines
+// Runs server-side drift comparison with suppression rules applied
+// Returns { differences, severity, liveState, baselineState, changeCount }
+export async function runCompare(subscriptionId, resourceGroupId, resourceId) {
+  return apiRequest('/compare', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId }),
+  })
+}
+
 export async function fetchBaseline(subscriptionId, resourceId) {
   const queryParams = new URLSearchParams({ subscriptionId, resourceId })
   return apiRequest(`/baselines?${queryParams}`)
