@@ -17,8 +17,10 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { diff as deepDiff } from 'deep-diff'
 import JsonTree from '../components/JsonTree'
 import NavBar from '../components/NavBar'
-import { fetchBaseline, remediateToBaseline, fetchPolicyCompliance, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
+import ScheduleRemediationModal from '../components/ScheduleRemediationModal'
+import { fetchBaseline, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
 import { useDashboard } from '../context/DashboardContext'
+import { getControlsForPath } from '../utils/complianceMap'
 import './ComparisonPage.css'
 
 const CRITICAL_PATHS = ['properties.networkAcls','properties.accessPolicies','properties.securityRules','sku','location','identity','properties.encryption']
@@ -50,9 +52,17 @@ function formatDifferences(rawDiff) {
 function normaliseState(state) {
   if (!state) return {}
   const VOLATILE = ['etag','changedTime','createdTime','provisioningState','lastModifiedAt','systemData','_ts','_etag','_rid','_self']
-  const strip = (obj) => {
-    if (Array.isArray(obj)) return obj.map(strip)
-    if (obj && typeof obj === 'object') return Object.fromEntries(Object.entries(obj).filter(([k]) => !VOLATILE.includes(k)).map(([k,v]) => [k, strip(v)]))
+  // VM and general read-only fields that should never appear as drift
+  const READONLY = ['vmId','timeCreated','instanceView','powerState','statuses','resources','latestModelApplied',
+    'resourceGuid','defaultSecurityRules','adminUsername','adminPassword','computerName']
+  const strip = (obj, parentKey = '') => {
+    if (Array.isArray(obj)) return obj.map(item => strip(item, parentKey))
+    if (obj && typeof obj === 'object') return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([k]) => !VOLATILE.includes(k) && !READONLY.includes(k))
+        .filter(([k]) => !(parentKey === 'osDisk' && ['name','managedDisk'].includes(k)))
+        .map(([k,v]) => [k, strip(v, k)])
+    )
     return obj
   }
   return strip(JSON.parse(JSON.stringify(state)))
@@ -103,9 +113,6 @@ export default function ComparisonPage() {
   // The diff shown in the success banner after remediation
   const [remediationDiffSummary, setRemediationDiffSummary] = useState(null)
 
-  // Azure Policy compliance result for this resource
-  const [policyComplianceData, setPolicyComplianceData] = useState(null)
-
   // Plain-English explanation from Azure OpenAI (loaded async after diff)
   const [aiDriftExplanation, setAiDriftExplanation] = useState(null)
 
@@ -123,8 +130,9 @@ export default function ComparisonPage() {
 
   // Feature 6: Schedule Remediation Modal
   const [showScheduleModal, setShowScheduleModal] = useState(false)
-  const [scheduleTime, setScheduleTime] = useState('')
-  const [isPolicyCreated, setIsPolicyCreated] = useState(false)
+  const [scheduledConfirmation, setScheduledConfirmation] = useState(null)
+  const [isPolicyCreated,   setIsPolicyCreated]   = useState(false)
+  const [policiesCreated,   setPoliciesCreated]   = useState([])
 
   // Refs to the JsonTree components so we can call expandAll/collapseAll imperatively
   const baselineTreeRef = useRef(null)
@@ -153,7 +161,6 @@ export default function ComparisonPage() {
         const formattedDiffItems = formatDifferences(rawDiffResult)
         setFieldDifferences(formattedDiffItems)
         setDriftSeverity(classifySeverity(formattedDiffItems))
-
         // If drift was found, fetch AI explanation in the background
         if (formattedDiffItems.length > 0) {
           setIsAiLoading(true)
@@ -202,7 +209,11 @@ export default function ComparisonPage() {
 
       if (driftSeverity === 'low') {
         // Low severity: apply immediately via ARM PUT (no approval needed)
-        await remediateToBaseline(subscriptionId, resourceGroupId, effectiveId)
+        const result = await remediateToBaseline(subscriptionId, resourceGroupId, effectiveId)
+        if (result?.policiesCreated?.length) {
+          setPoliciesCreated(result.policiesCreated)
+          setIsPolicyCreated(true)
+        }
       } else {
         // Medium/High/Critical: send approval email to admin
         const loggedInUser = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
@@ -321,7 +332,6 @@ export default function ComparisonPage() {
           </div>
           <div className="cp-header-actions">
             {driftSeverity && <span className="cp-severity-badge" style={{ background: `${SEV_COLOR[driftSeverity]}18`, color: SEV_COLOR[driftSeverity], border: `1px solid ${SEV_COLOR[driftSeverity]}40` }}>{driftSeverity.toUpperCase()}</span>}
-            {policyComplianceData?.nonCompliant > 0 && <span className="cp-severity-badge" style={{ background: '#dc262618', color: '#dc2626', border: '1px solid #dc262640' }}>POLICY: {policyComplianceData.nonCompliant} VIOLATION(S)</span>}
             <label className="cp-btn cp-btn--secondary" style={{ cursor: 'pointer' }}>
               <input type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} disabled={isUploadingBaseline} />
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload</span>
@@ -366,13 +376,17 @@ export default function ComparisonPage() {
               {remediationDiffSummary.length > 0 && <span> {remediationDiffSummary.length} field change(s) queued.</span>}
             </div>
             {/* Feature 8: Policy as Code Enforcement */}
-            <button className="cp-btn cp-btn--primary" onClick={() => {
-              alert('Azure Policy "Deny modifications to monitored fields" successfully created and assigned to resource group! This will prevent future drift.')
-              setIsPolicyCreated(true)
-            }} disabled={isPolicyCreated}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>policy</span>
-              {isPolicyCreated ? 'Policy Created' : 'Create Preventative Policy'}
-            </button>
+            {policiesCreated.length > 0 ? (
+              <div style={{ fontSize: 12, color: '#10b981' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>policy</span>
+                {' '}{policiesCreated.length} policy assignment{policiesCreated.length !== 1 ? 's' : ''} created to prevent recurrence
+              </div>
+            ) : (
+              <button className="cp-btn cp-btn--primary" disabled={isPolicyCreated || driftSeverity !== 'low'} title={driftSeverity !== 'low' ? 'Policy enforcement runs automatically after approval' : ''}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>policy</span>
+                {isPolicyCreated ? 'Policy Created' : 'Policy Enforcement Active'}
+              </button>
+            )}
           </div>
         )}
 
@@ -392,29 +406,6 @@ export default function ComparisonPage() {
             <div>
               <div className="cp-ai-label">AI Remediation Recommendation</div>
               <div className="cp-ai-text">{aiRemediationRecommendation}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Feature 5: Drift to Compliance Mapping */}
-        {fieldDifferences.length > 0 && (
-          <div className="cp-card cp-compliance-card" style={{ borderLeft: '4px solid #ca8a04', marginTop: 16, marginBottom: 16 }}>
-            <div className="cp-card-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="material-symbols-outlined" style={{ color: '#ca8a04' }}>gavel</span>
-                <h3 style={{ margin: 0 }}>Compliance Impact</h3>
-              </div>
-              <button className="cp-btn cp-btn--secondary" onClick={() => navigate('/compliance')} style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 8px' }}>
-                View Full Report
-              </button>
-            </div>
-            <div className="cp-card-body" style={{ padding: '0 16px 16px 16px' }}>
-               <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 12 }}>This drift violates the following mapped compliance controls:</p>
-               <ul style={{ margin: 0, paddingLeft: 24, fontSize: 13, lineHeight: 1.6 }}>
-                 <li><strong style={{ color: 'var(--text-primary)' }}>CIS Azure Foundational 1.4.0:</strong> 5.1.3 - Ensure that 'Network Security Group Flow Log' retention period is 'greater than 90 days'</li>
-                 <li><strong style={{ color: 'var(--text-primary)' }}>NIST SP 800-53 Rev. 5:</strong> SC-7 - Boundary Protection</li>
-                 <li><strong style={{ color: 'var(--text-primary)' }}>ISO 27001:2013:</strong> A.13.1.1 - Network Controls</li>
-               </ul>
             </div>
           </div>
         )}
@@ -443,11 +434,24 @@ export default function ComparisonPage() {
             </div>
             {fieldDifferences.length > 0 && (
               <div className="cp-changes-list">
-                {fieldDifferences.map((diffItem, diffIndex) => (
+                {fieldDifferences.map((diffItem, diffIndex) => {
+                  const controls = getControlsForPath(diffItem.path)
+                  return (
                   <div key={diffIndex} className={`cp-change cp-change--${diffItem.type}`}>
                     <div className="cp-change-header">
                       <span className={`cp-change-badge cp-change-badge--${diffItem.type}`}>{diffItem.label}</span>
                       <code className="cp-change-path">{diffItem.path}</code>
+                      {controls.length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginLeft: 'auto' }}>
+                          {controls.map((c, ci) => (
+                            <span key={ci} title={c.title} style={{
+                              fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3,
+                              background: 'rgba(202,138,4,0.12)', color: '#ca8a04',
+                              border: '1px solid rgba(202,138,4,0.25)', whiteSpace: 'nowrap',
+                            }}>{c.fw}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="cp-change-values">
                       {diffItem.oldValue !== undefined && <ValueChip value={diffItem.oldValue} variant="old" />}
@@ -455,7 +459,8 @@ export default function ComparisonPage() {
                       {diffItem.newValue !== undefined && <ValueChip value={diffItem.newValue} variant="new" />}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -498,30 +503,17 @@ export default function ComparisonPage() {
 
       {/* Feature 6: Schedule Remediation Modal */}
       {showScheduleModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="cp-card" style={{ width: 450, padding: 24, background: 'var(--panel-bg)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--primary)' }}>schedule</span> Schedule Remediation
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>
-              Select a maintenance window for auto-applying this fix. Set auto-approval if the admin doesn't respond within 24 hours. The drift severity will automatically escalate to Critical if it remains unresolved.
-            </p>
-            <div className="sp-form-field" style={{ marginBottom: 16 }}>
-              <label className="sp-form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 6, display: 'block' }}>Maintenance Window</label>
-              <input type="datetime-local" className="sp-input" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid var(--border-light)', borderRadius: 4, background: 'var(--bg-lighter)', color: 'var(--text-primary)' }} />
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 24, cursor: 'pointer' }}>
-              <input type="checkbox" defaultChecked /> Enable Auto-Approval after 24h
-            </label>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <button className="cp-btn cp-btn--secondary" onClick={() => setShowScheduleModal(false)}>Cancel</button>
-              <button className="cp-btn cp-btn--primary" onClick={() => {
-                 setRemediationSucceeded(true)
-                 setShowScheduleModal(false)
-              }} disabled={!scheduleTime}>Confirm Schedule</button>
-            </div>
-          </div>
-        </div>
+        <ScheduleRemediationModal
+          subscriptionId={subscriptionId}
+          resourceGroupId={resourceGroupId}
+          resourceId={resourceId}
+          severity={driftSeverity}
+          onClose={() => setShowScheduleModal(false)}
+          onScheduled={schedule => {
+            setScheduledConfirmation(schedule)
+            setRemediationSucceeded(true)
+          }}
+        />
       )}
     </div>
   )

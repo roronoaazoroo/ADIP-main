@@ -46,7 +46,6 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData }) => 
             })
           }>Config Genome</span>
           <span className={getNavLinkClass("/analytics")} onClick={() => navigate("/analytics")}>Analytics</span>
-          <span className={getNavLinkClass("/compliance")} onClick={() => navigate("/compliance")}>Compliance</span>
         </div>
       </div>
       <div className="dh-nav-right">

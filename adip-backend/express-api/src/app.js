@@ -15,6 +15,18 @@
 // ============================================================
 'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
+// Auto-create required Table Storage tables on startup
+async function ensureTables() {
+  const { TableServiceClient } = require('@azure/data-tables')
+  const svc = TableServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments']
+  for (const name of required) {
+    await svc.createTable(name).catch(() => {})  // no-op if already exists
+  }
+  console.log('[ensureTables] all required tables verified')
+}
+ensureTables().catch(err => console.log('[ensureTables] error:', err.message))
+
 const express = require('express')
 const cors    = require('cors')
 const http    = require('http')
@@ -74,7 +86,13 @@ app.use('/api', require('./routes/ai'))
 app.use('/api', require('./routes/genome'))
 app.use('/api', require('./routes/reports'))
 app.use('/api', require('./routes/attribution'))
+app.use('/api', require('./routes/dependencyGraph'))
+app.use('/api', require('./routes/suppressionRules'))
+app.use('/api', require('./routes/remediationSchedule'))
+app.use('/api', require('./routes/driftImpact'))
+app.use('/api', require('./routes/userPreferences'))
 app.use('/api', require('./routes/chat'))
+app.use('/api', require('./routes/rgPrediction'))
 
 
 
@@ -134,6 +152,10 @@ const PORT = process.env.PORT || 3001
 server.listen(PORT, () => {
   console.log(`ADIP API running on port ${PORT}`)
   startQueuePoller()
+
+// Schedule poller — checks for due remediation schedules every 60 seconds
+const { processDueSchedules } = require('./services/remediationScheduleService')
+setInterval(() => processDueSchedules().catch(err => console.log('[schedulePoller] error:', err.message)), 60000)
   startAfterHoursAlertCheck()
 })
 

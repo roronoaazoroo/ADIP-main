@@ -1,34 +1,34 @@
-Feature 1 — Drift Analysis & Trend Reports
+Feature 1 — Drift Analysis & Trend Reports (DONE)
 Automatically generates weekly compliance reports aggregating all drift events, severity breakdowns, top affected resources, and
 remediation status. Sends via email using Azure Communication Services and stores reports as downloadable blobs. Includes a Reports
 page to view and download past reports.
 
-Feature 2 — Drift Prediction & Forecasting
+Feature 2 — Drift Prediction & Forecasting 
 Analyses each resource's historical drift patterns using Azure OpenAI GPT-4o to predict which resources are likely to drift in the
 next 7 days, which fields are at risk, and why — based on frequency, recency, and past change patterns. Shown as a prediction card on
 the Drift Scanner after Submit.
 
-Feature 3 — Drift Impact Page/Graph
+Feature 3 — Drift Impact Page/Graph (DONE)
 Visualises drift trends over time using charts — drift volume by day, severity distribution over weeks, most frequently drifted
 resources, and remediation success rate. Gives managers and auditors a business-level view of infrastructure stability without
 reading raw event logs.
 
-Feature 4 — Export Baseline as ARM Template
+Feature 4 — Export Baseline as ARM Template (DONE)
 Exports any stored baseline or genome snapshot as a deployable ARM template JSON file with one click. Uses Azure's built-in
 /exportTemplate API — Azure generates the template, ADIP just triggers the download. Enables infrastructure-as-code workflows from
 captured baselines.
 
-Feature 5 — Drift to Compliance Mapping
+Feature 5 — Drift to Compliance Mapping (DONE)
 Automatically maps every detected drift to violated compliance controls from CIS Azure, NIST, and ISO 27001 frameworks using a static
 property-path-to-control-ID mapping. Shows a "Compliance Impact" section on the Comparison Page and a dedicated Compliance Report
 page aggregating violations across all resources with an AI-generated executive summary.
 
-Feature 6 — Smart Remediation Scheduling
+Feature 6 — Smart Remediation Scheduling (DONE)
 Adds a third remediation path alongside "Apply Now" and "Request Approval": schedule remediation for a specific maintenance window,
 set auto-approval if the admin doesn't respond within a configurable number of hours, and automatically escalate medium-severity
 drift to high with a new alert if it remains unresolved after 48 hours.
 
-Feature 7 — Resource Dependency Graph
+Feature 7 — Resource Dependency Graph (DONE)
 Renders an interactive force-directed graph showing how Azure resources in a resource group are connected — VNet to Subnet to NSG to
 NIC to VM to Disk. Nodes turn red when the resource has drifted recently. Clicking any node navigates directly to its Comparison
 Page. Built with one npm package (react-force-graph-2d), no new Azure services.
@@ -49,12 +49,12 @@ A timeline view showing every rollback ever performed on a resource — when, fr
 whether it was auto or manual. Currently rollbacks happen but there's no audit trail page. Uses existing genome snapshots +
 rolledBackAt field already stored.
 
-Feature 11 — Change Attribution Report
+Feature 11 — Change Attribution Report (DONE)
 Shows which Azure AD users or service principals are responsible for the most drift events. "Saksham Midha caused 34 changes this
 month, 8 of which triggered drift." Uses caller field already stored in changesIndex Table. Useful for accountability and access
 review.
 
-Feature 12 — Drift Suppression Rules
+Feature 12 — Drift Suppression Rules (DONE)
 Allow users to mark certain fields as "expected to change" and suppress drift alerts for them. Example: "ignore tag changes on
 storage accounts" or "ignore provisioningState on all resources." Stored as suppression rules in Table Storage. Applied during diff
 computation before severity classification.

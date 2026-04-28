@@ -306,3 +306,81 @@ export async function deleteReport(blobKey) {
 export async function fetchChangeAttribution(subscriptionId, days = 30) {
   return apiRequest(`/attribution?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
 }
+
+// ── Dependency Graph ─────────────────────────────────────────────────────────
+
+export async function fetchDependencyGraph(subscriptionId, resourceGroupId) {
+  return apiRequest(`/dependency-graph?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceGroupId=${encodeURIComponent(resourceGroupId)}`)
+}
+
+// ── Suppression Rules ────────────────────────────────────────────────────────
+
+export async function fetchSuppressionRules(subscriptionId) {
+  return apiRequest(`/suppression-rules?subscriptionId=${encodeURIComponent(subscriptionId)}`)
+}
+
+export async function createSuppressionRule(subscriptionId, fieldPath, resourceGroupId, resourceId, changeTypes, reason) {
+  return apiRequest('/suppression-rules', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, fieldPath, resourceGroupId, resourceId, changeTypes, reason }),
+  })
+}
+
+export async function deleteSuppressionRule(subscriptionId, rowKey) {
+  return apiRequest(`/suppression-rules/${encodeURIComponent(rowKey)}?subscriptionId=${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' })
+}
+
+// ── Remediation Schedule ─────────────────────────────────────────────────────
+
+export async function scheduleRemediation({ subscriptionId, resourceGroupId, resourceId, severity, scheduledAt, autoApprovalHours }) {
+  return apiRequest('/remediation-schedule', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, severity, scheduledAt, autoApprovalHours }),
+  })
+}
+
+export async function fetchRemediationSchedules(subscriptionId) {
+  return apiRequest(`/remediation-schedule?subscriptionId=${encodeURIComponent(subscriptionId)}`)
+}
+
+export async function cancelRemediationSchedule(subscriptionId, rowKey) {
+  return apiRequest(`/remediation-schedule/${encodeURIComponent(rowKey)}?subscriptionId=${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' })
+}
+
+// ── Drift Impact ─────────────────────────────────────────────────────────────
+
+export async function fetchDriftImpact(subscriptionId, days = 30) {
+  return apiRequest(`/drift-impact?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
+}
+
+export async function fetchResourceDriftEvents(subscriptionId, resourceId, limit = 10) {
+  return apiRequest(`/drift-impact/resource?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceId=${encodeURIComponent(resourceId)}&limit=${limit}`)
+}
+
+// ── Compliance Impact ────────────────────────────────────────────────────────
+
+export async function fetchComplianceImpact(differences) {
+  return apiRequest('/compliance-impact', {
+    method: 'POST',
+    body: JSON.stringify({ differences }),
+  })
+}
+
+// ── User Preferences ─────────────────────────────────────────────────────────
+
+export async function fetchUserPreferences(username) {
+  return apiRequest(`/user-preferences?username=${encodeURIComponent(username)}`)
+}
+
+export async function saveUserPreferences(username, preferences) {
+  return apiRequest('/user-preferences', {
+    method: 'POST',
+    body: JSON.stringify({ username, preferences }),
+  })
+}
+
+// ── Policy Assignments ───────────────────────────────────────────────────────
+
+export async function fetchPolicyAssignments(subscriptionId, resourceGroupId) {
+  return apiRequest(`/policy/assignments?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceGroupId=${encodeURIComponent(resourceGroupId)}`)
+}

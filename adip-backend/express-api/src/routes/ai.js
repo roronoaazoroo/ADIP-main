@@ -37,5 +37,8 @@ router.post('/ai/explain',   async (req, res) => { try { res.json(await forwardP
 router.post('/ai/severity',  async (req, res) => { try { res.json(await forwardPostToAiFunction('severity',  req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 router.post('/ai/recommend', async (req, res) => { try { res.json(await forwardPostToAiFunction('recommend', req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 router.get('/ai/anomalies',  async (req, res) => { try { res.json(await forwardGetToAiFunction('anomalies',  req.query)) } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
+router.get('/ai/predict',    async (req, res) => { try { res.json(await forwardGetToAiFunction('predict',    req.query)) } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
+router.get('/ai/recommendations', async (req, res) => { try { res.json(await forwardGetToAiFunction('recommendations', req.query)) } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
+router.get('/ai/rg-recommendations', async (req, res) => { try { res.json(await forwardGetToAiFunction('rg-recommendations', req.query)) } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 
 module.exports = router

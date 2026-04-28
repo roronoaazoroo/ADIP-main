@@ -24,7 +24,9 @@
   width: 240px;
   flex-shrink: 0;
   position: sticky;
-  top: 104px;
+  top: 80px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -615,3 +617,6 @@
     grid-template-columns: 1fr;
   }
 }
+
+.sp-save-btn--dirty { background: #f59e0b; }
+.sp-save-btn--dirty:hover { background: #d97706; }

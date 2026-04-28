@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
 import NavBar from '../components/NavBar'
 import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
+import TopChangers from '../components/TopChangers'
 import './DashboardHome.css'
 
 // ── Filter dropdown component ─────────────────────────────────────────────────
@@ -184,17 +185,18 @@ export default function DashboardHome() {
 
   // Whether the page is currently loading data (shows 'Loading...' in the table)
   const [isLoadingData,       setIsLoadingData]       = useState(true)
+  const [dashTab,             setDashTab]             = useState('events')
 
   // Text typed in the search box — used for client-side filtering of the table
   const [searchText,          setSearchText]          = useState('')
 
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
-  // ISO timestamp for today at midnight — used as the default 'since' value for data fetches
-  const todayMidnightISO = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.toISOString() })()
+  // Rolling 24-hour window — always last 24h from now
+  const last24hISO = new Date(Date.now() - 86400000).toISOString()
 
   // Default filter state — time defaults to Last 24 Hours, all others empty (no filter)
-  const defaultFilters = { time: ['Last 24 Hours'], subscription: [], resourceGroup: [], resource: [], username: [], change: [] }
+  const defaultFilters = { subscription: [], resourceGroup: [], resource: [], username: [], change: [] }
 
   // pendingFilters: what the user has checked in the dropdowns but NOT yet applied
   // These update on every checkbox click but do NOT trigger a data fetch
@@ -238,12 +240,8 @@ export default function DashboardHome() {
 
   // Converts the selected time filter label into an ISO timestamp
   // This timestamp is passed to /api/changes/recent as the 'since' parameter
-  const getStartTimeFromFilter = () => {
-    const selectedTimeRange = appliedFilters.time[0] || 'Last 24 Hours'
-    if (selectedTimeRange === 'Last 1 Hour')  return new Date(Date.now() - 3600000).toISOString()
-    if (selectedTimeRange === 'Last 7 Days')  return new Date(Date.now() - 7 * 86400000).toISOString()
-    return todayMidnightISO  // default: Last 24 Hours = since midnight today
-  }
+  // Always use last 24 hours — dashboard is fixed to this window
+  const getStartTimeFromFilter = () => new Date(Date.now() - 86400000).toISOString()
 
   // load() — main data fetch function
   // Called on mount, every 30 seconds, and whenever appliedFilters changes
@@ -282,8 +280,7 @@ export default function DashboardHome() {
       // Step 5: Fetch recent ARM change events for the table
       // Queries 'all-changes' blob (every ARM write/delete), NOT 'drift-records' (severity-classified drift only)
       // This is intentional — the dashboard is an infrastructure audit log, not just a drift log
-      const selectedTimeRange = appliedFilters.time[0] || 'Last 24 Hours'
-      const hoursToFetch = selectedTimeRange === 'Last 1 Hour' ? 1 : selectedTimeRange === 'Last 7 Days' ? 168 : 24
+      const hoursToFetch = 24  // dashboard always shows last 24 hours
 
       // Map filter selections to API parameters
       const resourceGroupFilter = appliedFilters.resourceGroup[0] || undefined
@@ -317,21 +314,27 @@ export default function DashboardHome() {
     return () => clearInterval(autoRefreshTimer)  // cleanup on unmount
   }, [loadDashboardData])
 
+  // Only real human/SPN callers — excludes System, blank, automated entries
+  const isHumanCaller = (caller) => {
+    if (!caller || !caller.trim()) return false
+    const c = caller.trim().toLowerCase()
+    return c !== 'system' && c !== 'manual-compare' && !c.startsWith('azure ')
+  }
+
   // Filter dropdown configuration — defines labels, icons, and available options for each filter
   // Options for resource, username are derived dynamically from the loaded change events
   const filterDropdownConfig = {
-    time:          { label: 'Time',           icon: 'schedule',        options: ['Last 1 Hour', 'Last 24 Hours', 'Last 7 Days'] },
     subscription:  { label: 'Subscription',   icon: 'layers',          options: subscriptionList.map(sub => sub.name || sub.id) },
     resourceGroup: { label: 'Resource Group', icon: 'folder',          options: resourceGroupList.map(rg => rg.name || rg.id) },
     resource:      { label: 'Resource',       icon: 'dns',             options: [...new Set(recentChangeEvents.map(event => event.resourceId?.split('/').pop()).filter(Boolean))] },
-    username:      { label: 'Username',       icon: 'person',          options: [...new Set(recentChangeEvents.map(event => event.caller).filter(Boolean))] },
+    username:      { label: 'Username',       icon: 'person',          options: [...new Set(recentChangeEvents.map(event => event.caller).filter(c => isHumanCaller(c)))] },
     change:        { label: 'Change',         icon: 'compare_arrows',  options: ['Property Modified', 'Resource Deleted', 'Tag Changed'] },
   }
 
-  // Client-side filtering applied on top of the server-side filtered results
   // Used for: search box text, resource name filter, tag-changed filter (API doesn't support these)
   const applyClientSideFilters = (allEvents) => {
-    let filteredEvents = allEvents
+    // Always exclude System/blank callers
+    let filteredEvents = allEvents.filter(event => isHumanCaller(event.caller))
 
     // Search box: filter by resourceId, resourceGroup, or caller containing the search text
     if (searchText) filteredEvents = filteredEvents.filter(event =>
@@ -376,7 +379,7 @@ export default function DashboardHome() {
   }
 
   // Derived values for KPI cards — prefer stats from API, fall back to counting loaded events
-  const kpiTotalChangesAllTime  = todayStats?.allTimeTotal  ?? todayStats?.totalChanges ?? recentChangeEvents.length
+  const kpiTotalChangesAllTime  = todayStats?.totalChanges ?? recentChangeEvents.length
   const kpiResourcesChangedToday = todayStats?.totalDrifted ?? new Set(recentChangeEvents.map(e => e.resourceId)).size
   const kpiResourceGroupCount   = resourceGroupList.length
   const byHour = todayStats?.byHour ?? Array.from({ length: 24 }, (_, hour) => ({ hour, label: `${String(hour).padStart(2,'0')}:00`, count: 0 }))
@@ -391,7 +394,7 @@ export default function DashboardHome() {
           <KpiCard label="Subscriptions"           value={subscriptionList.length}   icon="layers" />
           <KpiCard label="Resource Groups"         value={kpiResourceGroupCount}     icon="folder" />
           <KpiCard label="Total Resources"         value={totalResourceCount}        icon="dns" />
-          <KpiCard label="Total Changes (All Time)" value={kpiTotalChangesAllTime}  icon="history" />
+          <KpiCard label="Changes (Last 24h)" value={kpiTotalChangesAllTime}  icon="history" />
         </div>
 
         {/* Charts */}
@@ -402,6 +405,13 @@ export default function DashboardHome() {
 
         {/* Table */}
         <div className="dh-table-section">
+          {/* Tab bar */}
+          <div className="dh-tab-bar">
+            <button className={`dh-tab-btn ${dashTab === 'events' ? 'dh-tab-btn--active' : ''}`} onClick={() => setDashTab('events')}>Recent Events</button>
+            <button className={`dh-tab-btn ${dashTab === 'changers' ? 'dh-tab-btn--active' : ''}`} onClick={() => setDashTab('changers')}>Top Drift Causers</button>
+          </div>
+          {dashTab === 'changers' && <TopChangers subscriptionId={activeSubscriptionId} />}
+          {dashTab === 'events' && <>
           <div className="dh-table-header">
             <div className="dh-table-title-row">
               <h2 className="dh-table-title">Recent Events</h2>
@@ -487,6 +497,7 @@ export default function DashboardHome() {
               </table>
             )}
           </div>
+          </>}
         </div>
       </main>
     </div>

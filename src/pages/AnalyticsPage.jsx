@@ -6,12 +6,15 @@
 //   2. Drift Impact Analysis            — impact scores, risk matrix, most impacted groups
 //   3. Drift Prediction & Forecasting   — AI predictions, forecast chart, risk projections
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
+import DriftForecastChart from '../components/DriftForecastChart'
+import RgDriftPrediction from '../components/RgDriftPrediction'
+import { fetchDriftPrediction, fetchDriftRecommendations, fetchRgRecommendations } from '../services/driftPredictionApi'
 import { useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
 import ReportsDashboard from '../components/ReportsDashboard'
-import ChangeAttribution from '../components/ChangeAttribution'
+import DriftImpactDashboard from '../components/DriftImpactDashboard'
 import './AnalyticsPage.css'
 
 // ── Mock data generators ──────────────────────────────────────────────────────
@@ -230,7 +233,6 @@ const TABS = [
   { key: 'trends', label: 'Drift Analysis & Trends', icon: 'trending_up' },
   { key: 'impact', label: 'Drift Impact Analysis', icon: 'assessment' },
   { key: 'forecast', label: 'Prediction & Forecasting', icon: 'psychology' },
-  { key: 'attribution', label: 'Change Attribution', icon: 'group' },
   { key: 'reports', label: 'Reports', icon: 'summarize' },
 ]
 
@@ -241,6 +243,36 @@ export default function AnalyticsPage() {
 
   const [activeTab, setActiveTab] = useState('trends')
   const [trendRange, setTrendRange] = useState('7d')
+  const [prediction, setPrediction] = useState(null)
+  const [predLoading, setPredLoading] = useState(false)
+  const [predError, setPredError] = useState(null)
+
+  const [recommendations, setRecommendations] = useState([])
+  const [recsLoading, setRecsLoading] = useState(false)
+
+  // Per-resource prediction — only when a specific resource is selected
+  useEffect(() => {
+    if (activeTab !== 'forecast' || !subscription || !resource) { setPrediction(null); return }
+    setPredLoading(true)
+    setPrediction(null)
+    setPredError(null)
+    fetchDriftPrediction(subscription, resource)
+      .then(p => setPrediction(p))
+      .catch(e => setPredError(e.message))
+      .finally(() => setPredLoading(false))
+  }, [activeTab, subscription, resource])
+
+  // RG-level recommendations — triggers on resourceGroup change, no resource required
+  useEffect(() => {
+    if (activeTab !== 'forecast' || !subscription || !resourceGroup) return
+    setRecsLoading(true)
+    setRecommendations([])
+    const rgName = resourceGroup.split('/').pop() || resourceGroup
+    fetchRgRecommendations(subscription, rgName)
+      .then(r => setRecommendations(Array.isArray(r) ? r : []))
+      .catch(() => {})
+      .finally(() => setRecsLoading(false))
+  }, [activeTab, subscription, resourceGroup])
 
   // Active subscription ID for reports — uses context subscription
   const activeSubscriptionId = subscription || ''
@@ -404,198 +436,33 @@ export default function AnalyticsPage() {
         {/* ═══ TAB 2: Drift Impact Analysis ═════════════════════════════════ */}
         {activeTab === 'impact' && (
           <div className="an-tab-content" key="impact">
-            {/* Impact KPIs */}
-            <div className="an-kpi-grid">
-              {IMPACT_METRICS.map((m, i) => (
-                <div key={i} className="an-kpi-card">
-                  <div className="an-kpi-header">
-                    <span className="an-kpi-label">{m.label}</span>
-                    <span className="material-symbols-outlined an-kpi-icon">{m.icon}</span>
-                  </div>
-                  <div className="an-kpi-value-row">
-                    <span className="an-kpi-value">{m.value}</span>
-                    <span className={`an-kpi-trend an-kpi-trend--${m.trendDir}`}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
-                        {m.trendDir === 'up' ? 'trending_up' : 'trending_down'}
-                      </span>
-                      {m.trend}
-                    </span>
-                  </div>
-                  <Sparkline data={Array.from({ length: 7 }, () => Math.floor(Math.random() * 30) + 5)}
-                    color={m.trendDir === 'up' ? '#10b981' : '#ef4444'} />
-                </div>
-              ))}
-            </div>
-
-            <div className="an-grid-2">
-              {/* Risk by resource group */}
-              <div className="an-card">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">shield</span>
-                    <h2 className="an-card-title">Risk by Resource Group</h2>
-                  </div>
-                </div>
-                <div className="an-card-body">
-                  {RISK_GROUPS.map((rg, i) => (
-                    <div key={i} className="an-risk-row">
-                      <div className="an-risk-info">
-                        <span className="an-risk-name">{rg.name}</span>
-                        <span className="an-risk-meta">{rg.resources} resources · {rg.drifts} drifts</span>
-                      </div>
-                      <RiskBar score={rg.score} risk={rg.risk} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Change velocity */}
-              <div className="an-card">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">speed</span>
-                    <h2 className="an-card-title">Change Velocity</h2>
-                  </div>
-                </div>
-                <div className="an-card-body">
-                  <div className="an-velocity-grid">
-                    <div className="an-velocity-item">
-                      <span className="an-velocity-value">8.3</span>
-                      <span className="an-velocity-label">Changes / Hour</span>
-                      <span className="an-velocity-sub">Peak: 23.1 at 14:00</span>
-                    </div>
-                    <div className="an-velocity-item">
-                      <span className="an-velocity-value">149</span>
-                      <span className="an-velocity-label">Changes Today</span>
-                      <span className="an-velocity-sub">vs 112 yesterday</span>
-                    </div>
-                    <div className="an-velocity-item">
-                      <span className="an-velocity-value">2.4x</span>
-                      <span className="an-velocity-label">Week-over-Week</span>
-                      <span className="an-velocity-sub">Acceleration rate</span>
-                    </div>
-                    <div className="an-velocity-item">
-                      <span className="an-velocity-value">18m</span>
-                      <span className="an-velocity-label">Avg. Fix Time</span>
-                      <span className="an-velocity-sub">Down from 32m</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Impact heatmap */}
-            <div className="an-card an-card--full">
-              <div className="an-card-header">
-                <div className="an-card-title-row">
-                  <span className="material-symbols-outlined an-card-icon">grid_on</span>
-                  <h2 className="an-card-title">Drift Frequency Heatmap</h2>
-                  <span className="an-card-badge">Last 7 days</span>
-                </div>
-              </div>
-              <div className="an-card-body">
-                <div className="an-heatmap">
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, di) => (
-                    <div key={day} className="an-heatmap-row">
-                      <span className="an-heatmap-day">{day}</span>
-                      {Array.from({ length: 24 }, (_, hi) => {
-                        const val = Math.floor(Math.random() * 10)
-                        const opacity = val === 0 ? 0.03 : Math.min(val / 10, 1)
-                        const bg = val > 7 ? '#ef4444' : val > 4 ? '#f59e0b' : '#1995ff'
-                        return <div key={hi} className="an-heatmap-cell" style={{ background: bg, opacity }} title={`${day} ${hi}:00 — ${val} drifts`} />
-                      })}
-                    </div>
-                  ))}
-                  <div className="an-heatmap-hours">
-                    <span />
-                    {[0, 3, 6, 9, 12, 15, 18, 21].map(h => <span key={h} className="an-heatmap-hour">{h}:00</span>)}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <DriftImpactDashboard subscriptionId={activeSubscriptionId} />
           </div>
         )}
 
         {/* ═══ TAB 3: Prediction & Forecasting ══════════════════════════════ */}
         {activeTab === 'forecast' && (
           <div className="an-tab-content" key="forecast">
-            {/* AI insight banner */}
-            <div className="an-ai-banner">
-              <span className="material-symbols-outlined an-ai-icon">psychology</span>
-              <div className="an-ai-banner-content">
-                <h3 className="an-ai-banner-title">AI-Powered Drift Prediction</h3>
-                <p className="an-ai-banner-desc">
-                  Based on 30-day historical patterns, our model predicts a <strong>33% increase</strong> in drift events this week.
-                  Key drivers: scheduled maintenance windows and CI/CD pipeline deployments.
-                </p>
-              </div>
-            </div>
-
-            {/* Forecast chart */}
             <div className="an-card an-card--full">
               <div className="an-card-header">
                 <div className="an-card-title-row">
-                  <span className="material-symbols-outlined an-card-icon">auto_graph</span>
-                  <h2 className="an-card-title">7-Day Drift Forecast</h2>
+                  <span className="material-symbols-outlined an-card-icon">psychology</span>
+                  <h2 className="an-card-title">Resource Group Drift Prediction</h2>
+                  {resourceGroup && <span className="an-card-badge">{resourceGroup.split('/').pop()}</span>}
                   <span className="an-card-badge an-card-badge--ai">
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>smart_toy</span>AI Model
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>smart_toy</span>AI
                   </span>
                 </div>
               </div>
               <div className="an-card-body">
-                <ForecastChart />
+                <RgDriftPrediction
+                  subscriptionId={subscription}
+                  resourceGroup={resourceGroup?.split('/').pop() || resourceGroup}
+                />
               </div>
             </div>
 
-            {/* Predictions table */}
-            <div className="an-card an-card--full">
-              <div className="an-card-header">
-                <div className="an-card-title-row">
-                  <span className="material-symbols-outlined an-card-icon">warning</span>
-                  <h2 className="an-card-title">High-Risk Drift Predictions</h2>
-                </div>
-              </div>
-              <div className="an-card-body">
-                <div className="an-predictions">
-                  {PREDICTIONS.map((p, i) => (
-                    <div key={i} className="an-prediction-card">
-                      <div className="an-prediction-header">
-                        <div className="an-prediction-resource">
-                          <span className="an-prediction-name">{p.resource}</span>
-                          <span className="an-prediction-type">{p.type.split('/').pop()}</span>
-                        </div>
-                        <span className="an-sev-badge" style={{ background: SEV_BG[p.severity], color: SEV_COLOR[p.severity] }}>
-                          {p.severity}
-                        </span>
-                      </div>
-                      <div className="an-prediction-body">
-                        <div className="an-prediction-prob">
-                          <div className="an-prob-ring">
-                            <svg viewBox="0 0 36 36" width="54" height="54">
-                              <circle cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.08" />
-                              <circle cx="18" cy="18" r="15.9" fill="none" stroke={SEV_COLOR[p.severity]} strokeWidth="3"
-                                strokeDasharray={`${p.probability} ${100 - p.probability}`} strokeDashoffset="25"
-                                strokeLinecap="round" style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }} />
-                            </svg>
-                            <span className="an-prob-value">{p.probability}%</span>
-                          </div>
-                          <span className="an-prob-label">Probability</span>
-                        </div>
-                        <div className="an-prediction-details">
-                          <p className="an-prediction-reason">{p.reason}</p>
-                          <span className="an-prediction-time">
-                            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>schedule</span>
-                            Expected in {p.predictedTime}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Recommendations */}
+            {/* AI Recommendations */}
             <div className="an-card an-card--full">
               <div className="an-card-header">
                 <div className="an-card-title-row">
@@ -604,20 +471,39 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <div className="an-card-body">
+                {recsLoading && (
+                  <div style={{ color: '#64748b', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0' }}>
+                    <div style={{ width: 14, height: 14, border: '2px solid #2d3748', borderTopColor: '#1995ff', borderRadius: '50%', animation: 'dfc-spin 0.7s linear infinite' }} />
+                    Generating AI recommendations…
+                  </div>
+                )}
+                {!recsLoading && !resourceGroup && (
+                  <div style={{ color: '#64748b', fontSize: 13 }}>Select a resource group on the Drift Scanner to see AI recommendations.</div>
+                )}
                 <div className="an-recommendations">
-                  {RECOMMENDATIONS.map((rec, i) => (
+                  {recommendations.map((rec, i) => (
                     <div key={i} className="an-rec-card">
                       <div className="an-rec-icon-wrap">
-                        <span className="material-symbols-outlined">{rec.icon}</span>
+                        <span className="material-symbols-outlined">
+                          {rec.priority?.toLowerCase() === 'critical' ? 'emergency' : rec.priority?.toLowerCase() === 'high' ? 'warning' : 'lightbulb'}
+                        </span>
                       </div>
                       <div className="an-rec-content">
                         <div className="an-rec-header">
                           <h4 className="an-rec-title">{rec.title}</h4>
-                          <span className="an-sev-badge" style={{ background: SEV_BG[rec.priority.toLowerCase()], color: SEV_COLOR[rec.priority.toLowerCase()] }}>
+                          <span className="an-sev-badge" style={{ background: SEV_BG[rec.priority?.toLowerCase()] || SEV_BG.low, color: SEV_COLOR[rec.priority?.toLowerCase()] || '#94a3b8' }}>
                             {rec.priority}
                           </span>
                         </div>
-                        <p className="an-rec-desc">{rec.desc}</p>
+                        <p className="an-rec-desc">{rec.description}</p>
+                        {rec.action && <p className="an-rec-desc" style={{ marginTop: 4, color: '#60a5fa', fontSize: 12 }}>→ {rec.action}</p>}
+                        {rec.affectedResources?.length > 0 && (
+                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+                            {rec.affectedResources.map((r, j) => (
+                              <span key={j} style={{ background: '#0f1623', border: '1px solid #2d3748', borderRadius: 4, padding: '1px 7px', fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' }}>{r}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

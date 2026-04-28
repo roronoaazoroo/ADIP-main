@@ -12,6 +12,13 @@ const { getChangesIndexTableClient, getDriftIndexTableClient } = require('../ser
 
 const RISK_THRESHOLDS = { critical: 5, high: 2, medium: 1 }
 
+// Only count real human/SPN callers — same rule as blobService.isHumanCaller
+function isHumanCaller(caller) {
+  if (!caller || !caller.trim()) return false
+  const c = caller.trim().toLowerCase()
+  return c !== 'system' && c !== 'manual-compare' && !c.startsWith('azure ')
+}
+
 // Derives risk level from drift count caused by a caller
 function riskLevel(driftCount) {
   if (driftCount >= RISK_THRESHOLDS.critical) return 'critical'
@@ -39,26 +46,25 @@ router.get('/attribution', async (req, res) => {
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   if (subscriptionId.includes("'")) return res.status(400).json({ error: 'Invalid subscriptionId' })
 
-  const sinceISO = new Date(Date.now() - Number(days) * 86400000).toISOString()
+  // Use system Timestamp (DateTime typed) for reliable OData date filtering in Table Storage
+  const sinceTimestamp = new Date(Date.now() - Number(days) * 86400000).toISOString()
+  const tsFilter = (pk) => `PartitionKey eq '${pk}' and Timestamp ge datetime'${sinceTimestamp}'`
 
   try {
-    // ── Aggregate changes by caller ───────────────────────────────────────────
     const callerMap = {}
 
-    const changesFilter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${sinceISO}'`
-    for await (const entity of getChangesIndexTableClient().listEntities({ queryOptions: { filter: changesFilter } })) {
-      const caller = entity.caller || 'System'
+    for await (const entity of getChangesIndexTableClient().listEntities({ queryOptions: { filter: tsFilter(subscriptionId) } })) {
+      const caller = entity.caller?.trim()
+      if (!isHumanCaller(caller)) continue
       if (!callerMap[caller]) callerMap[caller] = { caller, totalChanges: 0, driftCount: 0, resourceTypeCounts: {} }
       callerMap[caller].totalChanges++
-
       const rType = resourceType(entity.resourceId)
       callerMap[caller].resourceTypeCounts[rType] = (callerMap[caller].resourceTypeCounts[rType] || 0) + 1
     }
 
-    // ── Overlay drift counts by caller ────────────────────────────────────────
-    const driftFilter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${sinceISO}'`
-    for await (const entity of getDriftIndexTableClient().listEntities({ queryOptions: { filter: driftFilter } })) {
-      const caller = entity.caller || 'System'
+    for await (const entity of getDriftIndexTableClient().listEntities({ queryOptions: { filter: tsFilter(subscriptionId) } })) {
+      const caller = entity.caller?.trim()
+      if (!isHumanCaller(caller)) continue
       if (!callerMap[caller]) callerMap[caller] = { caller, totalChanges: 0, driftCount: 0, resourceTypeCounts: {} }
       callerMap[caller].driftCount++
     }

@@ -20,6 +20,7 @@ const { QueueServiceClient } = require('@azure/storage-queue')
 const { TableClient }        = require('@azure/data-tables')
 const { strip, diffObjects } = require('../shared/diff')
 const { resolveIdentity }    = require('../shared/identity')
+const { classifySeverity }   = require('../shared/severity')
 const { getResourceConfig }  = require('./azureResourceService')
 // blobService required lazily below to avoid circular dependency at module load time
 // (blobService → queuePoller would create a cycle if required at top level)
@@ -214,6 +215,27 @@ function startQueuePoller() {
               source:         'queue-poller',
             })
           } catch { /* non-fatal */ }
+
+          // Write to driftIndex if changes detected against baseline
+          if (enriched.changes?.length > 0 && enriched.hasPrevious) {
+            try {
+              const severity = classifySeverity(enriched.changes)
+              await getBlobServiceModule().saveDriftRecord({
+                subscriptionId:  enriched.subscriptionId,
+                resourceId:      enriched.resourceId,
+                resourceGroup:   enriched.resourceGroup,
+                differences:     enriched.changes,
+                severity,
+                changeCount:     enriched.changes.length,
+                caller:          enriched.caller || 'System',
+                detectedAt:      enriched.eventTime || new Date().toISOString(),
+                liveState:       enriched.liveState,
+                baselineState:   null,
+              })
+            } catch (driftErr) {
+              console.log('[queuePoller] driftIndex write failed (non-fatal):', driftErr.message)
+            }
+          }
 
           if (global.io) {
             const rgRoom = enriched.resourceGroup ? `${enriched.subscriptionId}:${enriched.resourceGroup}`.toLowerCase() : null

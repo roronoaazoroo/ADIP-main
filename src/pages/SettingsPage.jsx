@@ -12,6 +12,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
+import SuppressionRules from '../components/SuppressionRules'
+import { fetchUserPreferences, saveUserPreferences } from '../services/api'
 import './SettingsPage.css'
 
 // ── Toggle Switch ────────────────────────────────────────────────────────────
@@ -95,77 +97,125 @@ export default function SettingsPage() {
   const navigate = useNavigate()
   const { subscription, resourceGroup, resource, configData } = useDashboard()
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
+  const username = user?.username || ''
 
   // Active section in the settings sidebar
   const [activeSection, setActiveSection] = useState('profile')
 
   // ── Profile state ────────────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(user?.name || '')
-  const [email, setEmail] = useState(user?.username || user?.email || '')
+  const [email, setEmail] = useState(user?.email || user?.username || '')
   const [profileSaved, setProfileSaved] = useState(false)
 
   // ── Notification preferences ─────────────────────────────────────────────
-  const [emailAlerts, setEmailAlerts] = useState(true)
-  const [criticalAlerts, setCriticalAlerts] = useState(true)
-  const [highAlerts, setHighAlerts] = useState(true)
-  const [mediumAlerts, setMediumAlerts] = useState(false)
-  const [lowAlerts, setLowAlerts] = useState(false)
+  const [emailAlerts,     setEmailAlerts]     = useState(true)
+  const [criticalAlerts,  setCriticalAlerts]  = useState(true)
+  const [highAlerts,      setHighAlerts]      = useState(true)
+  const [mediumAlerts,    setMediumAlerts]    = useState(false)
+  const [lowAlerts,       setLowAlerts]       = useState(false)
   const [digestFrequency, setDigestFrequency] = useState('daily')
 
   // ── Monitoring preferences ───────────────────────────────────────────────
   const [pollingInterval, setPollingInterval] = useState('30')
-  const [autoRemediate, setAutoRemediate] = useState(false)
-  const [retentionDays, setRetentionDays] = useState('90')
+  const [autoRemediate,   setAutoRemediate]   = useState(false)
+  const [retentionDays,   setRetentionDays]   = useState('90')
 
   // ── Appearance ───────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(
     () => document.documentElement.getAttribute('data-theme') || 'light'
   )
 
-  // ── Suppression Rules ────────────────────────────────────────────────────
-  const [suppressionRules, setSuppressionRules] = useState([
-    { id: 1, field: 'tags.environment', resourceType: 'All', reason: 'Controlled by external system' },
-    { id: 2, field: 'properties.provisioningState', resourceType: 'All', reason: 'Transient state changes' }
-  ])
-  const [newRuleField, setNewRuleField] = useState('')
-  const [newRuleReason, setNewRuleReason] = useState('')
+  // ── Feedback ─────────────────────────────────────────────────────────────
+  const [savedMessage, setSavedMessage] = useState(null)
+  const [isDirty,      setIsDirty]      = useState(false)
 
-  // Toggle dark/light theme
+  // Track changes to any setting — mark as dirty
+  useEffect(() => { setIsDirty(true) }, [
+    displayName, email, emailAlerts, criticalAlerts, highAlerts, mediumAlerts,
+    lowAlerts, digestFrequency, pollingInterval, autoRemediate, retentionDays, theme,
+  ])
+
+  // Load persisted preferences from backend on mount
+  useEffect(() => {
+    if (!username) return
+    fetchUserPreferences(username).then(prefs => {
+      if (!prefs || !Object.keys(prefs).length) return
+      if (prefs.displayName)     setDisplayName(prefs.displayName)
+      if (prefs.email)           setEmail(prefs.email)
+      if (prefs.emailAlerts     !== undefined) setEmailAlerts(prefs.emailAlerts)
+      if (prefs.criticalAlerts  !== undefined) setCriticalAlerts(prefs.criticalAlerts)
+      if (prefs.highAlerts      !== undefined) setHighAlerts(prefs.highAlerts)
+      if (prefs.mediumAlerts    !== undefined) setMediumAlerts(prefs.mediumAlerts)
+      if (prefs.lowAlerts       !== undefined) setLowAlerts(prefs.lowAlerts)
+      if (prefs.digestFrequency)  setDigestFrequency(prefs.digestFrequency)
+      if (prefs.pollingInterval)  setPollingInterval(prefs.pollingInterval)
+      if (prefs.autoRemediate   !== undefined) setAutoRemediate(prefs.autoRemediate)
+      if (prefs.retentionDays)    setRetentionDays(prefs.retentionDays)
+      if (prefs.theme) {
+        setTheme(prefs.theme)
+        document.documentElement.setAttribute('data-theme', prefs.theme)
+      }
+      // Reset dirty after loading — changes from load are not "user edits"
+      setTimeout(() => setIsDirty(false), 0)
+    }).catch(() => {})
+  }, [username])
+
+  // Toggle dark/light theme — applies immediately, saved on Save Changes
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme)
     document.documentElement.setAttribute('data-theme', newTheme)
-    try { sessionStorage.setItem('adip.theme', newTheme) } catch {}
   }
 
-  // Load theme on mount
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem('adip.theme')
-      if (saved) {
-        setTheme(saved)
-        document.documentElement.setAttribute('data-theme', saved)
-      }
-    } catch {}
-  }, [])
-
-  // Save profile
-  const handleSaveProfile = () => {
+  // Saves all preferences to backend + updates sessionStorage user
+  const handleSaveAll = async () => {
+    // Update sessionStorage user with new display name
     try {
       const updated = { ...user, name: displayName, email }
       sessionStorage.setItem('user', JSON.stringify(updated))
       setProfileSaved(true)
       setTimeout(() => setProfileSaved(false), 2500)
     } catch {}
-  }
 
-  // ── Feedback message ─────────────────────────────────────────────────────
-  const [savedMessage, setSavedMessage] = useState(null)
+    // Persist all settings to backend keyed by username
+    if (username) {
+      const prefs = {
+        displayName, email, emailAlerts, criticalAlerts, highAlerts,
+        mediumAlerts, lowAlerts, digestFrequency, pollingInterval,
+        autoRemediate, retentionDays, theme,
+      }
+      await saveUserPreferences(username, prefs).catch(() => {})
+    }
 
-  const handleSaveAll = () => {
-    handleSaveProfile()
+    setIsDirty(false)
     setSavedMessage('Settings saved successfully.')
     setTimeout(() => setSavedMessage(null), 3000)
   }
+
+  // Warn on browser tab close / refresh when unsaved changes exist
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
+  // Intercept NavBar navigation clicks when unsaved changes exist
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return
+      const navLink = e.target.closest('.dh-nav-link, .dh-icon-btn')
+      if (!navLink) return
+      if (!window.confirm('You have unsaved changes. Leave without saving?')) {
+        e.stopImmediatePropagation()
+        e.preventDefault()
+      }
+    }
+    document.addEventListener('click', handler, true)
+    return () => document.removeEventListener('click', handler, true)
+  }, [isDirty])
 
   // Scroll to section
   const scrollToSection = (sectionKey) => {
@@ -194,9 +244,9 @@ export default function SettingsPage() {
             ))}
           </nav>
           <div className="sp-sidebar-footer">
-            <button className="sp-save-btn" onClick={handleSaveAll}>
+            <button className={`sp-save-btn${isDirty ? ' sp-save-btn--dirty' : ''}`} onClick={handleSaveAll}>
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>save</span>
-              Save Changes
+              {isDirty ? 'Save Changes •' : 'Save Changes'}
             </button>
           </div>
         </aside>
@@ -406,54 +456,7 @@ export default function SettingsPage() {
           {/* ── Suppression Rules Section (Feature 12) ────────────────────── */}
           <div id="sp-section-suppression">
             <SectionCard icon="rule_folder" title="Drift Suppression Rules" badge="Rules">
-              <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>
-                Fields matching these rules will be ignored during baseline comparison and will not trigger drift alerts. Useful for expected tagging changes or transient properties.
-              </p>
-              
-              <div className="an-card-body an-card-body--table" style={{ border: '1px solid var(--border-light)', borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
-                <table className="an-table" style={{ margin: 0 }}>
-                  <thead>
-                    <tr><th>Field Path</th><th>Resource Type</th><th>Reason</th><th style={{width: 60}}>Action</th></tr>
-                  </thead>
-                  <tbody>
-                    {suppressionRules.map(rule => (
-                      <tr key={rule.id} className="an-tr">
-                        <td style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--bg-lighter)', padding: '2px 6px', borderRadius: 4, display: 'inline-block', margin: '8px' }}>{rule.field}</td>
-                        <td className="an-td-type">{rule.resourceType}</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{rule.reason}</td>
-                        <td>
-                          <button className="cp-toolbar-btn" onClick={() => setSuppressionRules(suppressionRules.filter(r => r.id !== rule.id))}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444' }}>delete</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={{ background: 'var(--bg-lighter)', padding: 16, borderRadius: 8 }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: 14 }}>Add New Rule</h4>
-                <div className="sp-form-grid" style={{ gap: 12 }}>
-                  <div className="sp-form-field">
-                    <label className="sp-form-label">Field Path (e.g. properties.networkAcls.defaultAction)</label>
-                    <input className="sp-input" value={newRuleField} onChange={e => setNewRuleField(e.target.value)} placeholder="Path to suppress" />
-                  </div>
-                  <div className="sp-form-field">
-                    <label className="sp-form-label">Reason</label>
-                    <input className="sp-input" value={newRuleReason} onChange={e => setNewRuleReason(e.target.value)} placeholder="Why is this suppressed?" />
-                  </div>
-                </div>
-                <button className="cp-btn cp-btn--secondary" style={{ marginTop: 12 }} onClick={() => {
-                  if (newRuleField) {
-                    setSuppressionRules([...suppressionRules, { id: Date.now(), field: newRuleField, resourceType: 'All', reason: newRuleReason || 'No reason provided' }])
-                    setNewRuleField('')
-                    setNewRuleReason('')
-                  }
-                }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Add Rule
-                </button>
-              </div>
+              <SuppressionRules subscriptionId={subscription} />
             </SectionCard>
           </div>
 

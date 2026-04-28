@@ -38,8 +38,8 @@ const DEFAULT_REPORT_PERIOD_DAYS = parseInt(process.env.REPORT_PERIOD_DAYS || '7
 async function aggregateReportData(subscriptionId, sinceISO) {
   console.log('[aggregateReportData] starts — subscriptionId:', subscriptionId, 'since:', sinceISO)
 
-  const changesFilter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${sinceISO}'`
-  const driftFilter   = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${sinceISO}'`
+  const changesFilter = `PartitionKey eq '${subscriptionId}' and Timestamp ge datetime'${sinceISO}'`
+  const driftFilter   = `PartitionKey eq '${subscriptionId}' and Timestamp ge datetime'${sinceISO}'`
 
   // Query changesIndex for all ARM events in the period
   const uniqueChangedResources = new Set()

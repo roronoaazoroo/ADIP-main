@@ -3,7 +3,17 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 const fetch = require('node-fetch')
 const { BlobServiceClient } = require('@azure/storage-blob')
 const { TableClient }       = require('@azure/data-tables')
-const { blobKey, readBlob } = require('adip-shared/blobHelpers')
+// Inlined from adip-shared/blobHelpers — avoids file: dependency resolution failure on Azure
+function blobKey(resourceId) { return Buffer.from(resourceId).toString('base64url') + '.json' }
+async function readBlob(containerClient, blobName) {
+  try {
+    const buf = await containerClient.getBlobClient(blobName).downloadToBuffer()
+    return JSON.parse(buf.toString('utf-8'))
+  } catch (e) {
+    if (e.statusCode === 404 || e.code === 'BlobNotFound') return null
+    throw e
+  }
+}
 
 const ENDPOINT   = () => process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
 const API_KEY    = () => process.env.AZURE_OPENAI_KEY
@@ -114,6 +124,99 @@ async function detectAnomalies(driftRecords) {
 }
 // ── detectAnomalies END ───────────────────────────────────────────────────────
 
+// ── predictDrift START ────────────────────────────────────────────────────────
+// Analyses historical drift records for a resource and predicts future drift risk.
+// Returns: likelihood (HIGH/MEDIUM/LOW), predictedDays, fieldsAtRisk[], reasoning, basedOn
+async function predictDrift(subscriptionId, resourceId) {
+  console.log('[predictDrift] starts — resourceId:', resourceId)
+
+  const blobSvc  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+  const driftCtr = blobSvc.getContainerClient('drift-records')
+  const tc       = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
+
+  const records = []
+  const filter  = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}'`
+  for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
+    if (records.length >= 30) break
+    const doc = await readBlob(driftCtr, entity.blobKey)
+    if (doc) records.push(doc)
+  }
+
+  if (!records.length) {
+    console.log('[predictDrift] ends — no history, returning low risk')
+    return { likelihood: 'LOW', predictedDays: null, fieldsAtRisk: [], reasoning: 'No drift history found for this resource.', basedOn: '0 drift events' }
+  }
+
+  const sorted  = records.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+  const summary = sorted.map(r => ({
+    detectedAt:  r.detectedAt,
+    severity:    r.severity,
+    changeCount: r.changeCount,
+    fields:      (r.differences || r.changes || []).map(d => d.path).slice(0, 5),
+    caller:      r.caller || 'unknown',
+  }))
+
+  const response = await chat(
+    `You are an Azure infrastructure risk analyst. Analyse this resource's drift history and predict future drift risk.
+Respond ONLY with valid JSON (no markdown):
+{"likelihood":"HIGH|MEDIUM|LOW","predictedDays":<integer 1-7 or null>,"fieldsAtRisk":["field.path"],"reasoning":"2-3 sentences","basedOn":"X drift events over Y days"}`,
+    `Resource: ${resourceId.split('/').pop()} (${resourceId.split('/')[7] || 'unknown'})\nHistory (newest first):\n${JSON.stringify(summary)}`,
+    400
+  )
+
+  const parsed = JSON.parse(response.replace(/```json|```/g, '').trim())
+  console.log('[predictDrift] ends — likelihood:', parsed.likelihood)
+  return parsed
+}
+// ── predictDrift END ──────────────────────────────────────────────────────────
+
+
+
+// ── getRecommendations START ─────────────────────────────────────────────────
+// Returns 3 specific, actionable AI recommendations based on a resource's drift history
+async function getRecommendations(subscriptionId, resourceId) {
+  console.log('[getRecommendations] starts — resourceId:', resourceId)
+
+  const blobSvc  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+  const driftCtr = blobSvc.getContainerClient('drift-records')
+  const tc       = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
+
+  const records = []
+  const filter  = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}'`
+  for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
+    if (records.length >= 20) break
+    const doc = await readBlob(driftCtr, entity.blobKey)
+    if (doc) records.push(doc)
+  }
+
+  if (!records.length) {
+    return [{ title: 'No drift history', description: 'No drift events found for this resource.', priority: 'Low', action: 'Monitor the resource and establish a baseline.' }]
+  }
+
+  const summary = records.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt)).map(r => ({
+    detectedAt:  r.detectedAt,
+    severity:    r.severity,
+    changeCount: r.changeCount,
+    fields:      (r.differences || r.changes || []).map(d => d.path).slice(0, 5),
+    caller:      r.caller || 'unknown',
+  }))
+
+  const response = await chat(
+    `You are an Azure cloud architect. Based on this resource's drift history, give 3 specific actionable recommendations to prevent future drift.
+Respond ONLY with valid JSON array (no markdown):
+[{"title":"short title under 8 words","description":"2 sentences max","priority":"Critical|High|Medium|Low","action":"specific Azure service or feature to use"}]`,
+    `Resource: ${resourceId.split('/').pop()} (${resourceId.split('/')[7] || 'unknown'})
+Drift history:
+${JSON.stringify(summary)}`,
+    600
+  )
+
+  const parsed = JSON.parse(response.replace(/```json|```/g, '').trim())
+  console.log('[getRecommendations] ends — count:', parsed.length)
+  return Array.isArray(parsed) ? parsed : []
+}
+// ── getRecommendations END ────────────────────────────────────────────────────
+
 
 // ── getDriftRecordsForAnomaly START ───────────────────────────────────────────
 async function getDriftRecordsForAnomaly(subscriptionId) {
@@ -134,6 +237,64 @@ async function getDriftRecordsForAnomaly(subscriptionId) {
   return sorted
 }
 // ── getDriftRecordsForAnomaly END ─────────────────────────────────────────────
+
+
+// ── getRgRecommendations START ───────────────────────────────────────────────
+// Returns AI recommendations scoped to ALL drifted resources in a resource group
+async function getRgRecommendations(subscriptionId, resourceGroup) {
+  console.log('[getRgRecommendations] starts — rg:', resourceGroup)
+
+  const blobSvc  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+  const driftCtr = blobSvc.getContainerClient('drift-records')
+  const tc       = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
+
+  // Fetch up to 30 drift records for this resource group
+  const records = []
+  const filter  = `PartitionKey eq '${subscriptionId}' and resourceGroup eq '${resourceGroup}'`
+  for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
+    if (records.length >= 30) break
+    const doc = await readBlob(driftCtr, entity.blobKey)
+    if (doc) records.push(doc)
+  }
+
+  if (!records.length) {
+    return [{ title: 'No drift history', description: 'No drift events found for this resource group.', priority: 'Low', action: 'Monitor resources and establish baselines.' }]
+  }
+
+  // Build per-resource summary
+  const byResource = {}
+  records.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt)).forEach(r => {
+    const name = r.resourceId?.split('/').pop() || 'unknown'
+    if (!byResource[name]) byResource[name] = { name, type: r.resourceId?.split('/')[7], drifts: 0, severities: [], fields: [] }
+    byResource[name].drifts++
+    byResource[name].severities.push(r.severity)
+    byResource[name].fields.push(...(r.differences || r.changes || []).map(d => d.path).slice(0, 3))
+  })
+
+  const summary = Object.values(byResource).map(r => ({
+    resource:   r.name,
+    type:       r.type,
+    driftCount: r.drifts,
+    severities: [...new Set(r.severities)],
+    topFields:  [...new Set(r.fields)].slice(0, 4),
+  }))
+
+  const response = await chat(
+    `You are an Azure cloud architect. Based on drift history across multiple resources in a resource group, give 4-5 specific actionable recommendations to prevent future drift across the group.
+Each recommendation should reference the specific resource(s) it applies to.
+Respond ONLY with valid JSON array (no markdown):
+[{"title":"short title under 10 words","description":"2 sentences referencing specific resources","priority":"Critical|High|Medium|Low","action":"specific Azure service or feature","affectedResources":["resource1"]}]`,
+    `Resource group: ${resourceGroup}
+Drift summary per resource:
+${JSON.stringify(summary)}`,
+    800
+  )
+
+  const parsed = JSON.parse(response.replace(/```json|```/g, '').trim())
+  console.log('[getRgRecommendations] ends — count:', parsed.length)
+  return Array.isArray(parsed) ? parsed : []
+}
+// ── getRgRecommendations END ──────────────────────────────────────────────────
 
 
 // ── Main handler START ────────────────────────────────────────────────────────
@@ -200,6 +361,37 @@ module.exports = async function (context, req) {
         const anomalies = await detectAnomalies(records)
         context.res = { status: 200, body: { anomalies } }
         console.log('[mainHandler] ends — anomalies success')
+        break
+      }
+
+      case 'rg-recommendations': {
+        if (req.method !== 'GET') { context.res = { status: 405, body: { error: 'GET required' } }; return }
+        const { subscriptionId: rgSubId, resourceGroup: rgName } = req.query
+        if (!rgSubId || !rgName) { context.res = { status: 400, body: { error: 'subscriptionId and resourceGroup required' } }; return }
+        const rgRecs = await getRgRecommendations(rgSubId, rgName)
+        context.res = { status: 200, body: rgRecs }
+        console.log('[mainHandler] ends — rg-recommendations success')
+        break
+      }
+
+      case 'recommendations': {
+        if (req.method !== 'GET') { context.res = { status: 405, body: { error: 'GET required' } }; return }
+        const { subscriptionId: rSubId, resourceId: rResId } = req.query
+        if (!rSubId || !rResId) { context.res = { status: 400, body: { error: 'subscriptionId and resourceId required' } }; return }
+        const recs = await getRecommendations(rSubId, rResId)
+        context.res = { status: 200, body: recs }
+        console.log('[mainHandler] ends — recommendations success')
+        break
+      }
+
+      case 'predict': {
+        console.log('[mainHandler] routing to predictDrift')
+        if (req.method !== 'GET') { context.res = { status: 405, body: { error: 'GET required' } }; return }
+        const { subscriptionId: subId, resourceId: resId } = req.query
+        if (!subId || !resId) { context.res = { status: 400, body: { error: 'subscriptionId and resourceId required' } }; return }
+        const prediction = await predictDrift(subId, resId)
+        context.res = { status: 200, body: prediction }
+        console.log('[mainHandler] ends — predict success')
         break
       }
 

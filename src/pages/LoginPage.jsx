@@ -15,9 +15,9 @@ export default function LoginPage() {
 
 // Dummy credentials — replace with real auth in production
 const DUMMY_USERS = [
-  { username: 'admin',   password: 'Admin@123',   name: 'Admin User' },
-  { username: 'saksham', password: 'Saksham@123', name: 'Saksham Midha' },
-  { username: 'demo',    password: 'Demo@123',    name: 'Demo User' },
+  { username: 'saksham', password: 'Admin@123', name: 'Saksham Midha' },
+  { username: 'rounak',  password: 'Admin@123', name: 'Rounak Chandrakar' },
+  { username: 'ravi',    password: 'Admin@123', name: 'Ravi Davadra' },
 ]
 
 

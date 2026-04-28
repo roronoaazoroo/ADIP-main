@@ -1,11 +1,17 @@
 'use strict'
 const { VOLATILE } = require('./constants')
 
-function strip(obj) {
-  if (Array.isArray(obj)) return obj.map(strip)
+// Additional nested VM fields that are read-only and must be stripped
+const OSDISK_READONLY = ['name', 'managedDisk']
+
+function strip(obj, parentKey = '') {
+  if (Array.isArray(obj)) return obj.map(item => strip(item, parentKey))
   if (obj && typeof obj === 'object')
     return Object.fromEntries(
-      Object.entries(obj).filter(([k]) => !VOLATILE.includes(k)).map(([k, v]) => [k, strip(v)])
+      Object.entries(obj)
+        .filter(([k]) => !VOLATILE.includes(k))
+        .filter(([k]) => !(parentKey === 'osDisk' && OSDISK_READONLY.includes(k)))
+        .map(([k, v]) => [k, strip(v, k)])
     )
   return obj
 }

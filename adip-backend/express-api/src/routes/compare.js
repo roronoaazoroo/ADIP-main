@@ -6,6 +6,45 @@ const { getResourceConfig } = require('../services/azureResourceService')
 const { getBaseline, saveDriftRecord } = require('../services/blobService')
 const { broadcastDriftEvent } = require('../services/socketService')
 const { explainDrift, reclassifySeverity } = require('../services/aiService')
+const { TableClient } = require('@azure/data-tables')
+const { mapDiffToControls } = require('../shared/complianceMap')
+
+// Loads active suppression rules for a subscription from Table Storage
+async function loadSuppressionRules(subscriptionId) {
+  try {
+    const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'suppressionRules')
+    const rules = []
+    for await (const entity of tc.listEntities({ queryOptions: { filter: `PartitionKey eq '${subscriptionId}'` } })) {
+      rules.push({
+        fieldPath:       entity.fieldPath,
+        resourceGroupId: entity.resourceGroupId || '',
+        resourceId:      entity.resourceId      || '',
+        changeTypes:     entity.changeTypes ? entity.changeTypes.split(',').filter(Boolean) : [],
+      })
+    }
+    return rules
+  } catch {
+    return []
+  }
+}
+
+// Returns true if a diff change should be suppressed based on active rules
+function isSuppressed(change, rules, resourceId, resourceGroupId) {
+  const changePath  = (change.path || '').toLowerCase()
+  const changeType  = (change.type || 'modified').toLowerCase()
+  return rules.some(rule => {
+    const ruleField = rule.fieldPath.toLowerCase()
+    // Scope match: rule applies if no scope set, or scope matches
+    const rgMatch  = !rule.resourceGroupId || (resourceGroupId || '').toLowerCase().includes(rule.resourceGroupId.toLowerCase())
+    const resMatch = !rule.resourceId      || (resourceId      || '').toLowerCase() === rule.resourceId.toLowerCase()
+    if (!rgMatch || !resMatch) return false
+    // Change type match: suppress all types if none specified, else check list
+    const typeMatch = !rule.changeTypes.length || rule.changeTypes.includes(changeType) || rule.changeTypes.includes('all')
+    // Path match
+    const pathMatch = changePath === ruleField || changePath.startsWith(ruleField + '.') || changePath.startsWith(ruleField + ' ')
+    return pathMatch && typeMatch
+  })
+}
 
 // getMonitorSessionsTableClient imported above from blobService — infrastructure stays in the service layer
 
@@ -18,7 +57,7 @@ function buildSessionRowKey(subscriptionId, resourceGroupId, resourceId) {
 
 // ── runDriftCheck START ──────────────────────────────────────────────────────
 // Full drift check pipeline: fetches live + baseline, diffs, classifies, runs AI, saves record, alerts
-async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
+async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller = '') {
   console.log('[runDriftCheck] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupId, 'resourceId:', resourceId)
   if (!subscriptionId || !resourceGroupId) throw new Error('runDriftCheck requires subscriptionId and resourceGroupId')
   const [currentLiveConfig, storedBaseline] = await Promise.all([
@@ -26,8 +65,11 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     getBaseline(subscriptionId, resourceId || resourceGroupId),
   ])
 
-  const detectedChanges = storedBaseline?.resourceState ? diffObjects(storedBaseline.resourceState, currentLiveConfig) : []
-  const driftSeverity   = classifySeverity(detectedChanges)
+  const rawChanges       = storedBaseline?.resourceState ? diffObjects(storedBaseline.resourceState, currentLiveConfig) : []
+  const suppressionRules = await loadSuppressionRules(subscriptionId)
+  const resourceType     = currentLiveConfig?.type || ''
+  const detectedChanges  = rawChanges.filter(c => !isSuppressed(c, suppressionRules, resourceId, resourceGroupId))
+  const driftSeverity    = classifySeverity(detectedChanges)
   const driftRecord = {
     subscriptionId, resourceGroupId,
     resourceId:    resourceId || null,
@@ -37,7 +79,7 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     differences:   detectedChanges,
     severity:      driftSeverity,
     changeCount:   detectedChanges.length,
-    caller:        'manual-compare',
+    caller:        caller || '',
     detectedAt:    new Date().toISOString(),
   }
 
@@ -67,9 +109,9 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
 
 router.post('/compare', async (req, res) => {
   console.log('[POST /compare] starts')
-  const { subscriptionId, resourceGroupId, resourceId } = req.body
+  const { subscriptionId, resourceGroupId, resourceId, caller } = req.body
   if (!subscriptionId || !resourceGroupId) return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
-  try { res.json(await runDriftCheck(subscriptionId, resourceGroupId, resourceId || null)) }
+  try { res.json(await runDriftCheck(subscriptionId, resourceGroupId, resourceId || null, caller || '')) }
   catch (compareError) { res.status(500).json({ error: compareError.message }) }
 })
 router.post('/monitor/start', async (req, res) => {
@@ -103,6 +145,18 @@ router.post('/monitor/stop', async (req, res) => {
     }, 'Merge')
     res.json({ monitoring: false, key: sessionTableRowKey })
   } catch (stopError) { res.status(500).json({ error: stopError.message }) }
+})
+
+
+// POST /api/compliance-impact
+// Body: { differences: [...] } — maps diff to violated compliance controls
+router.post('/compliance-impact', (req, res) => {
+  console.log('[POST /compliance-impact] starts')
+  const { differences } = req.body
+  if (!Array.isArray(differences)) return res.status(400).json({ error: 'differences array required' })
+  const controls = mapDiffToControls(differences)
+  res.json(controls)
+  console.log('[POST /compliance-impact] ends — controls:', controls.length)
 })
 
 module.exports = router

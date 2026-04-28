@@ -1,0 +1,30 @@
+{
+  "properties.allowBlobPublicAccess": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/4fa4b6c0-31ca-4c0d-b10d-24b96f62a751",
+    "displayName": "Storage accounts should not allow public blob access"
+  },
+  "properties.supportsHttpsTrafficOnly": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/404c3081-a854-4457-ae30-26a93ef643f9",
+    "displayName": "Secure transfer to storage accounts should be enabled"
+  },
+  "properties.minimumTlsVersion": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/fe83a0eb-a853-422d-aac2-1bffd182c5d0",
+    "displayName": "Storage accounts should have minimum TLS version 1.2"
+  },
+  "properties.networkAcls": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/34c877ad-507e-4c82-993e-3452a6e0ad3c",
+    "displayName": "Storage accounts should restrict network access"
+  },
+  "properties.accessPolicies": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/55615ac9-af46-4a59-874e-391cc3dfb490",
+    "displayName": "Key Vault should use RBAC permission model"
+  },
+  "properties.securityRules": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/9daedab3-fb2d-461e-b861-71790eead4f6",
+    "displayName": "All network ports should be restricted on NSGs"
+  },
+  "properties.encryption": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/6fac406b-40ca-413b-bf8e-0bf964659c25",
+    "displayName": "Storage account encryption should use customer-managed key"
+  }
+}

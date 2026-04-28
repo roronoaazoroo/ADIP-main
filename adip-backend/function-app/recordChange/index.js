@@ -1,5 +1,4 @@
 'use strict'
-'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { BlobServiceClient } = require('@azure/storage-blob')
 const { TableClient }       = require('@azure/data-tables')

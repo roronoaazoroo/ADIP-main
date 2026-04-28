@@ -1,4 +1,3 @@
-'use strict'
 // FILE: adip-backend/function-app/sendAlert/index.js
 // ROLE: Azure Function — builds and sends an HTML drift alert email via ACS
 
@@ -17,6 +16,7 @@
 //   the browser hits Express /api/remediate-decision which decodes the token
 //   and either ARM PUTs the baseline back (approve) or saves live as new baseline (reject)
 
+'use strict'
 const { EmailClient } = require('@azure/communication-email')
 
 // Only send alerts for these severity levels — medium/low are handled differently

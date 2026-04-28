@@ -1,0 +1,106 @@
+/* FILE: src/components/RgDriftPrediction.css */
+
+.rgp-wrap { display: flex; flex-direction: column; gap: 20px; }
+
+/* ── Header stats ── */
+.rgp-stats { display: flex; gap: 12px; flex-wrap: wrap; }
+.rgp-stat {
+  flex: 1; min-width: 110px;
+  background: #0f1623; border: 1px solid #2d3748; border-radius: 8px; padding: 12px 16px;
+}
+.rgp-stat-value { font-size: 24px; font-weight: 700; color: #e2e8f0; }
+.rgp-stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+/* ── AI Predictions list ── */
+.rgp-predictions { display: flex; flex-direction: column; gap: 10px; }
+
+.rgp-pred-card {
+  background: #0f1623; border: 1px solid #2d3748; border-radius: 8px;
+  padding: 14px 16px; cursor: pointer; transition: border-color 0.15s;
+  position: relative; overflow: hidden;
+}
+.rgp-pred-card:hover { border-color: #334155; }
+.rgp-pred-card--selected { border-color: #1995ff !important; }
+
+/* Left accent bar coloured by likelihood */
+.rgp-pred-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+}
+.rgp-pred-card--HIGH::before   { background: #ef4444; }
+.rgp-pred-card--MEDIUM::before { background: #f59e0b; }
+.rgp-pred-card--LOW::before    { background: #10b981; }
+
+.rgp-pred-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.rgp-pred-name { font-size: 14px; font-weight: 600; color: #e2e8f0; flex: 1; }
+.rgp-pred-type { font-size: 11px; color: #475569; }
+
+.rgp-likelihood {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.rgp-likelihood--HIGH   { background: rgba(239,68,68,0.12);  color: #ef4444; }
+.rgp-likelihood--MEDIUM { background: rgba(245,158,11,0.12); color: #f59e0b; }
+.rgp-likelihood--LOW    { background: rgba(16,185,129,0.12); color: #10b981; }
+
+.rgp-pred-reason { font-size: 12px; color: #64748b; line-height: 1.5; margin-bottom: 8px; }
+
+.rgp-pred-meta { display: flex; gap: 14px; flex-wrap: wrap; }
+.rgp-pred-meta-item { font-size: 11px; color: #475569; display: flex; align-items: center; gap: 4px; }
+.rgp-pred-meta-item .material-symbols-outlined { font-size: 13px; }
+
+.rgp-fields { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.rgp-field-tag {
+  background: #1a1f2e; border: 1px solid #2d3748; border-radius: 4px;
+  padding: 1px 7px; font-size: 10px; color: #60a5fa; font-family: monospace;
+}
+
+/* ── Resource risk matrix (bubble chart) ── */
+.rgp-matrix-wrap { position: relative; width: 100%; }
+
+.rgp-matrix-svg { width: 100%; overflow: visible; }
+
+.rgp-bubble { cursor: pointer; transition: opacity 0.15s; }
+.rgp-bubble:hover { opacity: 0.8; }
+.rgp-bubble--selected { stroke: #fff; stroke-width: 2; }
+
+/* ── Frequency heatmap per resource ── */
+.rgp-heatmap { display: flex; flex-direction: column; gap: 6px; }
+.rgp-heatmap-row { display: flex; align-items: center; gap: 8px; }
+.rgp-heatmap-label { font-size: 11px; color: #64748b; width: 110px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rgp-heatmap-cells { display: flex; gap: 3px; flex: 1; }
+.rgp-heatmap-cell {
+  flex: 1; height: 20px; border-radius: 3px; cursor: pointer;
+  transition: opacity 0.12s; position: relative;
+}
+.rgp-heatmap-cell:hover { opacity: 0.75; }
+.rgp-heatmap-day-labels { display: flex; gap: 3px; padding-left: 118px; margin-top: 2px; }
+.rgp-heatmap-day-label { flex: 1; font-size: 9px; color: #334155; text-align: center; }
+
+/* ── Tooltip ── */
+.rgp-tooltip {
+  position: absolute; background: #0f1623; border: 1px solid #334155;
+  border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #e2e8f0;
+  pointer-events: none; z-index: 30; min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: nowrap;
+}
+.rgp-tooltip-title { font-weight: 600; margin-bottom: 6px; }
+.rgp-tooltip-row { display: flex; justify-content: space-between; gap: 16px; font-size: 11px; color: #94a3b8; }
+
+/* ── Loading / empty ── */
+.rgp-loading { display: flex; align-items: center; gap: 10px; color: #64748b; font-size: 13px; padding: 24px 0; }
+.rgp-spinner {
+  width: 16px; height: 16px; border: 2px solid #2d3748;
+  border-top-color: #1995ff; border-radius: 50%;
+  animation: rgp-spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes rgp-spin { to { transform: rotate(360deg); } }
+.rgp-empty { color: #64748b; font-size: 13px; text-align: center; padding: 32px 0; }
+
+.rgp-section-title {
+  font-size: 12px; font-weight: 600; color: #64748b;
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;
+}
+
+.rgp-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+.rgp-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
+.rgp-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
