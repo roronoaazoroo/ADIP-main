@@ -1,13 +1,24 @@
+'use strict'
 const { PolicyInsightsClient } = require('@azure/arm-policyinsights')
 const { DefaultAzureCredential } = require('@azure/identity')
 
 const credential = new DefaultAzureCredential()
+
+// Max results per query — kept as named constants to avoid magic numbers
+const MAX_RESOURCE_POLICY_RESULTS      = 50
+const MAX_RESOURCE_GROUP_POLICY_RESULTS = 100
 
 
 // ── getPolicyCompliance START ────────────────────────────────────────────────
 // Queries Azure Policy compliance state for a specific resource or resource group (read-only)
 async function getPolicyCompliance(subscriptionId, resourceGroupName, resourceId = null) {
   console.log('[getPolicyCompliance] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupName, 'resourceId:', resourceId)
+
+  // Validate required inputs before making any API calls
+  if (!subscriptionId || !resourceGroupName) {
+    throw new Error('getPolicyCompliance requires subscriptionId and resourceGroupName')
+  }
+
   const policyClient       = new PolicyInsightsClient(credential, subscriptionId)
   const policyStateResults = []
 
@@ -20,13 +31,13 @@ async function getPolicyCompliance(subscriptionId, resourceGroupName, resourceId
     const resourceScopePath = `subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/${providerNamespace}/${resourceTypeName}/${resourceName}`
 
     for await (const policyState of policyClient.policyStates.listQueryResultsForResource(
-      'latest', resourceScopePath, { queryOptions: { top: 50 } }
+      'latest', resourceScopePath, { queryOptions: { top: MAX_RESOURCE_POLICY_RESULTS } }
     )) {
       policyStateResults.push(formatPolicyState(policyState))
     }
   } else {
     for await (const policyState of policyClient.policyStates.listQueryResultsForResourceGroup(
-      'latest', subscriptionId, resourceGroupName, { queryOptions: { top: 100 } }
+      'latest', subscriptionId, resourceGroupName, { queryOptions: { top: MAX_RESOURCE_GROUP_POLICY_RESULTS } }
     )) {
       policyStateResults.push(formatPolicyState(policyState))
     }
@@ -50,10 +61,8 @@ async function getPolicyCompliance(subscriptionId, resourceGroupName, resourceId
 
 // ── formatState START ────────────────────────────────────────────────────────
 // Maps a raw PolicyInsights state object to a clean, serialisable result shape
-// Maps a raw PolicyInsights state object to a clean serialisable shape
 function formatPolicyState(rawPolicyState) {
-  console.log('[formatPolicyState] starts')
-  const formattedState = {
+  return {
     complianceState:        rawPolicyState.complianceState,
     policyAssignmentName:   rawPolicyState.policyAssignmentName,
     policyDefinitionName:   rawPolicyState.policyDefinitionName,
@@ -62,8 +71,6 @@ function formatPolicyState(rawPolicyState) {
     resourceType:           rawPolicyState.resourceType,
     timestamp:              rawPolicyState.timestamp,
   }
-  console.log('[formatPolicyState] ends — state:', formattedState.complianceState)
-  return formattedState
 }
 // ── formatState END ──────────────────────────────────────────────────────────
 

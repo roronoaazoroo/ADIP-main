@@ -18,12 +18,16 @@
 
 // Called by: drift.js, baseline.js, genome.js, compare.js, queuePoller.js, app.js
 
+'use strict'
 const { BlobServiceClient } = require('@azure/storage-blob')
-const { TableClient, odata } = require('@azure/data-tables')
+const { TableClient } = require('@azure/data-tables')
 
 let _blobService = null
 function getBlobService() {
-  if (!_blobService) _blobService = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+  if (!_blobService) {
+    if (!process.env.STORAGE_CONNECTION_STRING) throw new Error('STORAGE_CONNECTION_STRING environment variable is not set')
+    _blobService = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
+  }
   return _blobService
 }
 
@@ -36,8 +40,14 @@ function container(name) {
 // ── Table index clients ───────────────────────────────────────────────────────
 const _tables = {}
 function tableClient(name) {
-  if (!_tables[name])
-    try { _tables[name] = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, name) } catch {}
+  if (!_tables[name]) {
+    try {
+      _tables[name] = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, name)
+    } catch (tableInitError) {
+      // Log but don't throw — callers handle null table client gracefully
+      console.error(`[blobService] failed to init Table client '${name}':`, tableInitError.message)
+    }
+  }
   return _tables[name]
 }
 
@@ -99,9 +109,7 @@ async function saveBaseline(subscriptionId, resourceGroupId, resourceId, resourc
   return doc
 }
 
-async function upsertBaseline(subscriptionId, resourceGroupId, resourceId, resourceState) {
-  return saveBaseline(subscriptionId, resourceGroupId, resourceId, resourceState)
-}
+// upsertBaseline removed — use saveBaseline directly (YAGNI: identical function)
 
 
 // ── Drift Records ─────────────────────────────────────────────────────────────
@@ -267,10 +275,8 @@ async function _scanGenomeSnapshots(subscriptionId, resourceId, limit) {
 async function deleteGenomeSnapshot(subscriptionId, blobName) {
   await container('baseline-genome').getBlockBlobClient(blobName).deleteIfExists()
   try {
-    const { TableClient } = require('@azure/data-tables')
-    const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'genomeIndex')
     const rk = Buffer.from(blobName).toString('base64url').slice(0, 512)
-    await tc.deleteEntity(subscriptionId || 'unknown', rk)
+    await tableClient('genomeIndex')?.deleteEntity(subscriptionId || 'unknown', rk)
   } catch {}
 }
 
@@ -309,6 +315,10 @@ async function saveChangeRecord(record) {
 const _recentChangesCache = new Map()  // key: cacheKey string → { data, expiresAt }
 
 async function getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since, limit = 10000 }) {
+  if (!subscriptionId || !since) {
+    console.error('[getRecentChanges] missing required params: subscriptionId and since')
+    return []
+  }
   const tc = tableClient('changesIndex')
   if (!tc) return []
 
@@ -351,7 +361,7 @@ async function getRecentChanges({ subscriptionId, resourceGroup, caller, changeT
 
   return sortedResults
 }
-// ── getRecentChanges END ────────────────────────────────────────────────────── ──────────────────────────────────────────────────────
+// ── getRecentChanges END ──────────────────────────────────────────────────────
 
 
 // Returns total permanent change count for a subscription (all time)
@@ -366,10 +376,14 @@ async function getTotalChangesCount(subscriptionId) {
 }
 // ── getTotalChangesCount END ──────────────────────────────────────────────────
 
+// Exported table client accessors — routes use these instead of instantiating TableClient directly
+function getMonitorSessionsTableClient() { return tableClient('monitorSessions') }
+function getDriftIndexTableClient()      { return tableClient('driftIndex') }
+function getChangesIndexTableClient()    { return tableClient('changesIndex') }
+
 module.exports = {
   getBaseline,
   saveBaseline,
-  upsertBaseline,
   saveDriftRecord,
   getDriftRecords,
   getDriftHistory,
@@ -380,4 +394,7 @@ module.exports = {
   saveChangeRecord,
   getTotalChangesCount,
   getRecentChanges,
+  getMonitorSessionsTableClient,
+  getDriftIndexTableClient,
+  getChangesIndexTableClient,
 }

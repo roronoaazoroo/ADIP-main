@@ -1,3 +1,4 @@
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { TableClient }              = require('@azure/data-tables')
 const { ResourceManagementClient } = require('@azure/arm-resources')

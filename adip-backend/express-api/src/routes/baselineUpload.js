@@ -1,8 +1,9 @@
+'use strict'
 // FILE: routes/baselineUpload.js
 // ROLE: POST /api/baselines/upload — accepts a JSON file as the new golden baseline
 
 const router_baselineUpload = require('express').Router()
-const { upsertBaseline } = require('../services/blobService')
+const { saveBaseline } = require('../services/blobService')
  
 // ── POST /api/baselines/upload START ─────────────────────────────────────────
 // Accepts a custom JSON golden baseline uploaded from the frontend (or ARM template)
@@ -18,9 +19,13 @@ router_baselineUpload.post('/baselines/upload', async (req, res) => {
     console.log('[POST /baselines/upload] ends — baselineData is not a JSON object')
     return res.status(400).json({ error: 'baselineData must be a JSON object' })
   }
+  if (Object.keys(baselineData).length === 0) {
+    console.log('[POST /baselines/upload] ends — baselineData is empty')
+    return res.status(400).json({ error: 'baselineData must not be empty' })
+  }
  
   try {
-    const savedBaselineDocument = await upsertBaseline(subscriptionId, resourceGroupId || '', resourceId, baselineData)
+    const savedBaselineDocument = await saveBaseline(subscriptionId, resourceGroupId || '', resourceId, baselineData)
     res.json({ uploaded: true, id: savedBaselineDocument?.id, resourceId })
     console.log('[POST /baselines/upload] ends — resourceId:', resourceId)
   } catch (uploadError) {

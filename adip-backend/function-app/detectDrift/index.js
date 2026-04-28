@@ -1,3 +1,4 @@
+'use strict'
 // FILE: adip-backend/function-app/detectDrift/index.js
 // ROLE: Azure Function — detects drift between live ARM config and stored baseline
 
@@ -50,7 +51,7 @@ module.exports = async function (context, req) {
   }
 
   const eventData = Array.isArray(body) ? body[0]?.data : body
-  const { resourceId, subscriptionId } = eventData || {}
+  const { resourceId, subscriptionId, caller = 'System' } = eventData || {}
 
   if (!resourceId || !subscriptionId) {
     console.log('[detectDrift mainHandler] ends — 400 missing resourceId or subscriptionId')
@@ -151,6 +152,7 @@ module.exports = async function (context, req) {
       severity:      driftSeverity,
       changeCount:   detectedChanges.length,
       hasPrevious:   !!baselineConfigStripped,
+      caller,
       detectedAt,
     }
 
@@ -159,6 +161,27 @@ module.exports = async function (context, req) {
     console.log('[detectDrift driftRecordWrite] starts — driftKey:', driftKey(resourceId, detectedAt))
     await writeBlob(driftRecordsContainer, driftKey(resourceId, detectedAt), driftRecord)
     console.log('[detectDrift driftRecordWrite] ends — drift record saved to blob storage')
+
+    // Write index row to driftIndex Table for fast filtered queries (used by reports + drift-events endpoint)
+    try {
+      const { TableClient } = require('@azure/data-tables')
+      const tableClient = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
+      const rowKey = Buffer.from(driftKey(resourceId, detectedAt)).toString('base64url').slice(0, 512)
+      await tableClient.upsertEntity({
+        partitionKey:  subscriptionId,
+        rowKey,
+        blobKey:       driftKey(resourceId, detectedAt),
+        resourceId:    resourceId || '',
+        resourceGroup: resourceGroupName || '',
+        severity:      driftSeverity,
+        caller:        caller || 'System',
+        changeCount:   detectedChanges.length,
+        detectedAt,
+      }, 'Replace')
+      console.log('[detectDrift driftIndexWrite] ends — driftIndex row written')
+    } catch (indexError) {
+      console.log('[detectDrift driftIndexWrite] non-fatal error:', indexError.message)
+    }
     // ── Drift record write END ────────────────────────────────────────────────
 
     // ── Socket.IO notification START ──────────────────────────────────────────

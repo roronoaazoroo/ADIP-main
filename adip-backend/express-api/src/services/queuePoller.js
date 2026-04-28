@@ -21,11 +21,19 @@ const { TableClient }        = require('@azure/data-tables')
 const { strip, diffObjects } = require('../shared/diff')
 const { resolveIdentity }    = require('../shared/identity')
 const { getResourceConfig }  = require('./azureResourceService')
+// blobService required lazily below to avoid circular dependency at module load time
+// (blobService → queuePoller would create a cycle if required at top level)
+let _blobService = null
+function getBlobServiceModule() {
+  if (!_blobService) _blobService = require('./blobService')
+  return _blobService
+}
 
 // ── Queue client ──────────────────────────────────────────────────────────────
 let _queueClient = null
 function getQueueClient() {
   if (!_queueClient) {
+    if (!process.env.STORAGE_CONNECTION_STRING) throw new Error('STORAGE_CONNECTION_STRING is not set')
     const svc = QueueServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
     _queueClient = svc.getQueueClient(process.env.STORAGE_QUEUE_NAME || 'resource-changes')
   }
@@ -38,8 +46,13 @@ function getQueueClient() {
 const _mem = {}
 let _tableClient = null
 function getTableClient() {
-  if (!_tableClient)
-    try { _tableClient = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'liveStateCache') } catch {}
+  if (!_tableClient) {
+    try {
+      _tableClient = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'liveStateCache')
+    } catch (tableInitError) {
+      console.error('[queuePoller] failed to init liveStateCache Table client:', tableInitError.message)
+    }
+  }
   return _tableClient
 }
 function cacheKey(id) { return Buffer.from(id).toString('base64').replace(/[/\\#?]/g, '_') }
@@ -52,7 +65,6 @@ async function cacheGet(resourceId) {
   } catch {}
   return null
 }
-// ── resolveIdentity END ──────────────────────────────────────────────────────
 
 async function cacheSet(resourceId, state) {
   _mem[resourceId] = state
@@ -61,7 +73,9 @@ async function cacheSet(resourceId, state) {
       { partitionKey: 'state', rowKey: cacheKey(resourceId), stateJson: JSON.stringify(state) },
       'Replace'
     )
-  } catch { /* non-fatal */ }
+  } catch (cacheWriteError) {
+    console.warn('[cacheSet] non-fatal Table write error:', cacheWriteError.message)
+  }
 }
 
 // Proxy so legacy code using liveStateCache[id] = x still works
@@ -82,6 +96,12 @@ function parseMessage(msg) {
     let resourceId = event.data?.resourceUri || event.subject || ''
     const parts    = resourceId.split('/')
     if (parts.length > 9) resourceId = parts.slice(0, 9).join('/')
+
+    // Skip ResourceActionSuccess — system-generated events with no human operator or operationName
+    if ((event.eventType || '').includes('ResourceActionSuccess')) {
+      console.log('[parseMessage] ends — skipping ResourceActionSuccess event')
+      return null
+    }
     const uriParts = resourceId.split('/')
 
     // Extract best available caller identity from all known claim paths
@@ -93,7 +113,7 @@ function parseMessage(msg) {
       || claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn']
       || (givenName && surname ? `${givenName} ${surname}` : '')
       || event.data?.caller
-      || ''
+      || 'System'  // fallback when no identity claims present (e.g. automated/service operations)
 
     const result = {
       eventId:        event.id,
@@ -142,8 +162,7 @@ async function enrichWithDiff(event) {
   const previous = await cacheGet(event.resourceId)
     || await (async () => {
       try {
-        const { getBaseline } = require('./blobService')
-        const b = await getBaseline(event.subscriptionId, event.resourceId)
+        const b = await getBlobServiceModule().getBaseline(event.subscriptionId, event.resourceId)
         return b?.resourceState ? strip(b.resourceState) : null
       } catch { return null }
     })()
@@ -182,8 +201,7 @@ function startQueuePoller() {
 
           // Permanently record to all-changes blob + changesIndex Table
           try {
-            const { saveChangeRecord } = require('./blobService')
-            await saveChangeRecord({
+            await getBlobServiceModule().saveChangeRecord({
               subscriptionId: enriched.subscriptionId,
               resourceId:     enriched.resourceId,
               resourceGroup:  enriched.resourceGroup,
@@ -210,7 +228,9 @@ function startQueuePoller() {
           }
         } catch { await client.deleteMessage(msg.messageId, msg.popReceipt).catch(() => {}) }
       }
-    } catch {}
+    } catch (pollError) {
+      console.error('[startQueuePoller] poll cycle error:', pollError.message)
+    }
   }, interval)
 
   console.log(`[ADIP] Queue poller started — interval ${interval}ms`)

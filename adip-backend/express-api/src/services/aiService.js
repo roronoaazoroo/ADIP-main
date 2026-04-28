@@ -4,32 +4,35 @@
 // Functions:
 //   callAzureOpenAI(systemPrompt, userMessage, maxTokens)
 //     — generic wrapper: sends one chat turn to GPT-4o, returns response text
-//   explainDrift(driftRecord)         — plain-English security explanation
-//   reclassifySeverity(driftRecord)   — AI severity override (can only escalate)
-//   getRemediationRecommendation(driftRecord) — what reverting to baseline will do
-//   detectAnomalies(recentDriftRecords) — pattern detection across last 50 records
-
+//   explainDrift(driftRecord)                    — plain-English security explanation
+//   reclassifySeverity(driftRecord)              — AI severity override (can only escalate)
+//   getRemediationRecommendation(driftRecord)    — what reverting to baseline will do
+//   detectAnomalies(recentDriftRecords)          — pattern detection across last 50 records
+'use strict'
 const fetch = require('node-fetch')
 
-const ENDPOINT   = () => process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
-const API_KEY    = () => process.env.AZURE_OPENAI_KEY
-const DEPLOYMENT = () => process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
-const API_VER    = '2024-10-21'
+// Azure OpenAI configuration — read from environment at call time
+// API_VERSION is pinned here; update when Azure OpenAI releases a new stable version
+const OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'
 
-// ── chat START ──────────────────────────────────────────────────────────────
-// Sends a chat completion request to Azure OpenAI and returns the response text
+// ── callAzureOpenAI START ────────────────────────────────────────────────────
 // Sends a single-turn chat completion to Azure OpenAI and returns the response text
 async function callAzureOpenAI(systemPrompt, userMessageContent, maxTokens = 400) {
   console.log('[callAzureOpenAI] starts')
-  if (!ENDPOINT() || !API_KEY()) {
+
+  const endpoint   = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
+  const apiKey     = process.env.AZURE_OPENAI_KEY
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
+
+  if (!endpoint || !apiKey) {
     console.log('[callAzureOpenAI] ends — no endpoint/key configured')
     throw new Error('Azure OpenAI not configured')
   }
 
-  const openAiUrl    = `${ENDPOINT()}/openai/deployments/${DEPLOYMENT()}/chat/completions?api-version=${API_VER}`
+  const openAiUrl    = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${OPENAI_API_VERSION}`
   const httpResponse = await fetch(openAiUrl, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'api-key': API_KEY() },
+    headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
     body: JSON.stringify({
       messages:    [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessageContent }],
       max_tokens:  maxTokens,
@@ -45,7 +48,32 @@ async function callAzureOpenAI(systemPrompt, userMessageContent, maxTokens = 400
   console.log('[callAzureOpenAI] ends')
   return responseText
 }
-// ── chat END ─────────────────────────────────────────────────────────────────
+// ── callAzureOpenAI END ───────────────────────────────────────────────────────
+
+// ── withAiGuard START ─────────────────────────────────────────────────────────
+// Shared guard for all AI functions:
+//   - Validates driftRecord is a non-null object
+//   - Checks AZURE_OPENAI_ENDPOINT is configured
+//   - Wraps the AI call in try/catch, returns null/[] on failure
+// Eliminates the repeated guard + try/catch pattern across all AI functions (DRY)
+async function withAiGuard(fnName, driftRecord, fallback, aiCallFn) {
+  if (!driftRecord || typeof driftRecord !== 'object') {
+    console.log(`[${fnName}] ends — invalid driftRecord, skipping`)
+    return fallback
+  }
+  if (!process.env.AZURE_OPENAI_ENDPOINT) {
+    console.log(`[${fnName}] ends — no endpoint configured`)
+    return fallback
+  }
+  try {
+    return await aiCallFn()
+  } catch (aiError) {
+    console.error(`[${fnName}] caught error:`, aiError.message)
+    console.log(`[${fnName}] ends — caught error`)
+    return fallback
+  }
+}
+// ── withAiGuard END ───────────────────────────────────────────────────────────
 
 
 // ── explainDrift START ───────────────────────────────────────────────────────
@@ -53,11 +81,7 @@ async function callAzureOpenAI(systemPrompt, userMessageContent, maxTokens = 400
 // Sends drift changes to Azure OpenAI and returns a plain-English security explanation
 async function explainDrift(driftRecord) {
   console.log('[explainDrift] starts')
-  if (!ENDPOINT()) {
-    console.log('[explainDrift] ends — no endpoint configured')
-    return null
-  }
-  try {
+  return withAiGuard('explainDrift', driftRecord, null, async () => {
     const changesText = (driftRecord.differences || driftRecord.changes || [])
       .map(changeItem => changeItem.sentence || `${changeItem.type} ${changeItem.path}`)
       .slice(0, 15).join('\n')
@@ -68,11 +92,7 @@ async function explainDrift(driftRecord) {
     )
     console.log('[explainDrift] ends')
     return explanationText
-  } catch (aiError) {
-    console.error('[AI explainDrift]', aiError.message)
-    console.log('[explainDrift] ends — caught error')
-    return null
-  }
+  })
 }
 // ── explainDrift END ─────────────────────────────────────────────────────────
 
@@ -82,11 +102,7 @@ async function explainDrift(driftRecord) {
 // Sends changes to Azure OpenAI to get a severity rating that may override rule-based classification
 async function reclassifySeverity(driftRecord) {
   console.log('[reclassifySeverity] starts')
-  if (!ENDPOINT()) {
-    console.log('[reclassifySeverity] ends — no endpoint configured')
-    return null
-  }
-  try {
+  return withAiGuard('reclassifySeverity', driftRecord, null, async () => {
     const changesText = (driftRecord.differences || driftRecord.changes || [])
       .map(changeItem => changeItem.sentence || `${changeItem.type} ${changeItem.path}: ${JSON.stringify(changeItem.oldValue)} → ${JSON.stringify(changeItem.newValue)}`)
       .slice(0, 10).join('\n')
@@ -99,11 +115,7 @@ async function reclassifySeverity(driftRecord) {
     const parsedSeverity = JSON.parse(aiResponseText.replace(/```json|```/g, '').trim())
     console.log('[reclassifySeverity] ends')
     return parsedSeverity
-  } catch (aiError) {
-    console.error('[AI reclassify]', aiError.message)
-    console.log('[reclassifySeverity] ends — caught error')
-    return null
-  }
+  })
 }
 // ── reclassifySeverity END ───────────────────────────────────────────────────
 
@@ -113,11 +125,7 @@ async function reclassifySeverity(driftRecord) {
 // Returns an AI-generated explanation of what reverting to baseline will do and if it is safe
 async function getRemediationRecommendation(driftRecord) {
   console.log('[getRemediationRecommendation] starts')
-  if (!ENDPOINT()) {
-    console.log('[getRemediationRecommendation] ends — no endpoint configured')
-    return null
-  }
-  try {
+  return withAiGuard('getRemediationRecommendation', driftRecord, null, async () => {
     const changesText = (driftRecord.differences || driftRecord.changes || [])
       .map(changeItem => changeItem.sentence || `${changeItem.type} ${changeItem.path}`)
       .slice(0, 10).join('\n')
@@ -128,11 +136,7 @@ async function getRemediationRecommendation(driftRecord) {
     )
     console.log('[getRemediationRecommendation] ends')
     return recommendationText
-  } catch (aiError) {
-    console.error('[AI recommend]', aiError.message)
-    console.log('[getRemediationRecommendation] ends — caught error')
-    return null
-  }
+  })
 }
 // ── getRemediationRecommendation END ─────────────────────────────────────────
 
@@ -142,10 +146,16 @@ async function getRemediationRecommendation(driftRecord) {
 // Analyses the last 50 drift records to surface unusual patterns in the drift history
 async function detectAnomalies(recentDriftRecords) {
   console.log('[detectAnomalies] starts')
-  if (!ENDPOINT() || !recentDriftRecords?.length) {
+
+  if (!Array.isArray(recentDriftRecords) || !recentDriftRecords.length) {
     console.log('[detectAnomalies] ends — no endpoint or empty records')
     return []
   }
+  if (!process.env.AZURE_OPENAI_ENDPOINT) {
+    console.log('[detectAnomalies] ends — no endpoint or empty records')
+    return []
+  }
+
   try {
     // Build a compact summary of each drift record for the AI prompt
     const driftSummaryForAI = recentDriftRecords.slice(0, 50).map(driftRecord => ({

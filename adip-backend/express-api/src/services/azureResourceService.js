@@ -1,3 +1,4 @@
+'use strict'
 // FILE: services/azureResourceService.js
 // ROLE: All Azure Resource Manager (ARM) API calls — subscriptions, RGs, resources, API versions
 //
@@ -12,10 +13,18 @@
 //     — ARM GET with automatic API version correction on 400 errors
 
 const { ResourceManagementClient } = require('@azure/arm-resources')
-const { SubscriptionClient } = require('@azure/arm-subscriptions')
-const { DefaultAzureCredential } = require('@azure/identity')
+const { SubscriptionClient }       = require('@azure/arm-subscriptions')
+const { DefaultAzureCredential }   = require('@azure/identity')
+const fetch                        = require('node-fetch')
 
 const credential = new DefaultAzureCredential()
+
+// Fallback ARM API version used when a resource type is not in the static map
+// and ARM dynamic lookup fails
+const ARM_API_VERSION_FALLBACK = '2021-04-01'
+
+// ARM management endpoint — configurable for sovereign cloud support
+const ARM_ENDPOINT = process.env.ARM_ENDPOINT || 'https://management.azure.com'
 
 // Static API version map — covers the most common resource types
 const API_VERSION_MAP = {
@@ -64,6 +73,10 @@ const providerApiVersionCache = {}
 // Resolves the ARM API version for a resource type — checks static map first, then queries ARM
 async function getApiVersion(subscriptionId, provider, type) {
   console.log('[getApiVersion] starts — provider:', provider, 'type:', type)
+  if (!provider || !type) {
+    console.log('[getApiVersion] ends — missing provider or type, using fallback')
+    return ARM_API_VERSION_FALLBACK
+  }
   const key = type.toLowerCase()
   if (API_VERSION_MAP[key]) {
     console.log('[getApiVersion] ends — found in static map:', API_VERSION_MAP[key])
@@ -84,14 +97,14 @@ async function getApiVersion(subscriptionId, provider, type) {
     )
     const apiVersions = resourceType?.apiVersions || []
     const stable = apiVersions.filter(v => !v.includes('preview'))
-    const version = stable[0] || apiVersions[0] || '2021-04-01'
+    const version = stable[0] || apiVersions[0] || ARM_API_VERSION_FALLBACK
     providerApiVersionCache[cacheKey] = version
     API_VERSION_MAP[key] = version
     console.log('[getApiVersion] ends — resolved from ARM:', version)
     return version
   } catch {
-    console.log('[getApiVersion] ends — fallback to default 2021-04-01')
-    return '2021-04-01'
+    console.log('[getApiVersion] ends — fallback to default', ARM_API_VERSION_FALLBACK)
+    return ARM_API_VERSION_FALLBACK
   }
 }
 // ── getApiVersion END ────────────────────────────────────────────────────────
@@ -175,14 +188,13 @@ async function fetchStorageChildItems(subscriptionId, resourceGroupName, storage
   console.log('[fetchStorageChildItems] starts — account:', storageAccountName)
 
   const storageChildItems = {}
-  const fetch = require('node-fetch')
 
   // Get a bearer token using the same credential used for all other ARM calls
   const armBearerToken = await credential.getToken('https://management.azure.com/.default')
 
   // Helper: calls a storage account child list endpoint and returns the items array
   async function listStorageChildResources(childResourcePath) {
-    const armListUrl = `https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}/${childResourcePath}?api-version=${STORAGE_LIST_API_VERSION}`
+    const armListUrl = `${ARM_ENDPOINT}/subscriptions/${subscriptionId}/resourceGroups/${resourceGroupName}/providers/Microsoft.Storage/storageAccounts/${storageAccountName}/${childResourcePath}?api-version=${STORAGE_LIST_API_VERSION}`
     try {
       const httpResponse = await fetch(armListUrl, {
         headers: { 'Authorization': `Bearer ${armBearerToken.token}`, 'Content-Type': 'application/json' }
@@ -248,6 +260,9 @@ async function fetchWithFallback(client, rg, provider, type, name, apiVersion) {
 // Also fetches child resources (e.g. blobServices) and merges them into _childConfig
 async function getResourceConfig(subscriptionId, resourceGroupName, resourceId) {
   console.log('[getResourceConfig] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupName, 'resourceId:', resourceId)
+  if (!subscriptionId || !resourceGroupName) {
+    throw new Error('getResourceConfig requires subscriptionId and resourceGroupName')
+  }
   const client = resourceClient(subscriptionId)
   if (resourceId) {
     const parts      = resourceId.split('/')

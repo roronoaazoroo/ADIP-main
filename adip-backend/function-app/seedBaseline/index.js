@@ -9,6 +9,8 @@
 //   3. Saves it as the golden baseline blob in 'baselines' container
 //   4. After this, ComparisonPage will diff future live configs against this snapshot
 
+'use strict'
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')
@@ -97,10 +99,10 @@ module.exports = async function (context, req) {
     context.res = { status: 200, body: { message: 'Golden baseline seeded from live config', baseline: baselineDocument } }
     context.log(`[seedBaseline] seeded baseline for ${resourceId}`)
     console.log('[seedBaseline mainHandler] ends — baseline seeded successfully for resourceId:', resourceId)
-  } catch (err) {
-    console.log('[seedBaseline mainHandler] ends — caught error:', err.message)
-    context.log.error('[seedBaseline] error:', err.message)
-    context.res = { status: 500, body: { error: err.message } }
+  } catch (seedError) {
+    console.log('[seedBaseline mainHandler] ends — caught error:', seedError.message)
+    context.log.error('[seedBaseline] error:', seedError.message)
+    context.res = { status: 500, body: { error: seedError.message } }
   }
 }
 // ── Main handler END ──────────────────────────────────────────────────────────

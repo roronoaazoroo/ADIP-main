@@ -20,18 +20,30 @@
 // Called by: Azure Event Grid (ResourceWriteSuccess / ResourceDeleteSuccess events)
 // Calls: detectDrift Azure Function
 // ============================================================
+'use strict'
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const fetch = require('node-fetch')
 
 // URL of the detectDrift Function — read from env so it works in any environment
+// DETECT_DRIFT_FUNCTION_URL must be set — no hardcoded fallback (avoids accidental prod calls)
 const DETECT_DRIFT_FUNCTION_URL = process.env.DETECT_DRIFT_FUNCTION_URL
-  || `${(process.env.FUNCTION_APP_URL || 'https://adip-func-001.azurewebsites.net/api').replace(/\/$/, '')}/detectDrift`
-
-// Function key for detectDrift (required because detectDrift has authLevel: function)
 const DETECT_DRIFT_FUNCTION_KEY = process.env.DETECT_DRIFT_FUNCTION_KEY || ''
 
 module.exports = async function (context, req) {
   console.log('[eventGridRouter] starts')
+
+  if (!DETECT_DRIFT_FUNCTION_URL) {
+    context.log.error('[eventGridRouter] DETECT_DRIFT_FUNCTION_URL not configured')
+    context.res = { status: 500, body: { error: 'DETECT_DRIFT_FUNCTION_URL not configured' } }
+    return
+  }
+
+  if (!DETECT_DRIFT_FUNCTION_URL) {
+    context.log.error('[eventGridRouter] DETECT_DRIFT_FUNCTION_URL not configured')
+    context.res = { status: 500, body: { error: 'DETECT_DRIFT_FUNCTION_URL not configured' } }
+    return
+  }
 
   const requestBody = req.body
 
@@ -83,8 +95,12 @@ module.exports = async function (context, req) {
   // Pass the resourceId and subscriptionId extracted from the Event Grid payload
   const resourceId     = eventData.resourceUri || firstEvent?.subject || ''
   const subscriptionId = eventData.subscriptionId || resourceId.split('/')?.[2] || ''
+  const caller         = eventData.claims?.name
+    || eventData.claims?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn']
+    || eventData.caller
+    || 'System'
 
-  console.log('[eventGridRouter] calling detectDrift — resourceId:', resourceId)
+  console.log('[eventGridRouter] calling detectDrift — resourceId:', resourceId, 'caller:', caller)
 
   const detectDriftUrl = DETECT_DRIFT_FUNCTION_KEY
     ? `${DETECT_DRIFT_FUNCTION_URL}?code=${DETECT_DRIFT_FUNCTION_KEY}`
@@ -94,9 +110,16 @@ module.exports = async function (context, req) {
     const detectDriftResponse = await fetch(detectDriftUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ resourceId, subscriptionId }),
+      body:    JSON.stringify({ resourceId, subscriptionId, caller }),
     })
 
+    if (!detectDriftResponse.ok) {
+      const errorBody = await detectDriftResponse.text().catch(() => '')
+      context.log.error('[eventGridRouter] detectDrift returned error:', detectDriftResponse.status, errorBody)
+    }
+    if (!detectDriftResponse.ok) {
+      context.log.error('[eventGridRouter] detectDrift returned error:', detectDriftResponse.status)
+    }
     const detectDriftResult = await detectDriftResponse.json().catch(() => ({}))
     console.log('[eventGridRouter] detectDrift responded — drifted:', detectDriftResult.drifted, 'severity:', detectDriftResult.severity)
 

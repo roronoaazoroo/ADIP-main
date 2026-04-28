@@ -45,10 +45,13 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData }) => 
               state: { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || resourceGroup }
             })
           }>Config Genome</span>
+          <span className={getNavLinkClass("/analytics")} onClick={() => navigate("/analytics")}>Analytics</span>
+          <span className={getNavLinkClass("/compliance")} onClick={() => navigate("/compliance")}>Compliance</span>
         </div>
       </div>
       <div className="dh-nav-right">
         <button className="dh-icon-btn"><span className="material-symbols-outlined">notifications</span></button>
+        <button className="dh-icon-btn" onClick={() => navigate("/settings")} title="Settings"><span className="material-symbols-outlined">settings</span></button>
         <button className="dh-icon-btn" onClick={() => navigate("/")}><span className="material-symbols-outlined">logout</span></button>
         <div className="dh-avatar">{user?.name?.charAt(0) || "U"}</div>
       </div>

@@ -1,3 +1,4 @@
+'use strict'
 // FILE: routes/baseline.js
 // ROLE: GET /api/baselines — fetch golden baseline | POST
 
@@ -29,9 +30,9 @@ router_baseline.get('/baselines', async (req, res) => {
 router_baseline.post('/baselines', async (req, res) => {
   console.log('[POST /baselines] starts')
   const { subscriptionId, resourceGroupId, resourceId, resourceState } = req.body
-  if (!subscriptionId || !resourceState) {
+  if (!subscriptionId || !resourceId || !resourceState) {
     console.log('[POST /baselines] ends — missing required fields')
-    return res.status(400).json({ error: 'subscriptionId and resourceState required' })
+    return res.status(400).json({ error: 'subscriptionId, resourceId and resourceState required' })
   }
   try {
     const savedBaselineDocument = await saveBaseline(subscriptionId, resourceGroupId, resourceId, resourceState)

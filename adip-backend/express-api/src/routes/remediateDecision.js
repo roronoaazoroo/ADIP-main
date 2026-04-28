@@ -1,11 +1,13 @@
+'use strict'
 // FILE: routes/remediateDecision.js
 
 const router_remediateDecision = require('express').Router()
-const { getBaseline: getBaselineForDecision, saveBaseline: saveBaselineForDecision } = require('../services/blobService')
-const { getResourceConfig: getResourceConfigForDecision }  = require('../services/azureResourceService')
-const { getApiVersion: getApiVersionForDecision }          = require('../services/azureResourceService')
-const { ResourceManagementClient: RMC2 }  = require('@azure/arm-resources')
-const { DefaultAzureCredential: DAC2 }    = require('@azure/identity')
+const { getBaseline, saveBaseline } = require('../services/blobService')
+const { reconcileStorageChildren } = require('../services/storageChildService')
+const { getResourceConfig, getApiVersion } = require('../services/azureResourceService')
+const { ResourceManagementClient } = require('@azure/arm-resources')
+const { DefaultAzureCredential }   = require('@azure/identity')
+const { stripVolatileFields } = require('../shared/armUtils')
  
  
 // ── html START ───────────────────────────────────────────────────────────────
@@ -61,45 +63,20 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
   try {
     if (action === 'approve') {
       // ── Approve: revert live resource to golden baseline ───────────────────
-      const baseline = await getBaselineForDecision(subscriptionId, resourceId)
+      const baseline = await getBaseline(subscriptionId, resourceId)
       if (!baseline?.resourceState) {
         console.log('[GET /remediate-decision] ends — no baseline for approve')
         return res.send(html('No Baseline Found',
           `No golden baseline exists for <strong>${resourceName}</strong>. Cannot remediate.`, '#d97706'))
       }
  
-      const VOLATILE_D = ['etag','changedTime','createdTime','provisioningState','lastModifiedAt','systemData','_ts','_etag','_rid','_self','id']
-      // Additional read-only fields ARM rejects on PUT
-      const READONLY_PROPERTIES_D = [
-        'instanceView', 'powerState', 'statuses', 'resources', 'latestModelApplied', 'vmId', 'timeCreated',
-        // NSG: defaultSecurityRules are system-managed; subnets are back-references set via subnet PUT not NSG PUT
-        'defaultSecurityRules', 'resourceGuid', 'networkInterfaces', 'subnets',
-      ]
+      // Volatile and read-only field stripping imported from shared/armUtils.js (DRY)
  
-      // ── strip (decision) START ─────────────────────────────────────────────
-      // Strips volatile ARM fields from the baseline before applying ARM PUT
-      function strip(obj) {
-        console.log('[decision.strip] starts')
-        if (Array.isArray(obj)) {
-          const r = obj.map(strip)
-          console.log('[decision.strip] ends — array')
-          return r
-        }
-        if (obj && typeof obj === 'object') {
-          const r = Object.fromEntries(
-            Object.entries(obj).filter(([k]) => !VOLATILE_D.includes(k) && !READONLY_PROPERTIES_D.includes(k)).map(([k,v]) => [k, strip(v)])
-          )
-          console.log('[decision.strip] ends — object')
-          return r
-        }
-        console.log('[decision.strip] ends — primitive')
-        return obj
-      }
-      // ── strip (decision) END ───────────────────────────────────────────────
+      // strip() is now stripVolatileFields() from shared/armUtils.js
  
-      const baselineState = strip(baseline.resourceState)
-      const credential    = new DAC2()
-      const armClient     = new RMC2(credential, subscriptionId)
+      const baselineStateStripped = stripVolatileFields(baseline.resourceState)
+      const credential    = new DefaultAzureCredential()
+      const armClient     = new ResourceManagementClient(credential, subscriptionId)
       const parts         = resourceId.split('/')
       const rgName        = parts[4], provider = parts[6], type = parts[7], name = parts[8]
 
@@ -108,24 +85,24 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
           'Remediation via email approval only works for specific resources, not resource groups. Please use the dashboard to remediate resource group level drift.', '#d97706'))
       }
 
-      const apiVersion    = await getApiVersionForDecision(subscriptionId, provider, type)
+      const apiVersion    = await getApiVersion(subscriptionId, provider, type)
  
       let location = baseline.resourceState?.location
       if (!location) {
         try {
           const live = await armClient.resources.get(rgName, provider, '', type, name, apiVersion)
           location = live.location
-        } catch { location = 'eastus' }
+        } catch { location = process.env.DEFAULT_AZURE_LOCATION || 'eastus' }
       }
  
       await armClient.resources.beginCreateOrUpdateAndWait(
         rgName, provider, '', type, name, apiVersion,
-        { ...baselineState, location }
+        { ...baselineStateStripped, location }
       )
 
       // Reverse-reference cleanup for NSG subnet associations
       if (type.toLowerCase() === 'networksecuritygroups') {
-        const vnetApiVersion    = await getApiVersionForDecision(subscriptionId, 'Microsoft.Network', 'virtualNetworks')
+        const vnetApiVersion    = await getApiVersion(subscriptionId, 'Microsoft.Network', 'virtualNetworks')
         const baselineSubnetIds = (baselineStateStripped.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
         const currentNsg        = await armClient.resources.get(rgName, provider, '', type, name, apiVersion).catch(() => ({}))
         const liveSubnetIds     = (currentNsg.properties?.subnets || []).map(s => s.id?.toLowerCase()).filter(Boolean)
@@ -160,60 +137,11 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
         }
       }
 
-      // ── Storage account child resource reconciliation ─────────────────────
-      // ARM PUT does not create/delete containers, shares, queues, or tables.
-      // Compare baseline._childConfig vs current live._childConfig and reconcile.
+      // Reconcile storage child resources (containers, shares, queues, tables) via shared service
       if (type.toLowerCase() === 'storageaccounts') {
-        const fetch = require('node-fetch')
-        const armBearerToken = await credential.getToken('https://management.azure.com/.default')
-
-        // Fetch current live child resources to know what exists right now
-        const currentLiveConfig = await getResourceConfigForDecision(subscriptionId, rgName, resourceId).catch(() => ({}))
-
-        async function callStorageChildApi(httpMethod, childResourcePath, requestBody = null) {
-          const armUrl = `https://management.azure.com/subscriptions/${subscriptionId}/resourceGroups/${rgName}/providers/Microsoft.Storage/storageAccounts/${name}/${childResourcePath}?api-version=2023-01-01`
-          const fetchOptions = {
-            method: httpMethod,
-            headers: { 'Authorization': `Bearer ${armBearerToken.token}`, 'Content-Type': 'application/json' },
-          }
-          if (requestBody) fetchOptions.body = JSON.stringify(requestBody)
-          const httpResponse = await fetch(armUrl, fetchOptions)
-          if (!httpResponse.ok) throw new Error(`Storage child API ${httpResponse.status}: ${await httpResponse.text()}`)
-        }
-
-        async function reconcileStorageChildResources(childResourceType, serviceBasePath, createBody) {
-          const baselineItems = (baselineState._childConfig?.[childResourceType] || []).map(item => item.name.toLowerCase())
-          const liveItems     = (currentLiveConfig._childConfig?.[childResourceType] || []).map(item => item.name.toLowerCase())
-
-          // In live but NOT in baseline → delete
-          for (const itemName of liveItems.filter(n => !baselineItems.includes(n))) {
-            try {
-              await callStorageChildApi('DELETE', `${serviceBasePath}/${itemName}`)
-              console.log(`[decision] deleted ${childResourceType}: ${itemName}`)
-            } catch (deleteError) {
-              console.warn(`[decision] failed to delete ${childResourceType} ${itemName}:`, deleteError.message)
-            }
-          }
-
-          // In baseline but NOT in live → create
-          for (const itemName of baselineItems.filter(n => !liveItems.includes(n))) {
-            try {
-              await callStorageChildApi('PUT', `${serviceBasePath}/${itemName}`, createBody)
-              console.log(`[decision] created ${childResourceType}: ${itemName}`)
-            } catch (createError) {
-              console.warn(`[decision] failed to create ${childResourceType} ${itemName}:`, createError.message)
-            }
-          }
-        }
-
-        await Promise.allSettled([
-          reconcileStorageChildResources('blobContainers',  'blobServices/default/containers',  { properties: {} }),
-          reconcileStorageChildResources('fileShares',      'fileServices/default/shares',       { properties: {} }),
-          reconcileStorageChildResources('storageQueues',   'queueServices/default/queues',      {}),
-          reconcileStorageChildResources('storageTables',   'tableServices/default/tables',      {}),
-        ])
+        const currentLiveConfig = await getResourceConfig(subscriptionId, rgName, resourceId).catch(() => ({}))
+        await reconcileStorageChildren(subscriptionId, rgName, name, baselineStateStripped._childConfig, currentLiveConfig._childConfig, credential)
       }
-      // ── Storage account child resource reconciliation END ──────────────────
 
       console.log('[GET /remediate-decision] ends — approved and applied')
       return res.send(html('✓ Remediation Applied',
@@ -221,8 +149,8 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
  
     } else {
       // ── Reject: promote current live state as new baseline ─────────────────
-      const liveState = await getResourceConfigForDecision(subscriptionId, resourceGroup, resourceId)
-      // await saveBaselineForDecision(subscriptionId, resourceGroup, resourceId, liveState)
+      const liveState = await getResourceConfig(subscriptionId, resourceGroup, resourceId)
+      // await saveBaseline(subscriptionId, resourceGroup, resourceId, liveState)
  
       console.log('[GET /remediate-decision] ends — rejected (drift accepted as baseline)')
       return res.send(html('Drift Accepted',

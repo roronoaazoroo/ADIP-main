@@ -213,6 +213,15 @@ export async function fetchAiRecommendation(driftRecord) {
 // Returns all versioned snapshots for a resource, sorted newest-first
 // Each snapshot: { _blobKey, savedAt, label, resourceState, rolledBackAt }
 // Calls GET /api/genome → reads genomeIndex Table + baseline-genome blobs
+// Returns all rollback events for a resource (snapshots that were rolled back to)
+// Used by the Rollback History tab on GenomePage
+// Returns the full genome activity history for a resource
+// Includes: created, rolledBack, promoted, deleted events
+export async function fetchGenomeHistory(subscriptionId, resourceId) {
+  const queryParams = new URLSearchParams({ subscriptionId, resourceId })
+  return apiRequest(`/genome/history?${queryParams}`)
+}
+
 export async function fetchGenomeSnapshots(subscriptionId, resourceId, limit = 50) {
   const queryParams = new URLSearchParams({ subscriptionId, limit })
   if (resourceId) queryParams.set('resourceId', resourceId)
@@ -262,4 +271,38 @@ export default {
   fetchResourceGroups,
   fetchResources,
   fetchResourceConfiguration,
+}
+
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+// Generates a drift analysis report and saves it to blob storage
+export async function generateDriftReport(subscriptionId, periodDays = 7, sendEmail = false) {
+  return apiRequest('/reports/generate', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, periodDays, sendEmail }),
+  })
+}
+
+// Returns list of saved reports for a subscription
+export async function fetchSavedReports(subscriptionId) {
+  return apiRequest(`/reports?subscriptionId=${encodeURIComponent(subscriptionId)}`)
+}
+
+// Returns the URL to view a specific report inline
+export function getReportViewUrl(blobKey) {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+  return `${API_BASE_URL}/reports/view?blobKey=${encodeURIComponent(blobKey)}`
+}
+
+// Deletes a saved report blob
+export async function deleteReport(blobKey) {
+  return apiRequest(`/reports?blobKey=${encodeURIComponent(blobKey)}`, { method: 'DELETE' })
+}
+
+// ── Change Attribution ───────────────────────────────────────────────────────
+
+// Returns per-caller change and drift counts for a subscription
+export async function fetchChangeAttribution(subscriptionId, days = 30) {
+  return apiRequest(`/attribution?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
 }

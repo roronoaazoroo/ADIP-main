@@ -1,3 +1,4 @@
+'use strict'
 // FILE: routes/subscriptions.js
 // ROLE: GET /api/subscriptions — returns all Azure subscriptions the credential can access
 

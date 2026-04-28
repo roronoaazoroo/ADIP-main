@@ -1,6 +1,8 @@
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const fetch = require('node-fetch')
 const { BlobServiceClient } = require('@azure/storage-blob')
+const { TableClient }       = require('@azure/data-tables')
 const { blobKey, readBlob } = require('adip-shared/blobHelpers')
 
 const ENDPOINT   = () => process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
@@ -116,7 +118,6 @@ async function detectAnomalies(driftRecords) {
 // ── getDriftRecordsForAnomaly START ───────────────────────────────────────────
 async function getDriftRecordsForAnomaly(subscriptionId) {
   console.log('[getDriftRecordsForAnomaly] starts — subscriptionId:', subscriptionId)
-  const { TableClient } = require('@azure/data-tables')
   const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
   const blobSvc = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
   const driftCtr = blobSvc.getContainerClient('drift-records')

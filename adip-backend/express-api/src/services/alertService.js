@@ -19,40 +19,57 @@ const EMAIL_ALERT_SEVERITY_LEVELS = ['critical', 'high']
  * @param {object} payload - The drift event payload { severity, resourceId, resourceGroup, subscriptionId, differences, detectedAt, ... }
  */
 async function sendDriftAlertEmail(payload) {
-  console.log('[sendDriftAlertEmail] starts — severity:', payload?.severity, '| resourceId:', payload?.resourceId)
+  console.log('[sendDriftAlertEmail] starts severity:', payload?.severity, '| resourceId:', payload?.resourceId)
 
-  if (!payload?.severity) {
-    console.log('[sendDriftAlertEmail] ends — no severity provided, skipping')
+  // Validate input — must be a non-null object with a severity field
+  if (!payload || typeof payload !== 'object' || !payload.severity) {
+    console.log('[sendDriftAlertEmail] ends — invalid or missing payload, skipping')
     return
   }
 
   if (!EMAIL_ALERT_SEVERITY_LEVELS.includes(payload.severity)) {
     // Low and medium severity do not trigger email alerts
-    console.log('[sendDriftAlertEmail] ends — severity is', payload.severity, '— no email sent (only critical/high trigger emails)')
+    console.log('[sendDriftAlertEmail] ends — severity is', payload.severity, 'no email sent (only critical/high trigger emails)')
     return
   }
 
   const driftAlertRouterUrl = process.env.DRIFT_ALERT_ROUTER_URL
   if (!driftAlertRouterUrl) {
-    console.log('[sendDriftAlertEmail] ends — DRIFT_ALERT_ROUTER_URL not configured, skipping')
+    console.log('[sendDriftAlertEmail] ends DRIFT_ALERT_ROUTER_URL not configured, skipping')
     return
   }
 
   // Severity is critical or high — send the alert email
-  console.log('[sendDriftAlertEmail] severity is', payload.severity, '— sending alert email via driftAlertRouter')
+  // Retry once on transient 5xx failure before giving up
+  console.log('[sendDriftAlertEmail] severity is', payload.severity, 'sending alert email via driftAlertRouter')
 
-  try {
-    const httpResponse = await fetch(driftAlertRouterUrl, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    })
-    const responseData = await httpResponse.json().catch(() => ({}))
-    console.log('[sendDriftAlertEmail] ends — alerted:', responseData.alerted)
-  } catch (fetchError) {
-    // Non-fatal — email failure should never block the main remediation flow
-    console.error('[sendDriftAlertEmail] ends — fetch error:', fetchError.message)
+  const MAX_ATTEMPTS = 2
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const httpResponse = await fetch(driftAlertRouterUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      })
+
+      if (!httpResponse.ok) {
+        const errorBody = await httpResponse.text().catch(() => '')
+        console.error(`[sendDriftAlertEmail] attempt ${attempt} failed — HTTP ${httpResponse.status}:`, errorBody)
+        if (attempt < MAX_ATTEMPTS && httpResponse.status >= 500) continue
+        return
+      }
+
+      const responseData = await httpResponse.json().catch(() => ({}))
+      console.log('[sendDriftAlertEmail] ends alerted:', responseData.alerted)
+      return
+
+    } catch (fetchError) {
+      // Non-fatal — email failure should never block the main remediation flow
+      console.error(`[sendDriftAlertEmail] attempt ${attempt} fetch error:`, fetchError.message)
+      if (attempt < MAX_ATTEMPTS) continue
+    }
   }
-}
 
+  console.error('[sendDriftAlertEmail] ends — all attempts failed, alert not sent')
+}
 module.exports = { sendDriftAlertEmail }

@@ -1,15 +1,8 @@
 'use strict'
 const router_drift = require('express').Router()
-const { getDriftHistory: getDriftRecordsForRoute, getTotalChangesCount, getRecentChanges } = require('../services/blobService')
-const { TableClient } = require('@azure/data-tables')
+const { getDriftHistory: getDriftRecordsForRoute, getTotalChangesCount, getRecentChanges, getChangesIndexTableClient } = require('../services/blobService')
 
-function getDriftIndexTable() {
-  return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
-}
-
-function getChangesIndexTable() {
-  return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'changesIndex')
-}
+// Table clients imported from blobService — infrastructure stays in the service layer
 
 // ── GET /api/drift-events ─────────────────────────────────────────────────────
 router_drift.get('/drift-events', async (req, res) => {
@@ -30,7 +23,6 @@ router_drift.get('/changes/recent', async (req, res) => {
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   try {
     const sinceTimestamp      = new Date(Date.now() - Number(hours) * 3600 * 1000).toISOString()
-    // Cap at 100 — dashboard only renders 100 rows, fetching more wastes Table Storage reads
     const recentChangeRecords = await getRecentChanges({ subscriptionId, resourceGroup, caller, changeType, since: sinceTimestamp, limit: Number(limit) || 10000 })
     res.json(recentChangeRecords)
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
@@ -58,7 +50,7 @@ router_drift.get('/stats/today', async (req, res) => {
 
   try {
     // Query changesIndex (all ARM events today) for accurate counts
-    const tc = getChangesIndexTable()
+    const tc = getChangesIndexTableClient()
     const filter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${sinceISO}'`
 
     // Use Sets to count unique resources, RGs, and callers
@@ -95,6 +87,7 @@ router_drift.get('/stats/today', async (req, res) => {
 router_drift.get('/stats/chart', async (req, res) => {
   const { subscriptionId, mode = '24h' } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
+  if (!['24h', '7d', '30d'].includes(mode)) return res.status(400).json({ error: 'mode must be 24h, 7d, or 30d' })
 
   const now = Date.now()
   let since, buckets
@@ -121,7 +114,7 @@ router_drift.get('/stats/chart', async (req, res) => {
   }
 
   try {
-    const tc = getChangesIndexTable()
+    const tc = getChangesIndexTableClient()
     const filter = `PartitionKey eq '${subscriptionId}' and detectedAt ge '${since}'`
     for await (const changeEntity of tc.listEntities({ queryOptions: { filter, select: ['detectedAt'] } })) {
       const eventDate = new Date(changeEntity.detectedAt)

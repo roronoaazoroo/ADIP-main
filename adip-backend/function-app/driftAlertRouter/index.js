@@ -17,6 +17,8 @@
 // Called by: Express API (remediateRequest.js, remediate.js, app.js)
 // Calls: sendAlert Azure Function
 // ============================================================
+'use strict'
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const fetch = require('node-fetch')
 
@@ -24,8 +26,8 @@ const fetch = require('node-fetch')
 const ALERT_SEVERITY_LEVELS = ['critical', 'high']
 
 // URL of the sendAlert Function — read from env so it works in any environment
+// SEND_ALERT_FUNCTION_URL must be set — no hardcoded fallback
 const SEND_ALERT_FUNCTION_URL = process.env.SEND_ALERT_FUNCTION_URL
-  || `${(process.env.FUNCTION_APP_URL || 'https://adip-func-001.azurewebsites.net/api').replace(/\/$/, '')}/sendAlert`
 
 // Function key for sendAlert (required because sendAlert has authLevel: function)
 const SEND_ALERT_FUNCTION_KEY = process.env.SEND_ALERT_FUNCTION_KEY || ''
@@ -35,9 +37,14 @@ module.exports = async function (context, req) {
 
   const driftEventPayload = req.body
 
-  if (!driftEventPayload) {
-    console.log('[driftAlertRouter] ends — no payload received')
-    context.res = { status: 400, body: { error: 'Request body is required' } }
+  if (!driftEventPayload || typeof driftEventPayload !== 'object') {
+    console.log('[driftAlertRouter] ends — invalid or missing payload')
+    context.res = { status: 400, body: { error: 'Request body must be a JSON object' } }
+    return
+  }
+  if (!SEND_ALERT_FUNCTION_URL) {
+    context.log.error('[driftAlertRouter] SEND_ALERT_FUNCTION_URL not configured')
+    context.res = { status: 500, body: { error: 'SEND_ALERT_FUNCTION_URL not configured' } }
     return
   }
 
@@ -70,6 +77,13 @@ module.exports = async function (context, req) {
       body:    JSON.stringify(driftEventPayload),
     })
 
+    if (!sendAlertResponse.ok) {
+      const errorBody = await sendAlertResponse.text().catch(() => '')
+      context.log.error('[driftAlertRouter] sendAlert returned error:', sendAlertResponse.status, errorBody)
+    }
+    if (!sendAlertResponse.ok) {
+      context.log.error('[driftAlertRouter] sendAlert returned error:', sendAlertResponse.status)
+    }
     const sendAlertResult = await sendAlertResponse.json().catch(() => ({}))
     console.log('[driftAlertRouter] sendAlert responded — sent:', sendAlertResult.sent)
 

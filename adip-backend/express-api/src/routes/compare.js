@@ -7,12 +7,7 @@ const { getBaseline, saveDriftRecord } = require('../services/blobService')
 const { broadcastDriftEvent } = require('../services/socketService')
 const { explainDrift, reclassifySeverity } = require('../services/aiService')
 
-const { TableClient } = require('@azure/data-tables')
-
-// Returns a Table Storage client for monitorSessions — stores active monitoring sessions
-function getMonitorSessionsTable() {
-  return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'monitorSessions')
-}
+// getMonitorSessionsTableClient imported above from blobService — infrastructure stays in the service layer
 
 // Generates a stable Table Storage row key from the session scope
 function buildSessionRowKey(subscriptionId, resourceGroupId, resourceId) {
@@ -25,6 +20,7 @@ function buildSessionRowKey(subscriptionId, resourceGroupId, resourceId) {
 // Full drift check pipeline: fetches live + baseline, diffs, classifies, runs AI, saves record, alerts
 async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
   console.log('[runDriftCheck] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupId, 'resourceId:', resourceId)
+  if (!subscriptionId || !resourceGroupId) throw new Error('runDriftCheck requires subscriptionId and resourceGroupId')
   const [currentLiveConfig, storedBaseline] = await Promise.all([
     getResourceConfig(subscriptionId, resourceGroupId, resourceId || null),
     getBaseline(subscriptionId, resourceId || resourceGroupId),
@@ -41,6 +37,7 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId) {
     differences:   detectedChanges,
     severity:      driftSeverity,
     changeCount:   detectedChanges.length,
+    caller:        'manual-compare',
     detectedAt:    new Date().toISOString(),
   }
 
@@ -73,14 +70,14 @@ router.post('/compare', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId } = req.body
   if (!subscriptionId || !resourceGroupId) return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
   try { res.json(await runDriftCheck(subscriptionId, resourceGroupId, resourceId || null)) }
-  catch (err) { res.status(500).json({ error: err.message }) }
+  catch (compareError) { res.status(500).json({ error: compareError.message }) }
 })
 router.post('/monitor/start', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId, intervalMs = 60000 } = req.body
   if (!subscriptionId || !resourceGroupId) return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
   const sessionTableRowKey = buildSessionRowKey(subscriptionId, resourceGroupId, resourceId)
   try {
-    await getMonitorSessionsTable().upsertEntity({
+    await getMonitorSessionsTableClient().upsertEntity({
       partitionKey:    'session',
       rowKey:          sessionTableRowKey,
       subscriptionId,
@@ -96,9 +93,10 @@ router.post('/monitor/start', async (req, res) => {
 
 router.post('/monitor/stop', async (req, res) => {
   const { subscriptionId, resourceGroupId, resourceId } = req.body
+  if (!subscriptionId || !resourceGroupId) return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
   const sessionTableRowKey = buildSessionRowKey(subscriptionId, resourceGroupId, resourceId)
   try {
-    await getMonitorSessionsTable().upsertEntity({
+    await getMonitorSessionsTableClient().upsertEntity({
       partitionKey: 'session', rowKey: sessionTableRowKey,
       subscriptionId, resourceGroupId, resourceId: resourceId || '',
       active: false,

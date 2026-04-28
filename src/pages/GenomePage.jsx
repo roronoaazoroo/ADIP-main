@@ -17,6 +17,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import JsonTree from '../components/JsonTree'
 import NavBar from '../components/NavBar'
+import GenomeHistory from '../components/GenomeHistory'
 import { useDashboard } from '../context/DashboardContext'
 import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot } from '../services/api'
 import './GenomePage.css'
@@ -47,6 +48,9 @@ export default function GenomePage() {
   // Success or error message shown after any action (save/promote/rollback/delete)
   // Format: { ok: boolean, text: string }
   const [actionFeedbackMessage, setActionFeedbackMessage] = useState(null)
+
+  // Active tab: 'snapshots' (timeline) or 'history' (rollback audit trail)
+  const [activeTab, setActiveTab] = useState('snapshots')
 
   // The _blobKey of the snapshot currently being acted on (promote/rollback/delete)
   // Used to show '...' on the button and disable all buttons for that snapshot
@@ -191,10 +195,31 @@ export default function GenomePage() {
           <div className={`gp-alert gp-alert--${actionFeedbackMessage.ok ? 'success' : 'error'}`}>{actionFeedbackMessage.text}</div>
         )}
 
+        {/* Tab bar */}
+        <div className="gp-tab-bar">
+          <button
+            className={`gp-tab-btn ${activeTab === 'snapshots' ? 'gp-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('snapshots')}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>history</span>
+            Snapshots
+          </button>
+          <button
+            className={`gp-tab-btn ${activeTab === 'history' ? 'gp-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('history')}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>manage_history</span>
+            Genome History
+          </button>
+        </div>
+
         {/* Body */}
-        <div className="gp-body">
-          {/* Timeline */}
-          <div className="gp-timeline">
+        {activeTab === 'history' ? (
+          <div className="gp-history-panel">
+            <GenomeHistory subscriptionId={subscriptionId} resourceId={resourceId} />
+          </div>
+        ) : (
+          <div className="gp-body">
+            {/* Timeline */}
+            <div className="gp-timeline">
             {isLoadingSnapshots && <div className="gp-loading"><div className="gp-loading-ring" /><span>Loading snapshots...</span></div>}
             {!isLoadingSnapshots && snapshotList.length === 0 && (
               <div className="gp-timeline-empty">
@@ -250,6 +275,7 @@ export default function GenomePage() {
             )}
           </div>
         </div>
+        )}
       </main>
     </div>
   )

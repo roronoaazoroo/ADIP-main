@@ -123,7 +123,7 @@ function BarChart({ subscriptionId }) {
   const titles = { '24h': '24-Hour Change Statistics', '7d': '7-Day Change Statistics', '30d': '30-Day Change Statistics' }
   const subs   = { '24h': 'Hourly — last 24 hours', '7d': 'Daily — last 7 days', '30d': 'Daily — last 30 days' }
   // Show every nth label to avoid crowding
-  const labelEvery = mode === '24h' ? 4 : mode === '7d' ? 1 : 5
+  const labelEvery = mode === '24h' ? 1 : mode === '7d' ? 1 : 5
 
   return (
     <div className="bar-chart-wrap">
@@ -151,7 +151,7 @@ function BarChart({ subscriptionId }) {
                   background: d.count > 10 ? '#ef4444' : d.count > 3 ? '#1995ff' : '#c2c7d0'
                 }} title={`${d.label}: ${d.count} change${d.count !== 1 ? 's' : ''}`} />
               </div>
-              {i % labelEvery === 0 && <span className="bar-label">{d.label}</span>}
+              {i % labelEvery === 0 && <span className="bar-label" style={mode === '24h' ? { transform: 'rotate(-25deg)', transformOrigin: 'top left', fontSize: 9, whiteSpace: 'nowrap' } : {}}>{d.label}</span>}
             </div>
           ))}
         </div>

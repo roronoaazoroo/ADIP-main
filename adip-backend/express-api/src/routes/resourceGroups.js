@@ -1,3 +1,4 @@
+'use strict'
 // FILE: routes/resourceGroups.js
 // ROLE: GET /api/subscriptions/:id/resource-groups — lists all RGs in a subscription
 

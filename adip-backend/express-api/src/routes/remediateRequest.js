@@ -1,3 +1,4 @@
+'use strict'
 // FILE: routes/remediateRequest.js
 
 const router_remediateRequest = require('express').Router()

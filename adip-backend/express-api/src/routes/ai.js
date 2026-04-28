@@ -7,8 +7,9 @@ const fetch  = require('node-fetch')
 // Builds the full URL for the aiOperations Azure Function
 // Appends the function key as ?code= if AI_FUNCTION_KEY is set in .env
 function buildAiFunctionUrl(operationName) {
-  const functionAppBaseUrl = process.env.FUNCTION_APP_URL?.replace(/\/$/, '') || 'https://adip-func-001.azurewebsites.net/api'
-  const functionAuthKey    = process.env.AI_FUNCTION_KEY || ''
+  const functionAppBaseUrl = process.env.FUNCTION_APP_URL?.replace(/\/$/, '')
+  if (!functionAppBaseUrl) throw new Error('FUNCTION_APP_URL environment variable is not set')
+  const functionAuthKey = process.env.AI_FUNCTION_KEY || ''
   return `${functionAppBaseUrl}/ai/${operationName}${functionAuthKey ? `?code=${functionAuthKey}` : ''}`
 }
 

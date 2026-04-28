@@ -1,3 +1,4 @@
+'use strict'
 // FILE: adip-backend/function-app/scanSubscription/index.js
 // ROLE: Azure Function — hourly full subscription sweep for drift
 

@@ -2,10 +2,8 @@
 const router = require('express').Router()
 const fetch  = require('node-fetch')
 
-const ENDPOINT   = () => process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
-const API_KEY    = () => process.env.AZURE_OPENAI_KEY
-const DEPLOYMENT = () => process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
-const API_VER    = '2024-10-21'
+// API version pinned — update when Azure OpenAI releases a new stable version
+const CHAT_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'
 
 const SYSTEM_PROMPT = `You are an Azure Cloud Expert assistant embedded in the Azure Drift Intelligence Platform (ADIP).
 You help users with:
@@ -22,11 +20,13 @@ Keep answers concise and actionable. Use bullet points for lists. No markdown he
 // POST /api/chat  { messages: [{role, content}], context?: { resourceId, driftSummary } }
 router.post('/chat', async (req, res) => {
   const { messages: conversationHistory, context: resourceContext } = req.body
-  if (!conversationHistory?.length) return res.status(400).json({ error: 'messages required' })
-  if (!ENDPOINT() || !API_KEY()) return res.status(503).json({ error: 'Azure OpenAI not configured' })
+  if (!Array.isArray(conversationHistory) || !conversationHistory.length) return res.status(400).json({ error: 'messages must be a non-empty array' })
+  const endpoint   = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
+  const apiKey     = process.env.AZURE_OPENAI_KEY
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
+  if (!endpoint || !apiKey) return res.status(503).json({ error: 'Azure OpenAI not configured' })
 
   try {
-    // Inject drift context into system prompt if provided
     // Build the system prompt, optionally injecting the current resource context
     let systemPromptWithContext = SYSTEM_PROMPT
     if (resourceContext?.resourceId || resourceContext?.driftSummary) {
@@ -35,10 +35,10 @@ router.post('/chat', async (req, res) => {
       if (resourceContext.driftSummary) systemPromptWithContext += `Recent drift: ${resourceContext.driftSummary}\n`
     }
 
-    const openAiEndpointUrl = `${ENDPOINT()}/openai/deployments/${DEPLOYMENT()}/chat/completions?api-version=${API_VER}`
+    const openAiEndpointUrl = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${CHAT_API_VERSION}`
     const openAiResponse = await fetch(openAiEndpointUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'api-key': API_KEY() },
+      headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
       body: JSON.stringify({
         messages: [{ role: 'system', content: systemPromptWithContext }, ...conversationHistory.slice(-20)], // keep last 20 turns
         max_tokens: 600,

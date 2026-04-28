@@ -1,3 +1,5 @@
+'use strict'
+'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { BlobServiceClient } = require('@azure/storage-blob')
 const { TableClient }       = require('@azure/data-tables')
@@ -7,11 +9,9 @@ const blobStorageClient   = BlobServiceClient.fromConnectionString(process.env.S
 const allChangesContainer = blobStorageClient.getContainerClient('all-changes')
 
 // Returns a Table Storage client for the changesIndex table (used for fast queries by DashboardHome)
+// Returns a Table Storage client for changesIndex — no logging (pure factory, called in a loop)
 function getChangesIndexTable() {
-  console.log('[getChangesIndexTable] starts')
-  const client = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'changesIndex')
-  console.log('[getChangesIndexTable] ends')
-  return client
+  return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'changesIndex')
 }
 
 // ── Main handler START ────────────────────────────────────────────────────────
@@ -50,6 +50,11 @@ module.exports = async function (context, req) {
       }
       if ((eventPayload.resourceUri || '').toLowerCase().includes('/deployments/')) {
         console.log('[recordChange mainHandler] skipping event — deployment resource URI:', eventPayload.resourceUri)
+        continue
+      }
+      // Skip ResourceActionSuccess — system-generated status events with no human operator
+      if ((event.eventType || '').includes('ResourceActionSuccess')) {
+        console.log('[recordChange mainHandler] skipping event — ResourceActionSuccess has no human operator')
         continue
       }
 
@@ -133,9 +138,9 @@ module.exports = async function (context, req) {
       // ── changesIndex Table write END ──────────────────────────────────────
 
       recorded++
-    } catch (err) {
-      console.log('[recordChange mainHandler] caught error processing event — skipping:', err.message)
-      context.log.warn('[recordChange] skip event:', err.message)
+    } catch (eventProcessingError) {
+      console.log('[recordChange mainHandler] caught error processing event — skipping:', eventProcessingError.message)
+      context.log.warn('[recordChange] skip event:', eventProcessingError.message)
     }
   }
 

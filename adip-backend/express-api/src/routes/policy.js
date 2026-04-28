@@ -1,3 +1,4 @@
+'use strict'
 // FILE: routes/policy.js
 // ROLE: GET /api/policy/compliance — returns Azure Policy compliance state (read-only)
 

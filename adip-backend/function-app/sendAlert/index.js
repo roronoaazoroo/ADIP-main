@@ -1,3 +1,4 @@
+'use strict'
 // FILE: adip-backend/function-app/sendAlert/index.js
 // ROLE: Azure Function — builds and sends an HTML drift alert email via ACS
 
