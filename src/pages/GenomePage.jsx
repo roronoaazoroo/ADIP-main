@@ -19,7 +19,7 @@ import JsonTree from '../components/JsonTree'
 import NavBar from '../components/NavBar'
 import GenomeHistory from '../components/GenomeHistory'
 import { useDashboard } from '../context/DashboardContext'
-import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot } from '../services/api'
+import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot, fetchResourceConfiguration } from '../services/api'
 import './GenomePage.css'
 
 // Strips volatile fields for comparison — same keys as ComparisonPage normaliseState
@@ -51,6 +51,7 @@ export default function GenomePage() {
   const location = useLocation()
   const { subscriptionId, resourceGroupId, resourceId, resourceName } = location.state ?? {}
   const { subscription, resourceGroup, resource, configData } = useDashboard()
+  const [liveConfig, setLiveConfig] = React.useState(configData)
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
   // List of all snapshots for this resource, sorted newest-first
@@ -145,7 +146,11 @@ export default function GenomePage() {
     try {
       await rollbackToSnapshot(subscriptionId, resourceGroupId, resourceId, snapshotToRollback._blobKey)
       setActionFeedbackMessage({ ok: true, text: 'Rollback applied.' })
-      loadSnapshots()  // refresh so rolledBackAt is reflected and button disables
+      loadSnapshots()
+      // Refresh live config so the button disables immediately after rollback
+      fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
+        .then(fresh => { if (fresh) setLiveConfig(fresh) })
+        .catch(() => {})
     } catch (rollbackError) {
       setActionFeedbackMessage({ ok: false, text: rollbackError.message })
     } finally {
@@ -265,9 +270,9 @@ export default function GenomePage() {
                   </button>
                   <button className="gp-snap-btn gp-snap-btn--red"
                     onClick={e => { e.stopPropagation(); handleRollback(snapshot) }}
-                    disabled={activeActionBlobKey === snapshot._blobKey || configsMatch(snapshot.resourceState, configData)}
-                    title={configsMatch(snapshot.resourceState, configData) ? 'Live config already matches this snapshot' : isResourceGroupLevel ? 'Rollback all resources' : 'Rollback resource'}>
-                    {activeActionBlobKey === snapshot._blobKey ? '...' : configsMatch(snapshot.resourceState, configData) ? 'Already Applied' : isResourceGroupLevel ? 'Rollback All' : 'Rollback'}
+                    disabled={activeActionBlobKey === snapshot._blobKey || configsMatch(snapshot.resourceState, liveConfig)}
+                    title={configsMatch(snapshot.resourceState, liveConfig) ? 'Live config already matches this snapshot' : isResourceGroupLevel ? 'Rollback all resources' : 'Rollback resource'}>
+                    {activeActionBlobKey === snapshot._blobKey ? '...' : configsMatch(snapshot.resourceState, liveConfig) ? 'Already Applied' : isResourceGroupLevel ? 'Rollback All' : 'Rollback'}
                   </button>
                   <button className="gp-snap-btn gp-snap-btn--grey"
                     onClick={e => { e.stopPropagation(); handleDelete(snapshot) }}
