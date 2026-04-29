@@ -14,12 +14,24 @@
 // Called by: `node src/app.js` or `npm start` in adip-backend/express-api
 // ============================================================
 'use strict'
+// Application Insights — must be initialised before any other require
+if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
+  const appInsights = require('applicationinsights')
+  appInsights.setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
+    .setAutoCollectRequests(true)
+    .setAutoCollectDependencies(true)
+    .setAutoCollectExceptions(true)
+    .setAutoCollectConsole(true, true)  // captures console.log as traces
+    .start()
+  console.log('[app] Application Insights initialised')
+}
+
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 // Auto-create required Table Storage tables on startup
 async function ensureTables() {
   const { TableServiceClient } = require('@azure/data-tables')
   const svc = TableServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments']
+  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings']
   for (const name of required) {
     await svc.createTable(name).catch(() => {})  // no-op if already exists
   }
@@ -79,7 +91,6 @@ app.use('/api', require('./routes/baselineUpload'))
 app.use('/api', require('./routes/compare'))
 app.use('/api', require('./routes/remediate'))
 app.use('/api', require('./routes/seed'))
-app.use('/api', require('./routes/policy'))
 app.use('/api', require('./routes/remediateDecision'))
 app.use('/api', require('./routes/remediateRequest'))
 app.use('/api', require('./routes/ai'))
@@ -91,6 +102,7 @@ app.use('/api', require('./routes/suppressionRules'))
 app.use('/api', require('./routes/remediationSchedule'))
 app.use('/api', require('./routes/driftImpact'))
 app.use('/api', require('./routes/userPreferences'))
+app.use('/api', require('./routes/costEstimate'))
 app.use('/api', require('./routes/chat'))
 app.use('/api', require('./routes/rgPrediction'))
 
@@ -153,45 +165,5 @@ server.listen(PORT, () => {
   console.log(`ADIP API running on port ${PORT}`)
   startQueuePoller()
 
-// Schedule poller — checks for due remediation schedules every 60 seconds
-const { processDueSchedules } = require('./services/remediationScheduleService')
-setInterval(() => processDueSchedules().catch(err => console.log('[schedulePoller] error:', err.message)), 60000)
-  startAfterHoursAlertCheck()
 })
-
-// ── After-hours critical drift alert ─────────────────────────────────────────
-// Fires once per day after 19:00 if any critical drift records exist from today
-function startAfterHoursAlertCheck() {
-  let lastFiredDate = null   // tracks the calendar date (YYYY-MM-DD) we last fired
-
-  setInterval(async () => {
-    const now   = new Date()
-    const today = now.toISOString().slice(0, 10)
-    if (now.getHours() < 19) return              // before 7pm — skip
-    if (lastFiredDate === today) return           // already fired today — skip
-
-
-    try {
-      const subscriptionId = process.env.AZURE_SUBSCRIPTION_ID
-      if (!subscriptionId) return
-
-      const since         = new Date(today + 'T00:00:00.000Z').toISOString()
-      const critical      = await getDriftRecords({ subscriptionId, severity: 'critical', limit: 50 })
-      const todayCritical = critical.filter(r => r.detectedAt >= since)
-
-      if (todayCritical.length === 0) { lastFiredDate = today; return }
-
-      console.log(`[after-hours-alert] ${todayCritical.length} critical drift(s) found after 19:00 — sending alerts`)
-
-      for (const record of todayCritical) {
-        await sendDriftAlertEmail({ ...record, afterHoursAlert: true })
-      }
-
-      lastFiredDate = today
-      console.log(`[after-hours-alert] done — fired for date ${today}`)
-    } catch (e) {
-      console.error('[after-hours-alert] error:', e.message)
-    }
-  }, 60 * 1000)  // check every minute
-}
-// ── After-hours critical drift alert END ─────────────────────────────────────
+

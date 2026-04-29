@@ -16,11 +16,8 @@
 // Returns: { driftEvents, socketConnected, socketError, clearDriftEvents }
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { onResourceChange, subscribeScope, isConnected } from '../services/socketSingleton'
  
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ??
-  import.meta.env.VITE_API_BASE_URL?.replace('/api', '') ??
-  null
  
  
 // ── useDriftSocket START ─────────────────────────────────────────────────────
@@ -45,11 +42,7 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
   // Whether the last connection attempt failed (shows error indicator in UI)
   const [socketError, setSocketError] = useState(false)
 
-  // Ref to the Socket.IO client instance — using a ref so reconnects don't trigger re-renders
-  const socketRef = useRef(null)
-
   // Ref that tracks whether the component is still mounted — prevents state updates after unmount
-  const mountedRef = useRef(true)
 
   // Ref that mirrors the isSubmitted prop — used inside the Socket.IO event handler
   // A ref is needed because the handler forms a closure over the initial value of isSubmitted
@@ -81,106 +74,27 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
   }, [setLiveEventList])
   // ── addEvent END ─────────────────────────────────────────────────────────
  
-  // ── connectSocket START ──────────────────────────────────────────────────
-  // Establishes the Socket.IO connection, subscribes to the scope room, and registers event listeners
-  // connectSocket — creates the Socket.IO connection and registers all event handlers
-  // Called once on mount (via useEffect below)
-  // Re-runs only when subscriptionId, resourceGroup, or addEvent changes
-  const connectSocket = useCallback(() => {
-    if (!SOCKET_URL || !scope?.subscriptionId) return
-
-    // Dynamically import socket.io-client to keep the initial bundle smaller
-    import('socket.io-client')
-      .then(({ io }) => {
-        if (!mountedRef.current) return
-
-        // Disconnect any existing socket before creating a new one
-        socketRef.current?.disconnect()
-
-        // Create the Socket.IO connection with automatic reconnection
-        const socketConnection = io(SOCKET_URL, {
-          transports: ['websocket', 'polling'],
-          reconnectionAttempts: Infinity,
-          reconnectionDelay: 2000,
-          reconnectionDelayMax: 10000,
-        })
-        socketRef.current = socketConnection
-
-        // On connect: join the correct room for the selected scope
-        // The server uses this room to route events to the right clients
-        socketConnection.on('connect', () => {
-          if (!mountedRef.current) return
-          setSocketConnected(true)
-          setSocketError(false)
-          socketConnection.emit('subscribe', {
-            subscriptionId: scope.subscriptionId,
-            resourceGroup:  scope.resourceGroup || null,
-            resourceId:     scope.resourceId || null,
-          })
-        })
-
-        socketConnection.on('disconnect', () => {
-          if (mountedRef.current) setSocketConnected(false)
-        })
-
-        socketConnection.on('connect_error', () => {
-          if (mountedRef.current) { setSocketConnected(false); setSocketError(true) }
-        })
-
-        socketConnection.on('reconnect', () => {
-          if (mountedRef.current) setSocketError(false)
-        })
-
-        // Handle incoming drift events from the server
-        // Events are emitted by queuePoller.js or /internal/drift-event in app.js
-        socketConnection.on('resourceChange', (incomingDriftEvent) => {
-          if (!mountedRef.current) return
-
-          // Gate: ignore events until the user has clicked Submit on DriftScanner
-          if (!isSubmittedRef.current) return
-
-          // Scope filter: only accept events that match the selected subscription/RG/resource
-          const eventMatchesSubscription = incomingDriftEvent.subscriptionId === scope.subscriptionId
-          const eventMatchesResourceGroup = !scope.resourceGroup || incomingDriftEvent.resourceGroup === scope.resourceGroup
-          const eventMatchesResource = !scope.resourceId ||
-            incomingDriftEvent.resourceId?.toLowerCase() === scope.resourceId?.toLowerCase() ||
-            incomingDriftEvent.resourceId?.toLowerCase().endsWith(`/${scope.resourceId?.split('/').pop()?.toLowerCase()}`)
-
-          if (!eventMatchesSubscription || !eventMatchesResourceGroup || !eventMatchesResource) return
-
-          // Add to the live feed
-          addEvent(incomingDriftEvent)
-
-          // Notify DriftScanner so it can update the JSON tree with the new live config
-          if (onConfigUpdate && incomingDriftEvent.resourceId) {
-            onConfigUpdate(incomingDriftEvent)
-          }
-        })
-      })
-      .catch(() => {})
-  }, [scope?.subscriptionId, scope?.resourceGroup, addEvent, onConfigUpdate])
-  // ── connectSocket END ────────────────────────────────────────────────────
- 
+  // Subscribe to global socket singleton — persists across navigation
   useEffect(() => {
-    mountedRef.current = true
-    connectSocket()
-    return () => {
-      mountedRef.current = false
-      socketRef.current?.disconnect()
-      socketRef.current = null
-    }
-  }, [connectSocket])
+    if (!scope?.subscriptionId) return
+    // Join the scope room
+    subscribeScope({ subscriptionId: scope.subscriptionId, resourceGroup: scope.resourceGroup, resourceId: scope.resourceId })
+    setSocketConnected(isConnected())
 
-  // Re-subscribe when scope changes on an already-connected socket
-  useEffect(() => {
-    if (socketRef.current?.connected && scope?.subscriptionId) {
-      socketRef.current.emit('subscribe', {
-        subscriptionId: scope.subscriptionId,
-        resourceGroup:  scope.resourceGroup || null,
-        resourceId:     scope.resourceId || null,
-      })
-    }
-  }, [scope?.subscriptionId, scope?.resourceGroup, scope?.resourceId])
+    // Register event listener on the singleton
+    const unsubscribe = onResourceChange((incomingDriftEvent) => {
+      if (!isSubmittedRef.current) return
+      const matchesSub = incomingDriftEvent.subscriptionId === scope.subscriptionId
+      const matchesRG  = !scope.resourceGroup || incomingDriftEvent.resourceGroup === scope.resourceGroup
+      const matchesRes = !scope.resourceId ||
+        incomingDriftEvent.resourceId?.toLowerCase() === scope.resourceId?.toLowerCase() ||
+        incomingDriftEvent.resourceId?.toLowerCase().endsWith(`/${scope.resourceId?.split('/').pop()?.toLowerCase()}`)
+      if (!matchesSub || !matchesRG || !matchesRes) return
+      addEvent(incomingDriftEvent)
+      if (onConfigUpdate && incomingDriftEvent.resourceId) onConfigUpdate(incomingDriftEvent)
+    })
+    return unsubscribe
+  }, [scope?.subscriptionId, scope?.resourceGroup, scope?.resourceId, addEvent, onConfigUpdate])
  
   // ── clearChangeEvents START ──────────────────────────────────────────────
   // Resets the drift event feed to empty

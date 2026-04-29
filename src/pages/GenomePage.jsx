@@ -22,6 +22,30 @@ import { useDashboard } from '../context/DashboardContext'
 import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot } from '../services/api'
 import './GenomePage.css'
 
+// Strips volatile fields for comparison — same keys as ComparisonPage normaliseState
+function stripForCompare(obj) {
+  if (!obj) return {}
+  const SKIP = ['etag','provisioningState','changedTime','createdTime','lastModifiedAt',
+    'vmId','timeCreated','instanceView','resourceGuid','adminUsername','disablePasswordAuthentication','ssh']
+  const strip = (o, parent = '') => {
+    if (Array.isArray(o)) return o.map(i => strip(i, parent))
+    if (o && typeof o === 'object') return Object.fromEntries(
+      Object.entries(o)
+        .filter(([k]) => !SKIP.includes(k))
+        .filter(([k]) => !(parent === 'osDisk' && ['name','managedDisk'].includes(k)))
+        .map(([k,v]) => [k, strip(v, k)])
+    )
+    return o
+  }
+  return strip(JSON.parse(JSON.stringify(obj)))
+}
+
+// Returns true if two configs are functionally identical (ignoring volatile fields)
+function configsMatch(a, b) {
+  if (!a || !b) return false
+  return JSON.stringify(stripForCompare(a)) === JSON.stringify(stripForCompare(b))
+}
+
 export default function GenomePage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -241,9 +265,9 @@ export default function GenomePage() {
                   </button>
                   <button className="gp-snap-btn gp-snap-btn--red"
                     onClick={e => { e.stopPropagation(); handleRollback(snapshot) }}
-                    disabled={activeActionBlobKey === snapshot._blobKey || !!snapshot.rolledBackAt}
-                    title={snapshot.rolledBackAt ? `Rolled back on ${new Date(snapshot.rolledBackAt).toLocaleString()}` : isResourceGroupLevel ? 'Rollback all resources' : 'Rollback resource'}>
-                    {activeActionBlobKey === snapshot._blobKey ? '...' : snapshot.rolledBackAt ? 'Rolled Back' : isResourceGroupLevel ? 'Rollback All' : 'Rollback'}
+                    disabled={activeActionBlobKey === snapshot._blobKey || configsMatch(snapshot.resourceState, configData)}
+                    title={configsMatch(snapshot.resourceState, configData) ? 'Live config already matches this snapshot' : isResourceGroupLevel ? 'Rollback all resources' : 'Rollback resource'}>
+                    {activeActionBlobKey === snapshot._blobKey ? '...' : configsMatch(snapshot.resourceState, configData) ? 'Already Applied' : isResourceGroupLevel ? 'Rollback All' : 'Rollback'}
                   </button>
                   <button className="gp-snap-btn gp-snap-btn--grey"
                     onClick={e => { e.stopPropagation(); handleDelete(snapshot) }}

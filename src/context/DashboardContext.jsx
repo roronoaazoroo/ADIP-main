@@ -24,8 +24,6 @@
 //   - isScanning, isMonitoring, isSubmitted → scan state flags
 //   - configData → the live ARM config JSON (re-fetched on submit)
 //   - scanProgress → progress bar percentage
-//   - policyData → Azure Policy compliance result
-//   - anomalies → AI anomaly detection results
 
 // Refs (not state — changes don't trigger re-renders):
 //   - scanInterval → holds the setInterval ID for the scan animation (so it can be cleared on Stop)
@@ -97,12 +95,6 @@ export function DashboardProvider({ children }) {
   // Progress bar percentage (0–100) during the scan animation
   const [scanProgress,   setScanProgress]   = useState(0)
 
-  // Azure Policy compliance result for the selected resource
-  const [policyData,     setPolicyData]     = useState(null)
-
-  // AI anomaly detection results (array of { title, description, severity, affectedResource })
-  const [anomalies,      setAnomalies]      = useState([])
-
   // ── Refs (not state — changes don't trigger re-renders) ───────────────────
 
   // Holds the setInterval ID for the scan animation so handleStop can clear it
@@ -129,8 +121,6 @@ export function DashboardProvider({ children }) {
       liveEvents,     setLiveEvents,
       driftEvents,    setDriftEvents,
       scanProgress,   setScanProgress,
-      policyData,     setPolicyData,
-      anomalies,      setAnomalies,
       scanInterval,   monitorScope,   jsonTreeRef,
     }}>
       {children}

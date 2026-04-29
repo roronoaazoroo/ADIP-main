@@ -5,7 +5,7 @@ const { classifySeverity } = require('../shared/severity')
 const { getResourceConfig } = require('../services/azureResourceService')
 const { getBaseline, saveDriftRecord } = require('../services/blobService')
 const { broadcastDriftEvent } = require('../services/socketService')
-const { explainDrift, reclassifySeverity } = require('../services/aiService')
+const { explainDrift } = require('../services/aiService')
 const { TableClient } = require('@azure/data-tables')
 const { mapDiffToControls } = require('../shared/complianceMap')
 
@@ -84,21 +84,9 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller
   }
 
   if (detectedChanges.length > 0) {
-    // Run AI explanation and severity re-classification in parallel (non-blocking)
-    const [aiExplanationResult, aiSeverityResult] = await Promise.allSettled([
-      explainDrift(driftRecord), reclassifySeverity(driftRecord),
-    ]).then(results => results.map(result => result.value ?? null))
-
+    // Run AI explanation only (severity stays rule-based, no AI escalation)
+    const aiExplanationResult = await explainDrift(driftRecord).catch(() => null)
     if (aiExplanationResult) driftRecord.aiExplanation = aiExplanationResult
-    if (aiSeverityResult) {
-      driftRecord.aiSeverity  = aiSeverityResult.severity
-      driftRecord.aiReasoning = aiSeverityResult.reasoning
-      // AI can only escalate severity, never reduce it
-      const severityOrder = ['none', 'low', 'medium', 'high', 'critical']
-      if (severityOrder.indexOf(aiSeverityResult.severity) > severityOrder.indexOf(driftRecord.severity)) {
-        driftRecord.severity = aiSeverityResult.severity
-      }
-    }
     await saveDriftRecord(driftRecord)
     broadcastDriftEvent(driftRecord)
   }

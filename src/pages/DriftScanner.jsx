@@ -4,7 +4,7 @@
 // What this page does:
 //   - Lets the user pick a Subscription → Resource Group → Resource from dropdowns
 //   - On Submit: fetches live ARM config, shows it as a JSON tree, starts Socket.IO
-//     monitoring, seeds the diff cache, fetches policy compliance and AI anomalies
+//     monitoring, seeds the diff cache
 //   - Live Activity Feed tab: shows real-time ARM change events pushed via Socket.IO
 //   - On Stop: clears monitoring session, resets all state
 //   - Navigate to Comparison Page or Genome Page via toolbar buttons
@@ -64,8 +64,6 @@ export default function DriftScanner() {
     liveEvents, setLiveEvents,
     driftEvents, setDriftEvents,
     scanProgress, setScanProgress,
-    policyData, setPolicyData,
-    anomalies, setAnomalies,
     scanInterval, monitorScope, jsonTreeRef,
   } = useDashboard()
 
@@ -128,7 +126,7 @@ export default function DriftScanner() {
   // 1. Plays through the LIVE_EVENTS_TEMPLATE animation steps (progress bar)
   // 2. Fetches live ARM config from /api/configuration (or demo config if offline)
   // 3. On success: sets isSubmitted=true (unblocks Socket.IO), seeds the diff cache,
-  //    starts monitoring session, fetches policy compliance and AI anomalies
+  //    starts monitoring session
   const handleSubmit = () => {
     if (!subscription || !resourceGroup || isScanning) return
 
@@ -167,13 +165,9 @@ export default function DriftScanner() {
               setConfigData(fetchedConfig)
 
               // // Fetch Azure Policy compliance state for the selected scope
-              // fetchPolicyCompliance(subscription, resourceGroup, resource || null)
               //   .then(policyResult => setPolicyData(policyResult)).catch(() => {})
 
               if (!isDemoMode) {
-                // Fetch AI anomaly detection across last 50 drift records
-                // fetchAnomalies(subscription)
-                //   .then(anomalyResult => setAnomalies(anomalyResult?.anomalies || [])).catch(() => {})
 
                 // Seed the diff cache so the first Socket.IO event has a previous state to diff against
                 const resourcesToCacheForDiff = fetchedConfig.resources
@@ -233,7 +227,6 @@ export default function DriftScanner() {
     setLiveEvents([])
     setScanProgress(0)
     setPolicyData(null)
-    setAnomalies([])
     setDriftPrediction(null)
     clearDriftEvents()      // clears the live activity feed
   }
@@ -338,19 +331,6 @@ export default function DriftScanner() {
                 <div className="ds-stat-pill ds-stat-pill--ok"><span className="ds-stat-val">{loadedTagCount}</span> tags</div>
                 <div className="ds-stat-pill ds-stat-pill--region"><span className="ds-stat-val">{loadedRegion}</span></div>
                 
-              </div>
-            )}
-
-            {/* AI Anomalies */}
-            {anomalies?.length > 0 && (
-              <div className="ds-anomalies" style={{ marginTop: '16px' }}>
-                <span className="ds-anomaly-label">AI Insights</span>
-                {anomalies.slice(0, 1).map((anomaly, i) => (
-                  <div key={i} className="ds-anomaly-card">
-                    <div className="ds-anomaly-title">{anomaly.title}</div>
-                    <div className="ds-anomaly-desc">{anomaly.description}</div>
-                  </div>
-                ))}
               </div>
             )}
 

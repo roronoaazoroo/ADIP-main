@@ -11,8 +11,7 @@
 //   - Drift & stats:   fetchDriftEvents, fetchRecentChanges, fetchStatsToday, fetchChartStats
 //   - Remediation:     remediateToBaseline, requestRemediation
 //   - Monitoring:      cacheState, stopMonitoring
-//   - Policy:          fetchPolicyCompliance
-//   - AI:              fetchAiExplanation, fetchAiRecommendation, fetchAnomalies
+//   - AI:              fetchAiExplanation, fetchAiRecommendation
 //   - Genome:          fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot,
 //                      rollbackToSnapshot, deleteGenomeSnapshot
 
@@ -174,14 +173,6 @@ export async function stopMonitoring(subscriptionId, resourceGroupId, resourceId
 
 // ── Policy ────────────────────────────────────────────────────────────────────
 
-// Returns Azure Policy compliance state for a resource or resource group
-// Returns { total, nonCompliant, compliant, violations[] }
-// Calls GET /api/policy/compliance → PolicyInsightsClient
-export async function fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId = null) {
-  const queryParams = new URLSearchParams({ subscriptionId, resourceGroupId })
-  if (resourceId) queryParams.set('resourceId', resourceId)
-  return apiRequest(`/policy/compliance?${queryParams}`)
-}
 
 
 // ── AI Features ───────────────────────────────────────────────────────────────
@@ -200,12 +191,6 @@ export async function fetchAiRecommendation(driftRecord) {
   return apiRequest('/ai/recommend', { method: 'POST', body: JSON.stringify(driftRecord) })
 }
 
-// Requests AI anomaly detection across the last 50 drift records
-// Returns { anomalies: [{ title, description, severity, affectedResource }] }
-// Calls GET /api/ai/anomalies → Express proxy → aiOperations Azure Function → GPT-4o
-// export async function fetchAnomalies(subscriptionId) {
-//   return apiRequest(`/ai/anomalies?subscriptionId=${subscriptionId}`)
-// }
 
 
 // ── Configuration Genome ──────────────────────────────────────────────────────
@@ -383,4 +368,21 @@ export async function saveUserPreferences(username, preferences) {
 
 export async function fetchPolicyAssignments(subscriptionId, resourceGroupId) {
   return apiRequest(`/policy/assignments?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceGroupId=${encodeURIComponent(resourceGroupId)}`)
+}
+
+// ── Cost Estimate ────────────────────────────────────────────────────────────
+
+export async function fetchCostEstimate(resourceType, fieldPath, oldValue, newValue, location) {
+  const p = new URLSearchParams({
+    resourceType,
+    fieldPath,
+    oldValue: typeof oldValue === 'object' ? JSON.stringify(oldValue) : String(oldValue ?? ''),
+    newValue: typeof newValue === 'object' ? JSON.stringify(newValue) : String(newValue ?? ''),
+    location: location || 'westus2',
+  })
+  return apiRequest(`/cost-estimate?${p}`)
+}
+
+export async function fetchCostSavings(subscriptionId, days = 30) {
+  return apiRequest(`/cost-savings?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
 }

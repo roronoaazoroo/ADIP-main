@@ -28,15 +28,6 @@ const READONLY_FIELDS = [
   'defaultSecurityRules', 'networkInterfaces', 'subnets',
 ]
 
-// Top-level VM properties that are entirely read-only and must be omitted from PUT
-const VM_READONLY_TOP = ['vmId', 'timeCreated', 'instanceView', 'resources']
-
-// Nested path segments whose entire subtree should be stripped for VMs
-// Key = parent property name, Value = child keys to remove
-const VM_READONLY_NESTED = {
-  osDisk:       ['name', 'managedDisk'],   // disk identity assigned by ARM
-  storageProfile: [],                       // handled via osDisk above
-}
 
 /**
  * Recursively strips volatile and read-only fields from an ARM resource object

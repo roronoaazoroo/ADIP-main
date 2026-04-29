@@ -18,10 +18,36 @@ import { diff as deepDiff } from 'deep-diff'
 import JsonTree from '../components/JsonTree'
 import NavBar from '../components/NavBar'
 import ScheduleRemediationModal from '../components/ScheduleRemediationModal'
-import { fetchBaseline, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
+import { fetchBaseline, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation, fetchResourceConfiguration, fetchComplianceImpact } from '../services/api'
 import { useDashboard } from '../context/DashboardContext'
 import { getControlsForPath } from '../utils/complianceMap'
+import { fetchCostEstimate } from '../services/api'
 import './ComparisonPage.css'
+
+// Fetches and displays cost delta for cost-relevant diff rows
+function CostDeltaBadge({ resourceType, location, fieldPath, oldValue, newValue }) {
+  const [delta, setDelta] = React.useState(null)
+  React.useEffect(() => {
+    if (oldValue === undefined || newValue === undefined) return
+    fetchCostEstimate(resourceType, fieldPath, oldValue, newValue, location)
+      .then(r => { if (r?.deltaPerMonth != null) setDelta(r) })
+      .catch(() => {})
+  }, [resourceType, location, fieldPath, oldValue, newValue])
+
+  if (!delta?.deltaPerMonth) return null
+  const positive = delta.deltaPerMonth > 0
+  const color    = positive ? '#ef4444' : '#10b981'
+  const sign     = positive ? '+' : ''
+  const tip      = delta.note || `Estimated monthly cost impact (${delta.referenceGB || 1024}GB reference)`
+  return (
+    <span title={tip} style={{
+      fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, marginLeft: 6,
+      background: `${color}18`, color, border: `1px solid ${color}30`, whiteSpace: 'nowrap', cursor: 'help',
+    }}>
+      {sign}${Math.abs(delta.deltaPerMonth).toFixed(2)}/mo
+    </span>
+  )
+}
 
 const CRITICAL_PATHS = ['properties.networkAcls','properties.accessPolicies','properties.securityRules','sku','location','identity','properties.encryption']
 
@@ -82,6 +108,21 @@ export default function ComparisonPage() {
   const location = useLocation()
   const state = location.state ?? {}
   const { subscriptionId, resourceGroupId, resourceId, resourceName, liveState: passedLive } = state
+
+  // Live config — starts from navigation state, refreshed every 5 seconds
+  const [currentLive, setCurrentLive] = useState(passedLive)
+
+  // Poll live ARM config every 5 seconds to keep the comparison up to date
+  useEffect(() => {
+    if (!subscriptionId || !resourceGroupId || !resourceId) return
+    const id = setInterval(async () => {
+      try {
+        const fresh = await fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
+        if (fresh) setCurrentLive(fresh)
+      } catch { /* non-fatal — keep showing last known state */ }
+    }, 5000)
+    return () => clearInterval(id)
+  }, [subscriptionId, resourceGroupId, resourceId])
   const effectiveId = resourceId || resourceGroupId
   const { subscription, resourceGroup, resource, configData } = useDashboard()
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
@@ -131,9 +172,9 @@ export default function ComparisonPage() {
 
   // Feature 6: Schedule Remediation Modal
   const [showScheduleModal, setShowScheduleModal] = useState(false)
-  const [scheduledConfirmation, setScheduledConfirmation] = useState(null)
   const [isPolicyCreated,   setIsPolicyCreated]   = useState(false)
   const [policiesCreated,   setPoliciesCreated]   = useState([])
+  const [complianceControls, setComplianceControls] = useState([])
 
   // Refs to the JsonTree components so we can call expandAll/collapseAll imperatively
   const baselineTreeRef = useRef(null)
@@ -145,44 +186,40 @@ export default function ComparisonPage() {
     if (!subscriptionId) return
     setIsLoadingBaseline(true)
 
-    // Fetch policy compliance in the background (non-blocking)
-    // fetchPolicyCompliance(subscriptionId, resourceGroupId, resourceId)
-    //   .then(setPolicyComplianceData).catch(() => {})
-
-    // Fetch the golden baseline blob for this resource
+    // Fetch the golden baseline blob once — does NOT re-run on live config refresh
     fetchBaseline(subscriptionId, effectiveId).then(baselineDocument => {
       if (baselineDocument?.resourceState) {
-        // Strip volatile fields before comparing so etag/provisioningState don't show as drift
-        const strippedBaseline = normaliseState(baselineDocument.resourceState)
-        const strippedLive     = normaliseState(passedLive)
-        setBaselineConfig(strippedBaseline)
-
-        // Run deep field-level diff
-        const rawDiffResult      = deepDiff(strippedBaseline, strippedLive) || []
-        const formattedDiffItems = formatDifferences(rawDiffResult)
-        setFieldDifferences(formattedDiffItems)
-        setDriftSeverity(classifySeverity(formattedDiffItems))
-        // If drift was found, fetch AI explanation in the background
-        if (formattedDiffItems.length > 0) {
-          setIsAiLoading(true)
-          fetchAiExplanation({
-            resourceId,
-            resourceGroup: resourceGroupId,
-            subscriptionId,
-            severity: classifySeverity(formattedDiffItems),
-            differences: formattedDiffItems,
-            changes:     formattedDiffItems,
-          })
-            .then(aiResponse => setAiDriftExplanation(aiResponse?.explanation || null))
-            .catch(() => {})
-            .finally(() => setIsAiLoading(false))
-        }
+        setBaselineConfig(normaliseState(baselineDocument.resourceState))
       } else {
-        // No baseline stored for this resource
         setBaselineNotFound(true)
       }
     }).catch(() => setBaselineNotFound(true)).finally(() => setIsLoadingBaseline(false))
   }, [subscriptionId, resourceId])
+
+  // Re-run diff silently whenever live config refreshes — no loading screen
+  useEffect(() => {
+    if (!baselineConfig || !currentLive) return
+    const rawDiffResult      = deepDiff(baselineConfig, normaliseState(currentLive)) || []
+    const formattedDiffItems = formatDifferences(rawDiffResult)
+    setFieldDifferences(formattedDiffItems)
+    setDriftSeverity(classifySeverity(formattedDiffItems))
+
+    // Fetch compliance impact silently
+    if (formattedDiffItems.length > 0) {
+      fetchComplianceImpact(formattedDiffItems).then(setComplianceControls).catch(() => {})
+    } else {
+      setComplianceControls([])
+    }
+
+    // Fetch AI explanation only when baseline first loads (not on every 5s refresh)
+    if (formattedDiffItems.length > 0 && !aiDriftExplanation && !isAiLoading) {
+      setIsAiLoading(true)
+      fetchAiExplanation({ resourceId, resourceGroup: resourceGroupId, subscriptionId, severity: classifySeverity(formattedDiffItems), differences: formattedDiffItems, changes: formattedDiffItems })
+        .then(r => setAiDriftExplanation(r?.explanation || null))
+        .catch(() => {})
+        .finally(() => setIsAiLoading(false))
+    }
+  }, [baselineConfig, currentLive])
 
   // handleRemediate — called when the user clicks 'Apply Fix Now' or 'Request Approval'
   // Low severity: immediately calls ARM PUT via /api/remediate to revert to baseline
@@ -205,7 +242,7 @@ export default function ComparisonPage() {
 
     try {
       // Compute the diff that will be shown in the success banner
-      const strippedLiveForSummary = normaliseState(passedLive)
+      const strippedLiveForSummary = normaliseState(currentLive)
       setRemediationDiffSummary(formatDifferences(deepDiff(baselineConfig || {}, strippedLiveForSummary) || []))
 
       if (driftSeverity === 'low') {
@@ -276,7 +313,7 @@ export default function ComparisonPage() {
         const updatedBaselineDocument = await fetchBaseline(subscriptionId, effectiveId)
         if (updatedBaselineDocument?.resourceState) {
           const newStrippedBaseline = normaliseState(updatedBaselineDocument.resourceState)
-          const strippedLive        = normaliseState(passedLive)
+          const strippedLive        = normaliseState(currentLive)
           const newDiffItems        = formatDifferences(deepDiff(newStrippedBaseline, strippedLive) || [])
           setBaselineConfig(newStrippedBaseline)
           setFieldDifferences(newDiffItems)
@@ -301,7 +338,7 @@ export default function ComparisonPage() {
   const collapseAll = useCallback(() => { baselineTreeRef.current?.collapseAll(); liveTreeRef.current?.collapseAll() }, [])
   const displayName = resourceName ?? resourceId?.split('/').pop() ?? resourceGroupId
 
-  if (!subscriptionId || !passedLive) {
+  if (!subscriptionId || !currentLive) {
     return (
       <div className="cp-root">
         <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
@@ -375,6 +412,12 @@ export default function ComparisonPage() {
             <div>
               <strong>{driftSeverity === 'low' ? '✓ Remediation applied.' : '✓ Approval request sent.'}</strong>
               {remediationDiffSummary.length > 0 && <span> {remediationDiffSummary.length} field change(s) queued.</span>}
+              {policiesCreated.length > 0 && (
+                <div style={{ fontSize: 12, color: '#10b981', marginTop: 4 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: 'middle' }}>policy</span>
+                  {' '}{policiesCreated.length} policy assignment{policiesCreated.length !== 1 ? 's' : ''} created to prevent recurrence
+                </div>
+              )}
             </div>
             {/* Feature 8: Policy as Code Enforcement */}
             {policiesCreated.length > 0 ? (
@@ -442,6 +485,16 @@ export default function ComparisonPage() {
                     <div className="cp-change-header">
                       <span className={`cp-change-badge cp-change-badge--${diffItem.type}`}>{diffItem.label}</span>
                       <code className="cp-change-path">{diffItem.path}</code>
+                      {/* Cost delta badge for cost-relevant storage changes */}
+                      {/sku|tier|accesstier|replication|capacity|keysource|encryption/i.test(diffItem.path) && diffItem.oldValue !== undefined && diffItem.newValue !== undefined && (
+                        <CostDeltaBadge
+                          resourceType={currentLive?.type || ''}
+                          location={currentLive?.location || 'westus2'}
+                          fieldPath={diffItem.path}
+                          oldValue={diffItem.oldValue}
+                          newValue={diffItem.newValue}
+                        />
+                      )}
                       {controls.length > 0 && (
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginLeft: 'auto' }}>
                           {controls.map((c, ci) => (
@@ -468,7 +521,7 @@ export default function ComparisonPage() {
         )}
 
         {/* JSON panels */}
-        {!isLoadingBaseline && (baselineConfig || passedLive) && (
+        {!isLoadingBaseline && (baselineConfig || currentLive) && (
           <div className="cp-json-row">
             <div className="cp-json-panel">
               <div className="cp-json-panel-header">
@@ -495,7 +548,7 @@ export default function ComparisonPage() {
                 <span className="cp-arm-badge">ARM</span>
               </div>
               <div className="cp-json-body">
-                <JsonTree ref={liveTreeRef} data={normaliseState(passedLive)} />
+                <JsonTree ref={liveTreeRef} data={normaliseState(currentLive)} />
               </div>
             </div>
           </div>
@@ -511,7 +564,6 @@ export default function ComparisonPage() {
           severity={driftSeverity}
           onClose={() => setShowScheduleModal(false)}
           onScheduled={schedule => {
-            setScheduledConfirmation(schedule)
             setRemediationSucceeded(true)
           }}
         />

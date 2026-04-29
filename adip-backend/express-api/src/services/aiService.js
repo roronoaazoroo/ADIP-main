@@ -7,7 +7,7 @@
 //   explainDrift(driftRecord)                    — plain-English security explanation
 //   reclassifySeverity(driftRecord)              — AI severity override (can only escalate)
 //   getRemediationRecommendation(driftRecord)    — what reverting to baseline will do
-//   detectAnomalies(recentDriftRecords)          — pattern detection across last 50 records
+//(recentDriftRecords)          — pattern detection across last 50 records
 'use strict'
 const fetch = require('node-fetch')
 
@@ -140,48 +140,4 @@ async function getRemediationRecommendation(driftRecord) {
 }
 // ── getRemediationRecommendation END ─────────────────────────────────────────
 
-
-// ── detectAnomalies START ────────────────────────────────────────────────────
-// Feature 5: Anomaly Detection
-// Analyses the last 50 drift records to surface unusual patterns in the drift history
-async function detectAnomalies(recentDriftRecords) {
-  console.log('[detectAnomalies] starts')
-
-  if (!Array.isArray(recentDriftRecords) || !recentDriftRecords.length) {
-    console.log('[detectAnomalies] ends — no endpoint or empty records')
-    return []
-  }
-  if (!process.env.AZURE_OPENAI_ENDPOINT) {
-    console.log('[detectAnomalies] ends — no endpoint or empty records')
-    return []
-  }
-
-  try {
-    // Build a compact summary of each drift record for the AI prompt
-    const driftSummaryForAI = recentDriftRecords.slice(0, 50).map(driftRecord => ({
-      resource: driftRecord.resourceId?.split('/').pop() || 'unknown',
-      rg:       driftRecord.resourceGroup,
-      severity: driftRecord.severity,
-      changes:  driftRecord.changeCount,
-      time:     driftRecord.detectedAt,
-      actor:    driftRecord.caller || driftRecord.actor || 'unknown',
-    }))
-
-    const aiResponseText = await callAzureOpenAI(
-      'You are an Azure security analyst. Find anomalies in this drift history. Respond ONLY with valid JSON array (max 3 items): [{"title":"short title","description":"1-2 sentences","severity":"high|medium|low","affectedResource":"name"}]. Return [] if no anomalies.',
-      JSON.stringify(driftSummaryForAI),
-      500
-    )
-    const parsedAnomalies = JSON.parse(aiResponseText.replace(/```json|```/g, '').trim())
-    const anomalyList     = Array.isArray(parsedAnomalies) ? parsedAnomalies : []
-    console.log('[detectAnomalies] ends')
-    return anomalyList
-  } catch (aiError) {
-    console.error('[AI anomalies]', aiError.message)
-    console.log('[detectAnomalies] ends — caught error')
-    return []
-  }
-}
-// ── detectAnomalies END ──────────────────────────────────────────────────────
-
-module.exports = { explainDrift, reclassifySeverity, getRemediationRecommendation, detectAnomalies }
+module.exports = { explainDrift, reclassifySeverity, getRemediationRecommendation }
