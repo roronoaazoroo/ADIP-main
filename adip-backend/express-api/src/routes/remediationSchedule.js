@@ -22,7 +22,7 @@ async function sendScheduleApprovalEmail(schedule) {
 
   const resourceName  = schedule.resourceId?.split('/').pop() || schedule.resourceId
   const scheduledTime = new Date(schedule.scheduledAt).toLocaleString()
-  const cancelUrl     = `${process.env.EXPRESS_PUBLIC_URL || process.env.EXPRESS_API_URL || 'http://localhost:3001'}/api/remediation-schedule/${encodeURIComponent(schedule.rowKey)}?subscriptionId=${encodeURIComponent(schedule.partitionKey)}&action=cancel`
+  const cancelUrl = `${process.env.EXPRESS_PUBLIC_URL || process.env.EXPRESS_API_URL || 'http://localhost:3001'}/api/remediation-schedule/${encodeURIComponent(schedule.rowKey)}/cancel?subscriptionId=${encodeURIComponent(schedule.partitionKey)}`
 
   const client = new EmailClient(connStr)
   const poller = await client.beginSend({
@@ -109,6 +109,27 @@ router.delete('/remediation-schedule/:rowKey', async (req, res) => {
   } catch (err) {
     console.log('[DELETE /remediation-schedule] error:', err.message)
     res.status(404).json({ error: 'Schedule not found' })
+  }
+})
+
+// GET /api/remediation-schedule/:rowKey/cancel?subscriptionId= — cancel via email link click
+router.get('/remediation-schedule/:rowKey/cancel', async (req, res) => {
+  console.log('[GET /remediation-schedule/cancel] starts')
+  const { subscriptionId } = req.query
+  const { rowKey } = req.params
+  if (!subscriptionId || !rowKey) return res.status(400).send('Missing subscriptionId or rowKey')
+  try {
+    await cancelSchedule(subscriptionId, rowKey)
+    res.send(`<html><body style="font-family:sans-serif;max-width:500px;margin:60px auto;text-align:center">
+      <h2 style="color:#16a34a">✓ Schedule Cancelled</h2>
+      <p>The remediation schedule has been cancelled successfully.</p>
+    </body></html>`)
+    console.log('[GET /remediation-schedule/cancel] ends — rowKey:', rowKey)
+  } catch (err) {
+    res.status(404).send(`<html><body style="font-family:sans-serif;max-width:500px;margin:60px auto;text-align:center">
+      <h2 style="color:#dc2626">Schedule Not Found</h2>
+      <p>${err.message}</p>
+    </body></html>`)
   }
 })
 
