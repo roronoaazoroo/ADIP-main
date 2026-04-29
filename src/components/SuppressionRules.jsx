@@ -6,8 +6,9 @@
 //   1. Subscription (auto-filled from context/env)
 //   2. Resource Group dropdown (loaded from API)
 //   3. Resource dropdown (optional, loaded after RG selected)
-//   4. Field Path (what to suppress, e.g. "tags") — auto-assigns changeTypes: ['all']
-//   5. Reason
+//   4. Change Types multi-select (added, removed, modified, all)
+//   5. Field Path (what to suppress, e.g. "tags")
+//   6. Reason
 //
 // Rules stored in Azure Table Storage (suppressionRules table).
 // Applied server-side in compare.js before severity classification.
@@ -19,6 +20,13 @@ import {
 } from '../services/api'
 
 const ENV_SUB_ID = import.meta.env.VITE_AZURE_SUBSCRIPTION_ID || ''
+
+const CHANGE_TYPE_OPTIONS = [
+  { value: 'all',      label: 'All changes' },
+  { value: 'added',    label: 'Added' },
+  { value: 'removed',  label: 'Removed' },
+  { value: 'modified', label: 'Modified' },
+]
 
 const COMMON_FIELDS = [
   'tags', 'properties.provisioningState', 'properties.networkAcls',
@@ -40,6 +48,7 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
   const [resourceList, setResourceList] = useState([])
   const [selRg,        setSelRg]        = useState('')
   const [selResource,  setSelResource]  = useState('')
+  const [changeTypes,  setChangeTypes]  = useState(['all'])
   const [fieldPath,    setFieldPath]    = useState('')
   const [reason,       setReason]       = useState('')
 
@@ -71,6 +80,14 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
       .catch(() => {})
   }, [effectiveSubId, selRg])
 
+  const toggleChangeType = (val) => {
+    if (val === 'all') { setChangeTypes(['all']); return }
+    setChangeTypes(prev => {
+      const without = prev.filter(v => v !== 'all')
+      return without.includes(val) ? without.filter(v => v !== val) : [...without, val]
+    })
+  }
+
   const handleAdd = async () => {
     if (!fieldPath.trim() || !effectiveSubId) return
     setSaving(true)
@@ -81,11 +98,11 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
         fieldPath.trim(),
         selRg,
         selResource,
-        ['all'],
+        changeTypes,
         reason.trim()
       )
       setRules(prev => [...prev, rule])
-      setFieldPath(''); setReason(''); setSelRg(''); setSelResource('')
+      setFieldPath(''); setReason(''); setSelRg(''); setSelResource(''); setChangeTypes(['all'])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -164,6 +181,21 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
             <option value="">All resources in group</option>
             {resourceList.map(r => <option key={r.id} value={r.id}>{r.name || r.id.split('/').pop()}</option>)}
           </select>
+        </div>
+
+        {/* Change Types */}
+        <div className="sp-form-field">
+          <label className="sp-form-label">Suppress Change Types</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+            {CHANGE_TYPE_OPTIONS.map(opt => (
+              <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox"
+                  checked={changeTypes.includes(opt.value) || (opt.value !== 'all' && changeTypes.includes('all'))}
+                  onChange={() => toggleChangeType(opt.value)} />
+                {opt.label}
+              </label>
+            ))}
+          </div>
         </div>
 
         {/* Field Path */}
