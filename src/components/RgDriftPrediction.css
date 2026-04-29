@@ -8,7 +8,7 @@
   flex: 1; min-width: 110px;
   background: #0f1623; border: 1px solid #2d3748; border-radius: 8px; padding: 12px 16px;
 }
-.rgp-stat-value { font-size: 24px; font-weight: 700; color: #003359; }
+.rgp-stat-value { font-size: 28px; font-weight: 700; color: #f1f5f9; }
 .rgp-stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
 
 /* ── AI Predictions list ── */
@@ -31,8 +31,8 @@
 .rgp-pred-card--LOW::before    { background: #10b981; }
 
 .rgp-pred-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.rgp-pred-name { font-size: 14px; font-weight: 600; color: #003359; flex: 1; }
-.rgp-pred-type { font-size: 11px; color: #475569; }
+.rgp-pred-name { font-size: 14px; font-weight: 600; color: #60a5fa; flex: 1; }
+.rgp-pred-type { font-size: 11px; color: #64748b; background: #1e293b; border: 1px solid #2d3748; border-radius: 4px; padding: 1px 7px; }
 
 .rgp-likelihood {
   font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
@@ -42,10 +42,10 @@
 .rgp-likelihood--MEDIUM { background: rgba(245,158,11,0.12); color: #f59e0b; }
 .rgp-likelihood--LOW    { background: rgba(16,185,129,0.12); color: #10b981; }
 
-.rgp-pred-reason { font-size: 12px; color: #64748b; line-height: 1.5; margin-bottom: 8px; }
+.rgp-pred-reason { font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 4px 0 10px; }
 
-.rgp-pred-meta { display: flex; gap: 14px; flex-wrap: wrap; }
-.rgp-pred-meta-item { font-size: 11px; color: #475569; display: flex; align-items: center; gap: 4px; }
+.rgp-pred-meta { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.rgp-pred-meta-item { font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 4px; }
 .rgp-pred-meta-item .material-symbols-outlined { font-size: 13px; }
 
 .rgp-fields { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
@@ -78,8 +78,8 @@
 
 /* ── Tooltip ── */
 .rgp-tooltip {
-  position: absolute; background: #0f1623; border: 1px solid #334155;
-  border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #1a1c1e;
+  position: absolute; background: #0f172a; border: 1px solid #334155;
+  border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #f1f5f9;
   pointer-events: none; z-index: 30; min-width: 160px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: nowrap;
 }
@@ -165,8 +165,8 @@
 .rgp-freq-bars {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin: 8px 0 4px;
+  gap: 6px;
+  margin: 4px 0 8px;
   width: 100%;
 }
 
@@ -186,23 +186,36 @@
 
 .rgp-freq-bar-track {
   flex: 1;
-  height: 6px;
+  height: 8px;
   background: rgba(255,255,255,0.07);
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .rgp-freq-bar-fill {
   height: 100%;
-  border-radius: 3px;
-  min-width: 2px;
-  transition: width 0.4s ease;
+  border-radius: 4px;
+  min-width: 4px;
+  transition: width 0.5s ease;
 }
 
 .rgp-freq-bar-val {
-  width: 20px;
+  width: 28px;
   text-align: right;
-  color: var(--text-secondary, #94a3b8);
+  color: #94a3b8;
   font-weight: 600;
+  font-size: 11px;
   flex-shrink: 0;
 }
+
+/* ── Severity summary line ─────────────────────────────────────────────────── */
+.rgp-sev-summary {
+  font-size: 11px;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.rgp-sev-summary .material-symbols-outlined { font-size: 13px; }
+.rgp-sev-high { color: #f97316; margin-left: 4px; }

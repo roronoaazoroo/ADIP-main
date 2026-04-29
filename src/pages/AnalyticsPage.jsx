@@ -7,8 +7,8 @@
 //   3. Drift Prediction & Forecasting   — AI predictions, forecast chart, risk projections
 
 import React, { useState, useMemo, useEffect } from 'react'
-import DriftForecastChart from '../components/DriftForecastChart'
 import RgDriftPrediction from '../components/RgDriftPrediction'
+import DriftForecastChart from '../components/DriftForecastChart'
 import ResourceDriftPrediction from '../components/ResourceDriftPrediction'
 import { fetchDriftPrediction, fetchDriftRecommendations, fetchRgRecommendations } from '../services/driftPredictionApi'
 import { useNavigate } from 'react-router-dom'
