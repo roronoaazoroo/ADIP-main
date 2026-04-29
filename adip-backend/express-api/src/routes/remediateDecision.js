@@ -143,6 +143,19 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
         await reconcileStorageChildren(subscriptionId, rgName, name, baselineStateStripped._childConfig, currentLiveConfig._childConfig, credential)
       }
 
+      // Record cost savings — diff live vs baseline to find cost-relevant changes
+      try {
+        const { recordRemediationSavings } = require('./costEstimate')
+        const { diffObjects } = require('../shared/diff')
+        const { stripVolatileFields: strip } = require('../shared/armUtils')
+        const liveForCost     = await getResourceConfig(subscriptionId, rgName, resourceId).catch(() => ({}))
+        const baselineForCost = await getBaseline(subscriptionId, resourceId).catch(() => null)
+        const diffs = baselineForCost?.resourceState
+          ? diffObjects(strip(liveForCost), strip(baselineForCost.resourceState))
+          : []
+        await recordRemediationSavings(subscriptionId, rgName, resourceId, diffs, liveForCost.location || process.env.DEFAULT_AZURE_LOCATION || 'eastus', liveForCost.type)
+      } catch { /* non-fatal */ }
+
       console.log('[GET /remediate-decision] ends — approved and applied')
       return res.send(html('✓ Remediation Applied',
         `<strong>${resourceName}</strong> has been successfully reverted to its golden baseline.`, '#16a34a'))

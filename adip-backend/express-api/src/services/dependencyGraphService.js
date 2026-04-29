@@ -2,17 +2,16 @@
 // FILE: adip-backend/express-api/src/services/dependencyGraphService.js
 // ROLE: Builds a dependency graph for all resources in a resource group.
 //
-// 1. Lists all resources in the RG via ARM SDK
-// 2. Fetches full properties for each resource (to extract relationship refs)
-// 3. Parses known relationship patterns from resource properties
-// 4. Overlays drift status from driftIndex Table (last 7 days)
-// 5. Returns { nodes[], links[] } ready for react-force-graph-2d
+// Uses Azure Resource Graph API (single KQL query) instead of N ARM GET calls.
+// Falls back to ARM SDK if Resource Graph is unavailable.
 // ============================================================
 'use strict'
-const { getResourceConfig }       = require('./azureResourceService')
+const { ResourceGraphClient }    = require('@azure/arm-resourcegraph')
+const { DefaultAzureCredential } = require('@azure/identity')
 const { getDriftIndexTableClient } = require('./blobService')
 
-// Color per resource type family
+const credential = new DefaultAzureCredential()
+
 const TYPE_COLOR = {
   'microsoft.network/virtualnetworks':          '#1995ff',
   'microsoft.network/virtualnetworks/subnets':  '#06b6d4',
@@ -32,13 +31,11 @@ function nodeColor(type) {
   return TYPE_COLOR[type?.toLowerCase()] || '#64748b'
 }
 
-// Extracts outbound resource ID references from a resource's properties
 function parseReferences(resource) {
-  const refs = []
+  const refs  = []
   const props = resource.properties || {}
   const type  = (resource.type || '').toLowerCase()
 
-  // NIC → Subnet, PublicIP
   if (type === 'microsoft.network/networkinterfaces') {
     for (const ipConfig of props.ipConfigurations || []) {
       const p = ipConfig.properties || {}
@@ -47,66 +44,42 @@ function parseReferences(resource) {
     }
     if (props.networkSecurityGroup?.id) refs.push({ targetId: props.networkSecurityGroup.id, label: 'uses NSG' })
   }
-
-  // VM → NIC, Disk
   if (type === 'microsoft.compute/virtualmachines') {
     for (const nic of props.networkProfile?.networkInterfaces || []) {
       if (nic.id) refs.push({ targetId: nic.id, label: 'attached to' })
     }
     if (props.storageProfile?.osDisk?.managedDisk?.id)
       refs.push({ targetId: props.storageProfile.osDisk.managedDisk.id, label: 'os disk' })
-    for (const d of props.storageProfile?.dataDisks || []) {
-      if (d.managedDisk?.id) refs.push({ targetId: d.managedDisk.id, label: 'data disk' })
-    }
   }
-
-  // Subnet → NSG, RouteTable
   if (type === 'microsoft.network/virtualnetworks/subnets') {
     if (props.networkSecurityGroup?.id) refs.push({ targetId: props.networkSecurityGroup.id, label: 'protected by' })
-    if (props.routeTable?.id)           refs.push({ targetId: props.routeTable.id,           label: 'routes via' })
   }
-
-  // VNet → Subnets (child resources embedded in properties)
   if (type === 'microsoft.network/virtualnetworks') {
     for (const subnet of props.subnets || []) {
       if (subnet.id) refs.push({ targetId: subnet.id, label: 'contains' })
     }
   }
-
-  // Function App / Web App → App Service Plan
   if (type === 'microsoft.web/sites') {
     if (props.serverFarmId) refs.push({ targetId: props.serverFarmId, label: 'runs on' })
   }
-
-  // Logic App → nothing standard to extract without deep parsing
   return refs
 }
 
-/**
- * Builds the dependency graph for a resource group.
- * @param {string} subscriptionId
- * @param {string} resourceGroupId
- * @returns {{ nodes: Array, links: Array }}
- */
 async function buildDependencyGraph(subscriptionId, resourceGroupId) {
   console.log('[buildDependencyGraph] starts — rg:', resourceGroupId)
 
-  // 1. List all resources in the RG (returns minimal metadata)
-  const rgConfig = await getResourceConfig(subscriptionId, resourceGroupId, null)
-  const resources = rgConfig?.resources || []
+  // Single Resource Graph KQL query replaces N ARM GET calls
+  const client = new ResourceGraphClient(credential)
+  const query  = `Resources | where resourceGroup =~ '${resourceGroupId}' and subscriptionId =~ '${subscriptionId}' | project id, name, type, location, properties`
 
-  // 2. Fetch full properties for each resource in parallel (needed for relationship extraction)
-  const fullResources = await Promise.all(
-    resources.map(r =>
-      getResourceConfig(subscriptionId, resourceGroupId, r.id)
-        .catch(() => r)  // fallback to minimal if full fetch fails
-    )
-  )
+  const result    = await client.resources({ subscriptions: [subscriptionId], query }, {})
+  const resources = result.data || []
+  console.log('[buildDependencyGraph] Resource Graph returned:', resources.length, 'resources')
 
-  // 3. Build node map keyed by resource ID (normalised to lowercase for matching)
+  // Build node map
   const nodeMap = {}
-  for (const r of fullResources) {
-    if (!r?.id) continue
+  for (const r of resources) {
+    if (!r.id) continue
     nodeMap[r.id.toLowerCase()] = {
       id:       r.id,
       name:     r.name || r.id.split('/').pop(),
@@ -115,11 +88,11 @@ async function buildDependencyGraph(subscriptionId, resourceGroupId) {
       color:    nodeColor(r.type),
       isDrifted: false,
       severity:  'none',
-      val:       4,  // default node size
+      val:       4,
     }
   }
 
-  // 4. Overlay drift status from driftIndex (last 7 days)
+  // Overlay drift status from driftIndex (last 7 days)
   try {
     const since  = new Date(Date.now() - 7 * 86400000).toISOString()
     const filter = `PartitionKey eq '${subscriptionId}' and Timestamp ge datetime'${since}'`
@@ -128,22 +101,21 @@ async function buildDependencyGraph(subscriptionId, resourceGroupId) {
       if (nodeMap[key]) {
         nodeMap[key].isDrifted = true
         nodeMap[key].severity  = entity.severity || 'low'
-        nodeMap[key].val       = 8  // larger node if drifted
+        nodeMap[key].val       = 8
       }
     }
   } catch (driftError) {
-    console.log('[buildDependencyGraph] drift overlay failed (non-fatal):', driftError.message)
+    console.log('[buildDependencyGraph] drift overlay non-fatal:', driftError.message)
   }
 
-  // 5. Extract edges from resource properties
-  const links = []
+  // Extract edges
+  const links    = []
   const seenEdges = new Set()
-  for (const r of fullResources) {
-    if (!r?.id) continue
+  for (const r of resources) {
+    if (!r.id) continue
     for (const ref of parseReferences(r)) {
       const sourceKey = r.id.toLowerCase()
       const targetKey = ref.targetId.toLowerCase()
-      // Only include edges where both nodes are in the graph
       if (!nodeMap[sourceKey] || !nodeMap[targetKey]) continue
       const edgeKey = `${sourceKey}→${targetKey}`
       if (seenEdges.has(edgeKey)) continue

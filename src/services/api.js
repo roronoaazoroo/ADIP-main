@@ -73,6 +73,15 @@ export async function fetchResourceConfiguration(subscriptionId, resourceGroupId
 // Fetches the golden baseline blob for a resource from 'baselines' container
 // Returns { subscriptionId, resourceId, resourceState, promotedAt } or null if not found
 // Calls GET /api/baselines
+// Runs server-side drift comparison with suppression rules applied
+// Returns { differences, severity, liveState, baselineState, changeCount }
+export async function runCompare(subscriptionId, resourceGroupId, resourceId) {
+  return apiRequest('/compare', {
+    method: 'POST',
+    body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId }),
+  })
+}
+
 export async function fetchBaseline(subscriptionId, resourceId) {
   const queryParams = new URLSearchParams({ subscriptionId, resourceId })
   return apiRequest(`/baselines?${queryParams}`)
@@ -277,10 +286,10 @@ export default {
 // ── Reports ──────────────────────────────────────────────────────────────────
 
 // Generates a drift analysis report and saves it to blob storage
-export async function generateDriftReport(subscriptionId, periodDays = 7, sendEmail = false) {
+export async function generateDriftReport(subscriptionId, periodDays = 7, sendEmail = false, recipientEmail = '') {
   return apiRequest('/reports/generate', {
     method: 'POST',
-    body: JSON.stringify({ subscriptionId, periodDays, sendEmail }),
+    body: JSON.stringify({ subscriptionId, periodDays, sendEmail, recipientEmail }),
   })
 }
 
@@ -383,4 +392,21 @@ export async function saveUserPreferences(username, preferences) {
 
 export async function fetchPolicyAssignments(subscriptionId, resourceGroupId) {
   return apiRequest(`/policy/assignments?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceGroupId=${encodeURIComponent(resourceGroupId)}`)
+}
+
+// ── Cost Estimate ────────────────────────────────────────────────────────────
+
+export async function fetchCostEstimate(resourceType, fieldPath, oldValue, newValue, location) {
+  const p = new URLSearchParams({
+    resourceType,
+    fieldPath,
+    oldValue: typeof oldValue === 'object' ? JSON.stringify(oldValue) : String(oldValue ?? ''),
+    newValue: typeof newValue === 'object' ? JSON.stringify(newValue) : String(newValue ?? ''),
+    location: location || 'westus2',
+  })
+  return apiRequest(`/cost-estimate?${p}`)
+}
+
+export async function fetchCostSavings(subscriptionId, days = 30) {
+  return apiRequest(`/cost-savings?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
 }

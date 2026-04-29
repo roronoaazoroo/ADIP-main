@@ -40,9 +40,9 @@ export default function TopChangers({ subscriptionId }) {
     return () => { cancelled = true }
   }, [effectiveSubId])
 
-  if (loading) return <div className="dh-top-changers-empty">Loading...</div>
-  if (error)   return <div className="dh-top-changers-empty" style={{ color: '#ef4444' }}>{error}</div>
-  if (!rows.length) return <div className="dh-top-changers-empty">No attribution data yet.</div>
+  if (loading) return <div className="dh-top-changers-empty" role="status"><div className="skeleton skeleton-text" style={{ width: '60%', height: 14 }} /></div>
+  if (error)   return <div className="dh-top-changers-empty" role="alert" style={{ color: '#ef4444' }}>{error}</div>
+  if (!rows.length) return <div className="dh-top-changers-empty" role="status">No attribution data available yet. Data appears after drift events are detected.</div>
 
   const top = rows[0]
 
@@ -50,7 +50,7 @@ export default function TopChangers({ subscriptionId }) {
     <div className="dh-top-changers">
       {/* Highlight card for #1 */}
       <div className="dh-top-changer-hero">
-        <span className="material-symbols-outlined" style={{ fontSize: 32, color: '#f59e0b' }}>emoji_events</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 32, color: '#f59e0b' }} aria-hidden="true">emoji_events</span>
         <div>
           <div className="dh-top-changer-name">{top.caller}</div>
           <div className="dh-top-changer-stat">
@@ -62,14 +62,14 @@ export default function TopChangers({ subscriptionId }) {
       </div>
 
       {/* Ranked list */}
-      <table className="dh-table" style={{ marginTop: 12 }}>
+      <table className="dh-table" style={{ marginTop: 12 }} aria-label="Top drift causers">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Identity</th>
-            <th>Changes</th>
-            <th>Drifts</th>
-            <th>Drift Rate</th>
+            <th scope="col">#</th>
+            <th scope="col">Identity</th>
+            <th scope="col">Changes</th>
+            <th scope="col">Drifts</th>
+            <th scope="col">Drift Rate</th>
           </tr>
         </thead>
         <tbody>

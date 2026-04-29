@@ -21,7 +21,7 @@ async function saveReportBlob(blobKey, htmlContent) {
   const buffer     = Buffer.from(htmlContent, 'utf-8')
   await blockBlob.upload(buffer, buffer.length, { blobHTTPHeaders: { blobContentType: 'text/html' } })
 }
-const { sendDriftAlertEmail } = require('./alertService')
+const { EmailClient } = require('@azure/communication-email')
 
 // Report storage container — auto-created on first write by blobService
 const REPORTS_CONTAINER = 'drift-reports'
@@ -144,7 +144,7 @@ tr:nth-child(even){background:#f8fafc}
  * @param {boolean} sendEmail - Whether to email the report
  * @returns {object} { blobKey, reportData }
  */
-async function generateAndSaveReport(subscriptionId, periodDays = DEFAULT_REPORT_PERIOD_DAYS, sendEmail = false) {
+async function generateAndSaveReport(subscriptionId, periodDays = DEFAULT_REPORT_PERIOD_DAYS, sendEmail = false, recipientEmail = '') {
   console.log('[generateAndSaveReport] starts — subscriptionId:', subscriptionId, 'days:', periodDays)
 
   const sinceISO  = new Date(Date.now() - periodDays * 86400000).toISOString()
@@ -157,19 +157,15 @@ async function generateAndSaveReport(subscriptionId, periodDays = DEFAULT_REPORT
   await saveReportBlob(blobKey, htmlContent)
 
   // Optionally send via ACS email (uses existing alertService pattern)
-  if (sendEmail && process.env.ALERT_RECIPIENT_EMAIL) {
-    await sendDriftAlertEmail({
-      severity:      'high',  // ensures email is sent (alertService requires critical/high)
-      resourceId:    `report-${reportDate}`,
-      resourceGroup: 'compliance-reports',
-      subscriptionId,
-      detectedAt:    new Date().toISOString(),
-      differences:   [],
-      reportSummary: `Drift report for ${periodDays} days: ${reportData.totalDriftEvents} drift events, ${reportData.severityBreakdown.critical} critical.`,
-      isReport:      true,
-    }).catch(emailError => {
-      console.warn('[generateAndSaveReport] email send failed (non-fatal):', emailError.message)
-    })
+  if (sendEmail) {
+    const to = recipientEmail || process.env.ALERT_RECIPIENT_EMAIL
+    if (to) {
+      await sendReportEmail(to, htmlContent, reportDate, periodDays, reportData).catch(emailError => {
+        console.warn('[generateAndSaveReport] email send failed (non-fatal):', emailError.message)
+      })
+    } else {
+      console.warn('[generateAndSaveReport] sendEmail=true but no recipient email configured')
+    }
   }
 
   console.log('[generateAndSaveReport] ends — blobKey:', blobKey)
@@ -200,6 +196,37 @@ async function listSavedReports(subscriptionId) {
 
   console.log('[listSavedReports] ends — found:', reports.length)
   return reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+}
+
+
+/**
+ * Sends the report HTML directly via Azure Communication Services.
+ * @param {string} to - Recipient email address
+ * @param {string} htmlContent - Full HTML report
+ * @param {string} reportDate - e.g. '2026-04-28'
+ * @param {number} periodDays
+ * @param {object} reportData
+ */
+async function sendReportEmail(to, htmlContent, reportDate, periodDays, reportData) {
+  console.log('[sendReportEmail] starts — to:', to)
+  const connStr = process.env.COMMS_CONNECTION_STRING
+  const sender  = process.env.SENDER_ADDRESS
+  if (!connStr || !sender) {
+    console.log('[sendReportEmail] ends — COMMS_CONNECTION_STRING or SENDER_ADDRESS not configured')
+    return
+  }
+  const client = new EmailClient(connStr)
+  const poller = await client.beginSend({
+    senderAddress: sender,
+    recipients:    { to: [{ address: to }] },
+    content: {
+      subject:   `ADIP Drift Report — ${reportDate} (${periodDays} days)`,
+      html:      htmlContent,
+      plainText: `Drift report for ${periodDays} days: ${reportData.totalDriftEvents} drift events, ${reportData.severityBreakdown.critical} critical. View the HTML version for full details.`,
+    },
+  })
+  await poller.pollUntilDone()
+  console.log('[sendReportEmail] ends — sent to:', to)
 }
 
 module.exports = { generateAndSaveReport, listSavedReports, aggregateReportData }

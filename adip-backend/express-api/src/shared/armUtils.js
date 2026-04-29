@@ -18,6 +18,9 @@ const READONLY_FIELDS = [
   'resources', 'latestModelApplied',
   // VM osProfile: immutable after provisioning
   'adminUsername', 'adminPassword', 'computerName',
+  // VM linuxConfiguration / windowsConfiguration: immutable after provisioning
+  'disablePasswordAuthentication', 'ssh', 'provisionVMAgent', 'patchSettings',
+  'enableAutomaticUpdates', 'winRM',
   // VM storageProfile: disk identity is immutable
   'diskSizeGB', 'createOption',
   // VM networkProfile: NIC IDs are references, not settable via VM PUT
@@ -25,15 +28,6 @@ const READONLY_FIELDS = [
   'defaultSecurityRules', 'networkInterfaces', 'subnets',
 ]
 
-// Top-level VM properties that are entirely read-only and must be omitted from PUT
-const VM_READONLY_TOP = ['vmId', 'timeCreated', 'instanceView', 'resources']
-
-// Nested path segments whose entire subtree should be stripped for VMs
-// Key = parent property name, Value = child keys to remove
-const VM_READONLY_NESTED = {
-  osDisk:       ['name', 'managedDisk'],   // disk identity assigned by ARM
-  storageProfile: [],                       // handled via osDisk above
-}
 
 /**
  * Recursively strips volatile and read-only fields from an ARM resource object

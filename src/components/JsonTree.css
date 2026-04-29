@@ -11,16 +11,16 @@
 .json-string { color: #0060a9; }
 .json-number { color: #7c3aed; }
 .json-bool { color: #0891b2; font-weight: 600; }
-.json-null { color: #94a3b8; font-style: italic; }
+.json-null { color: #6b7280; font-style: italic; }
 .json-bracket { color: #64748b; font-weight: 700; }
-.json-colon { color: #94a3b8; }
-.json-index { color: #94a3b8; font-size: 11px; }
+.json-colon { color: #6b7280; }
+.json-index { color: #6b7280; font-size: 11px; }
 
 /* Expand/collapse count label */
 .json-count {
   font-size: 10px;
   font-weight: 600;
-  color: #94a3b8;
+  color: #6b7280;
   margin-left: 6px;
   letter-spacing: 0.03em;
 }
@@ -32,7 +32,7 @@
   cursor: pointer;
   padding: 1px 4px;
   border-radius: 4px;
-  color: #94a3b8;
+  color: #6b7280;
   font-size: 9px;
   line-height: 1;
   transition: all 0.15s ease;

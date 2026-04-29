@@ -9,12 +9,33 @@
 //   — non-fatal: errors are logged but never block remediation
 // ============================================================
 'use strict'
-const { PolicyClient }         = require('@azure/arm-policy')
+const { PolicyClient }           = require('@azure/arm-policy')
 const { DefaultAzureCredential } = require('@azure/identity')
-const { TableClient }          = require('@azure/data-tables')
-const policyMap                = require('../shared/policyMap.json')
+const { TableClient }            = require('@azure/data-tables')
+const localPolicyMap             = require('../shared/policyMap.json')
 
 const credential = new DefaultAzureCredential()
+
+// Load policyMap from Azure App Configuration if available, fall back to local JSON
+let _policyMap = null
+async function getPolicyMap() {
+  if (_policyMap) return _policyMap
+  try {
+    const connStr = process.env.APP_CONFIG_CONNECTION_STRING
+    if (connStr) {
+      const { AppConfigurationClient } = require('@azure/app-configuration')
+      const client   = new AppConfigurationClient(connStr)
+      const setting  = await client.getConfigurationSetting({ key: 'adip:policyMap' })
+      _policyMap = JSON.parse(setting.value)
+      console.log('[policyEnforcement] policyMap loaded from App Configuration')
+      return _policyMap
+    }
+  } catch (err) {
+    console.log('[policyEnforcement] App Configuration unavailable, using local policyMap:', err.message)
+  }
+  _policyMap = localPolicyMap
+  return _policyMap
+}
 
 function assignmentsTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'policyAssignments')
@@ -25,9 +46,8 @@ function findMatchingPolicies(changes) {
   const seen    = new Set()
   const matched = []
   for (const change of changes) {
-    // Normalise path: strip spaces and arrows, lowercase, keep dots
     const path = (change.path || '').toLowerCase().replace(/\s*→\s*/g, '.').replace(/[^a-z0-9.]/g, '')
-    for (const [mappedPath, policy] of Object.entries(policyMap)) {
+    for (const [mappedPath, policy] of Object.entries(_policyMap || localPolicyMap)) {
       const norm = mappedPath.toLowerCase().replace(/[^a-z0-9.]/g, '')
       if ((path === norm || path.startsWith(norm + '.') || path.includes(norm)) && !seen.has(policy.policyDefinitionId)) {
         seen.add(policy.policyDefinitionId)
@@ -47,6 +67,7 @@ function findMatchingPolicies(changes) {
  */
 async function enforcePolicesForDrift(subscriptionId, resourceGroupId, changes) {
   console.log('[enforcePolicesForDrift] starts — rg:', resourceGroupId)
+  const policyMap = await getPolicyMap()
   const matched = findMatchingPolicies(changes)
   if (!matched.length) {
     console.log('[enforcePolicesForDrift] ends — no matching policies')

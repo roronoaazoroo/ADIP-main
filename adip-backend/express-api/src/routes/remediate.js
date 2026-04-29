@@ -6,9 +6,9 @@ const fetch = require('node-fetch')
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential } = require('@azure/identity')
 const { getBaseline } = require('../services/blobService')
-const { sendDriftAlertEmail } = require('../services/alertService')
 const { reconcileStorageChildren } = require('../services/storageChildService')
 const { enforcePolicesForDrift }   = require('../services/policyEnforcementService')
+const { recordRemediationSavings } = require('./costEstimate')
 const { getResourceConfig, getApiVersion } = require('../services/azureResourceService')
 const { diffObjects } = require('../shared/diff')
 const { classifySeverity } = require('../shared/severity')
@@ -44,8 +44,7 @@ router_remediate.post('/remediate', async (req, res) => {
     const differences   = diffObjects(liveState, baselineState)
  
     const remSeverity = classifySeverity(differences)
-    // Send alert email if severity is critical or high (sendDriftAlertEmail handles the severity check)
-    sendDriftAlertEmail({ resourceId, resourceGroup: resourceGroupId, subscriptionId, severity: remSeverity, changeCount: differences.length, detectedAt: new Date().toISOString() }).catch(() => {})
+    // No alert email during remediation — user is actively fixing the drift
  
     const credential = new DefaultAzureCredential()
     const armClient  = new ResourceManagementClient(credential, subscriptionId)
@@ -120,8 +119,11 @@ router_remediate.post('/remediate', async (req, res) => {
       return []
     })
 
+    // Record cost savings for Feature B
+    const monthlySavings = await recordRemediationSavings(subscriptionId, rgName, resourceId, differences, liveRaw?.location || process.env.DEFAULT_AZURE_LOCATION || 'eastus', liveRaw?.type).catch(() => 0)
+
     res.json({ remediated: true, resourceId, changeCount: differences.length,
-      policiesCreated, appliedBaseline: baselineState, previousLiveState: liveState })
+      policiesCreated, monthlySavings, appliedBaseline: baselineState, previousLiveState: liveState })
     console.log('[POST /remediate] ends — applied baseline, changes:', differences.length)
   } catch (remediateError) {
     console.log('[POST /remediate] ends — error:', remediateError.message)

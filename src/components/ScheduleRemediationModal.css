@@ -1,0 +1,194 @@
+/* ScheduleRemediationModal.css */
+.srm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: srmFadeIn 0.2s ease-out;
+}
+
+.srm-modal {
+  width: 480px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 20px 40px rgba(0, 51, 89, 0.15);
+  border: 1px solid #f1f5f9;
+  animation: srmFadeIn 0.2s ease-out;
+  position: relative;
+  z-index: 1001;
+  pointer-events: auto;
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .srm-modal {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.srm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 20px;
+  color: #003359;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+}
+
+[data-theme="dark"] .srm-header {
+  color: #f1f5f9;
+}
+
+.srm-header-icon {
+  color: #0060a9;
+  background: rgba(0, 96, 169, 0.1);
+  padding: 8px;
+  border-radius: 10px;
+}
+
+[data-theme="dark"] .srm-header-icon {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.15);
+}
+
+.srm-desc {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+[data-theme="dark"] .srm-desc {
+  color: #94a3b8;
+}
+
+.srm-field-group {
+  margin-bottom: 24px;
+}
+
+.srm-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+[data-theme="dark"] .srm-label {
+  color: #cbd5e1;
+}
+
+.srm-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  background: #f9f9fc;
+  font-size: 14px;
+  color: #1a1c1e;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  color-scheme: light;
+  position: relative;
+  z-index: 1002;
+  pointer-events: auto;
+}
+
+.srm-input[type="datetime-local"] {
+  cursor: pointer;
+}
+
+.srm-input:focus {
+  border-color: #0060a9;
+  box-shadow: 0 0 0 3px rgba(0, 96, 169, 0.1);
+  background: #ffffff;
+}
+
+[data-theme="dark"] .srm-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  color-scheme: dark;
+}
+
+[data-theme="dark"] .srm-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.srm-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .srm-checkbox-label {
+  color: #e2e8f0;
+}
+
+.srm-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: #0060a9;
+}
+
+[data-theme="dark"] .srm-checkbox {
+  accent-color: #3b82f6;
+}
+
+.srm-timeout-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 26px;
+  animation: srmFadeIn 0.2s ease-out;
+}
+
+.srm-timeout-input {
+  width: 80px;
+}
+
+.srm-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .srm-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.srm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+@keyframes srmFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

@@ -76,7 +76,7 @@ function BubbleMatrix({ stats, selected, onSelect }) {
                   style={{ pointerEvents: 'none' }}
                 />
               )}
-              <text x={cx} y={cy + r + 11} textAnchor="middle" fontSize="9" fill="#94a3b8"
+              <text x={cx} y={cy + r + 11} textAnchor="middle" fontSize="9" fill="#6b7280"
                 style={{ pointerEvents: 'none' }}>
                 {s.name.length > 12 ? s.name.slice(0, 11) + '…' : s.name}
               </text>

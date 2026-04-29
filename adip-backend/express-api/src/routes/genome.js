@@ -17,18 +17,31 @@ function getGenomeIndexTable() {
 }
 
 // Updates a flag field on all genomeIndex entities for a resource.
-// Sets flagValue on the matching blobKey, null on all others.
-// Used by promote (isCurrentBaseline) and rollback (rolledBackAt).
+// Sets flagValue on the matching blobKey only — does NOT clear the flag on other entities.
+// Each rollback/promote event is preserved independently in history.
 async function updateGenomeFlag(subscriptionId, resourceId, blobKey, flagField, flagValue) {
+  const genomeTable = getGenomeIndexTable()
+  const filter = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}' and blobKey eq '${blobKey}'`
+  for await (const entity of genomeTable.listEntities({ queryOptions: { filter } })) {
+    await genomeTable.upsertEntity({
+      ...entity,
+      [flagField]: flagValue,
+    }, 'Replace').catch(flagUpdateError => {
+      console.warn('[updateGenomeFlag] non-fatal upsert error:', flagUpdateError.message)
+    })
+  }
+}
+
+// Sets isCurrentBaseline=true on the target and false on all others for the resource.
+// Used exclusively by promote — ensures only one snapshot is the active baseline.
+async function setCurrentBaseline(subscriptionId, resourceId, blobKey) {
   const genomeTable = getGenomeIndexTable()
   const filter = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}'`
   for await (const entity of genomeTable.listEntities({ queryOptions: { filter } })) {
     await genomeTable.upsertEntity({
       ...entity,
-      [flagField]: entity.blobKey === blobKey ? flagValue : null,
-    }, 'Replace').catch(flagUpdateError => {
-      console.warn('[updateGenomeFlag] non-fatal upsert error:', flagUpdateError.message)
-    })
+      isCurrentBaseline: entity.blobKey === blobKey ? true : false,
+    }, 'Replace').catch(err => console.warn('[setCurrentBaseline] non-fatal:', err.message))
   }
 }
 
@@ -84,7 +97,7 @@ router.post('/genome/promote', async (req, res) => {
     await saveBaseline(subscriptionId, resourceGroupId || '', resourceId, snapshot.resourceState)
 
     // Mark this snapshot as the active baseline; clear the flag on all others
-    await updateGenomeFlag(subscriptionId, resourceId, blobKey, 'isCurrentBaseline', true).catch(() => {})
+    await setCurrentBaseline(subscriptionId, resourceId, blobKey).catch(() => {})
     await updateGenomeFlag(subscriptionId, resourceId, blobKey, 'promotedAt', new Date().toISOString()).catch(() => {})
 
     res.json({ promoted: true, resourceId, blobKey })
@@ -130,7 +143,7 @@ router.post('/genome/rollback', async (req, res) => {
       return res.json({ rolledBack: true, resourceId, blobKey, savedAt: snapshot.savedAt, results })
     }
 
-    // Single resource rollback
+    // Single resource rollback — retry up to 3 times for exclusive access errors
     const state      = strip(snapshot.resourceState)
     const parts      = resourceId.split('/')
     const rgName = parts[4], provider = parts[6], type = parts[7], name = parts[8]
@@ -140,7 +153,26 @@ router.post('/genome/rollback', async (req, res) => {
       try { location = (await armClient.resources.get(rgName, provider, '', type, name, apiVersion)).location }
       catch { location = process.env.DEFAULT_AZURE_LOCATION || 'eastus' }
     }
-    await armClient.resources.beginCreateOrUpdateAndWait(rgName, provider, '', type, name, apiVersion, { ...state, location })
+
+    const MAX_RETRIES = 3
+    let lastError
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        await armClient.resources.beginCreateOrUpdateAndWait(rgName, provider, '', type, name, apiVersion, { ...state, location })
+        lastError = null
+        break
+      } catch (armError) {
+        lastError = armError
+        const isLocked = armError.message?.toLowerCase().includes('exclusive access') ||
+                         armError.message?.toLowerCase().includes('another operation') ||
+                         armError.statusCode === 409
+        if (!isLocked || attempt === MAX_RETRIES) throw armError
+        const delayMs = attempt * 15000  // 15s, 30s
+        console.log(`[POST /genome/rollback] ARM locked, retrying in ${delayMs}ms (attempt ${attempt}/${MAX_RETRIES})`)
+        await new Promise(resolve => setTimeout(resolve, delayMs))
+      }
+    }
+
     // Mark this snapshot as the active rollback; clear the flag on all others
     await updateGenomeFlag(subscriptionId, resourceId, blobKey, 'rolledBackAt', new Date().toISOString()).catch(() => {})
     res.json({ rolledBack: true, resourceId, blobKey, savedAt: snapshot.savedAt })

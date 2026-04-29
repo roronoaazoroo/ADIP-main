@@ -10,6 +10,7 @@
 // ============================================================
 import React, { useState } from 'react'
 import { scheduleRemediation } from '../services/api'
+import './ScheduleRemediationModal.css'
 
 // Returns a datetime-local string 1 hour from now (default maintenance window)
 function defaultScheduleTime() {
@@ -46,52 +47,64 @@ export default function ScheduleRemediationModal({ subscriptionId, resourceGroup
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="cp-card" style={{ width: 460, padding: 24, background: 'var(--panel-bg)', boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}>
-        <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="material-symbols-outlined" style={{ color: 'var(--primary)' }}>schedule</span>
+    <div className="srm-overlay"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
+    >
+      <div className="srm-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-title">
+        <h3 id="schedule-modal-title" className="srm-header">
+          <span className="material-symbols-outlined srm-header-icon">schedule</span>
           Schedule Remediation
         </h3>
 
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+        <p className="srm-desc">
           The fix will be applied automatically at the scheduled time.
           {severity === 'medium' && ' Unresolved medium-severity drift escalates to high after 48 hours.'}
         </p>
 
         {/* Maintenance window */}
-        <div className="sp-form-field" style={{ marginBottom: 16 }}>
-          <label className="sp-form-label">Maintenance Window</label>
-          <input type="datetime-local" className="sp-input"
+        <div className="srm-field-group">
+          <label className="srm-label" htmlFor="schedule-datetime">Maintenance Window</label>
+          <input id="schedule-datetime" type="datetime-local" className="srm-input"
             value={scheduledAt}
             min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
             onChange={e => setScheduledAt(e.target.value)}
-            style={{ width: '100%' }}
+            aria-required="true"
           />
         </div>
 
         {/* Auto-approval */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
-            <input type="checkbox" checked={autoApproval} onChange={e => setAutoApproval(e.target.checked)} />
+        <div className="srm-field-group">
+          <label className="srm-checkbox-label">
+            <input type="checkbox" className="srm-checkbox" checked={autoApproval} onChange={e => setAutoApproval(e.target.checked)} />
             Auto-approve if no response within
           </label>
           {autoApproval && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24 }}>
-              <input type="number" className="sp-input" min={1} max={168} value={autoApprovalHours}
+            <div className="srm-timeout-row">
+              <input type="number" className="srm-input srm-timeout-input" min={1} max={168} value={autoApprovalHours}
                 onChange={e => setAutoApprovalHours(Number(e.target.value))}
-                style={{ width: 70 }} />
+                aria-label="Auto-approval timeout in hours"
+              />
               <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>hours</span>
             </div>
           )}
         </div>
 
-        {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{error}</div>}
+        {error && (
+          <div className="srm-error" role="alert">
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>error</span>
+            {error}
+          </div>
+        )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+        <div className="srm-actions">
           <button className="cp-btn cp-btn--secondary" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="cp-btn cp-btn--primary" onClick={handleConfirm}
-            disabled={saving || !scheduledAt}>
-            {saving ? 'Scheduling...' : 'Confirm Schedule'}
+            disabled={saving || !scheduledAt}
+            aria-busy={saving}>
+            {saving ? (
+              <><div className="cp-spinner" style={{ marginRight: 6 }} />Scheduling...</>
+            ) : 'Confirm Schedule'}
           </button>
         </div>
       </div>

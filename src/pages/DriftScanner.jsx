@@ -4,7 +4,7 @@
 // What this page does:
 //   - Lets the user pick a Subscription → Resource Group → Resource from dropdowns
 //   - On Submit: fetches live ARM config, shows it as a JSON tree, starts Socket.IO
-//     monitoring, seeds the diff cache, fetches policy compliance and AI anomalies
+//     monitoring, seeds the diff cache
 //   - Live Activity Feed tab: shows real-time ARM change events pushed via Socket.IO
 //   - On Stop: clears monitoring session, resets all state
 //   - Navigate to Comparison Page or Genome Page via toolbar buttons
@@ -64,8 +64,6 @@ export default function DriftScanner() {
     liveEvents, setLiveEvents,
     driftEvents, setDriftEvents,
     scanProgress, setScanProgress,
-    policyData, setPolicyData,
-    anomalies, setAnomalies,
     scanInterval, monitorScope, jsonTreeRef,
   } = useDashboard()
 
@@ -128,7 +126,7 @@ export default function DriftScanner() {
   // 1. Plays through the LIVE_EVENTS_TEMPLATE animation steps (progress bar)
   // 2. Fetches live ARM config from /api/configuration (or demo config if offline)
   // 3. On success: sets isSubmitted=true (unblocks Socket.IO), seeds the diff cache,
-  //    starts monitoring session, fetches policy compliance and AI anomalies
+  //    starts monitoring session
   const handleSubmit = () => {
     if (!subscription || !resourceGroup || isScanning) return
 
@@ -167,13 +165,9 @@ export default function DriftScanner() {
               setConfigData(fetchedConfig)
 
               // // Fetch Azure Policy compliance state for the selected scope
-              // fetchPolicyCompliance(subscription, resourceGroup, resource || null)
               //   .then(policyResult => setPolicyData(policyResult)).catch(() => {})
 
               if (!isDemoMode) {
-                // Fetch AI anomaly detection across last 50 drift records
-                // fetchAnomalies(subscription)
-                //   .then(anomalyResult => setAnomalies(anomalyResult?.anomalies || [])).catch(() => {})
 
                 // Seed the diff cache so the first Socket.IO event has a previous state to diff against
                 const resourcesToCacheForDiff = fetchedConfig.resources
@@ -194,16 +188,6 @@ export default function DriftScanner() {
                   timestamp: new Date().toLocaleTimeString(),
                   id: Date.now(),
                 }])
-                
-                // Fetch Drift Prediction — real AI call (only when a specific resource is selected)
-                if (resource) {
-                  setIsPredictionLoading(true)
-                  fetchDriftPrediction(subscription, resource)
-                    .then(pred => setDriftPrediction(pred))
-                    .catch(e => setDriftPrediction({ error: e.message }))
-                    .finally(() => setIsPredictionLoading(false))
-                }
-
                 // Dependency Graph is fetched on-demand by DependencyGraph.jsx when the tab is opened
               }
             }
@@ -243,7 +227,6 @@ export default function DriftScanner() {
     setLiveEvents([])
     setScanProgress(0)
     setPolicyData(null)
-    setAnomalies([])
     setDriftPrediction(null)
     clearDriftEvents()      // clears the live activity feed
   }
@@ -273,7 +256,7 @@ export default function DriftScanner() {
         navigateToDriftScanner={() => {}}
       />
       {/* ── Main ── */}
-      <main className="ds-main">
+      <main className="ds-main" id="main-content" role="main">
         <div className="ds-content">
 
           {/* Header */}
@@ -295,30 +278,32 @@ export default function DriftScanner() {
           </header>
 
           {/* Filter Section */}
-          <section className="ds-filter-section">
+          <section className="ds-filter-section" aria-label="Resource selection">
             <div className="ds-filter-grid">
               <div className="ds-filter-field">
-                <label className="ds-filter-label">Subscription</label>
+                <label className="ds-filter-label" htmlFor="filter-subscription">Subscription</label>
                 <select className="ds-filter-select" value={subscription}
                   onChange={e => { const selectedSubId = e.target.value; setSubscription(selectedSubId); setResourceGroup(''); setResource(''); setConfigData(null); fetchRGs(selectedSubId) }}
-                  disabled={scopeLoading && !subscriptions.length} id="filter-subscription">
+                  disabled={scopeLoading && !subscriptions.length} id="filter-subscription"
+                  aria-required="true">
                   <option value="">Select subscription...</option>
                   {subscriptions.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
                 </select>
               </div>
 
               <div className="ds-filter-field">
-                <label className="ds-filter-label">Resource Group</label>
+                <label className="ds-filter-label" htmlFor="filter-resource-group">Resource Group</label>
                 <select className="ds-filter-select" value={resourceGroup}
                   onChange={e => { const selectedRgId = e.target.value; setResourceGroup(selectedRgId); setResource(''); setConfigData(null); fetchResources(subscription, selectedRgId) }}
-                  disabled={!subscription || scopeLoading} id="filter-resource-group">
+                  disabled={!subscription || scopeLoading} id="filter-resource-group"
+                  aria-required="true">
                   <option value="">Select resource group...</option>
                   {resourceGroups.map(resourceGroup => <option key={resourceGroup.id} value={resourceGroup.id}>{resourceGroup.name}</option>)}
                 </select>
               </div>
 
               <div className="ds-filter-field">
-                <label className="ds-filter-label">Resource</label>
+                <label className="ds-filter-label" htmlFor="filter-resource">Resource</label>
                 <select className="ds-filter-select" value={resource}
                   onChange={e => setResource(e.target.value)}
                   disabled={!resourceGroup || scopeLoading} id="filter-resource">
@@ -349,25 +334,12 @@ export default function DriftScanner() {
               </div>
             )}
 
-            {/* AI Anomalies */}
-            {anomalies?.length > 0 && (
-              <div className="ds-anomalies" style={{ marginTop: '16px' }}>
-                <span className="ds-anomaly-label">AI Insights</span>
-                {anomalies.slice(0, 1).map((anomaly, i) => (
-                  <div key={i} className="ds-anomaly-card">
-                    <div className="ds-anomaly-title">{anomaly.title}</div>
-                    <div className="ds-anomaly-desc">{anomaly.description}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
 
           </section>
 
           {/* Progress */}
           {isScanning && (
-            <div className="ds-progress">
+            <div className="ds-progress" role="progressbar" aria-valuenow={scanProgress} aria-valuemin={0} aria-valuemax={100} aria-label="Scan progress">
               <div className="ds-progress-fill" style={{ width: `${scanProgress}%` }} />
             </div>
           )}

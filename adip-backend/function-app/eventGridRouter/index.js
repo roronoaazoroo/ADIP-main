@@ -36,12 +36,6 @@ module.exports = async function (context, req) {
     return
   }
 
-  if (!DETECT_DRIFT_FUNCTION_URL) {
-    context.log.error('[eventGridRouter] DETECT_DRIFT_FUNCTION_URL not configured')
-    context.res = { status: 500, body: { error: 'DETECT_DRIFT_FUNCTION_URL not configured' } }
-    return
-  }
-
   const requestBody = req.body
 
   // Event Grid sends an array of events

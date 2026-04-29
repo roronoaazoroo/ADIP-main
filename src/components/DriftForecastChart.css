@@ -23,7 +23,7 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-.dfc-range-btn:hover { border-color: #1995ff; color: #e2e8f0; }
+.dfc-range-btn:hover { border-color: #0060a9; color: #003359; }
 .dfc-range-btn--active { background: #1e3a5f; border-color: #1995ff; color: #60a5fa; font-weight: 600; }
 
 .dfc-sev-filter {
@@ -66,7 +66,7 @@
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 12px;
-  color: #e2e8f0;
+  color: #1a1c1e;
   pointer-events: none;
   z-index: 20;
   min-width: 140px;
@@ -103,7 +103,7 @@
   flex: 1;
   min-width: 100px;
 }
-.dfc-stat-value { font-size: 22px; font-weight: 700; color: #e2e8f0; }
+.dfc-stat-value { font-size: 22px; font-weight: 700; color: #003359; }
 .dfc-stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
 
 .dfc-empty { color: #64748b; font-size: 13px; text-align: center; padding: 32px 0; }

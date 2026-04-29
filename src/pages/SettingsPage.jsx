@@ -228,7 +228,7 @@ export default function SettingsPage() {
     <div className="sp-root">
       <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
 
-      <main className="sp-main">
+      <main className="sp-main" id="main-content" role="main">
         {/* Left sidebar nav */}
         <aside className="sp-sidebar">
           <div className="sp-sidebar-title">Settings</div>
@@ -255,7 +255,7 @@ export default function SettingsPage() {
         <div className="sp-content">
           {/* Success banner */}
           {savedMessage && (
-            <div className="sp-alert sp-alert--success">
+            <div className="sp-alert sp-alert--success" role="alert" aria-live="polite">
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>check_circle</span>
               {savedMessage}
             </div>

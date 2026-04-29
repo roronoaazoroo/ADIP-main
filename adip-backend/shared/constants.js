@@ -10,6 +10,8 @@ const VOLATILE = [
   'resources', 'latestModelApplied', 'resourceGuid',
   // VM osProfile — immutable after provisioning
   'adminUsername', 'adminPassword', 'computerName',
+  'disablePasswordAuthentication', 'ssh', 'provisionVMAgent', 'patchSettings',
+  'enableAutomaticUpdates', 'winRM',
   // NSG back-references
   'defaultSecurityRules',
 ]
