@@ -70,7 +70,7 @@ async function buildDependencyGraph(subscriptionId, resourceGroupId) {
 
   // Single Resource Graph KQL query replaces N ARM GET calls
   const client = new ResourceGraphClient(credential)
-  const query  = `Resources | where resourceGroup =~ '${resourceGroupId}' and subscriptionId =~ '${subscriptionId}' | project id, name, type, location, properties`
+  const query  = `Resources | where resourceGroup =~ '${resourceGroupId}' and subscriptionId =~ '${subscriptionId}' | project id, name, type, location, properties, resourceGroup`
 
   const result    = await client.resources({ subscriptions: [subscriptionId], query }, {})
   const resources = result.data || []
@@ -81,7 +81,7 @@ async function buildDependencyGraph(subscriptionId, resourceGroupId) {
   for (const r of resources) {
     if (!r.id) continue
     nodeMap[r.id.toLowerCase()] = {
-      id:       r.id,
+      id:       r.id.toLowerCase(),
       name:     r.name || r.id.split('/').pop(),
       type:     r.type || 'Unknown',
       location: r.location || '',
@@ -92,17 +92,24 @@ async function buildDependencyGraph(subscriptionId, resourceGroupId) {
     }
   }
 
-  // Overlay drift status from driftIndex (last 7 days)
+  // Overlay drift status from driftIndex — ALL time, aggregate per resource
   try {
-    const since  = new Date(Date.now() - 7 * 86400000).toISOString()
-    const filter = `PartitionKey eq '${subscriptionId}' and Timestamp ge datetime'${since}'`
-    for await (const entity of getDriftIndexTableClient().listEntities({ queryOptions: { filter } })) {
+    const severityOrder = ['none', 'low', 'medium', 'high', 'critical']
+    for await (const entity of getDriftIndexTableClient().listEntities({
+      queryOptions: { filter: `PartitionKey eq '${subscriptionId}'` }
+    })) {
       const key = (entity.resourceId || '').toLowerCase()
-      if (nodeMap[key]) {
-        nodeMap[key].isDrifted = true
-        nodeMap[key].severity  = entity.severity || 'low'
-        nodeMap[key].val       = 8
+      if (!nodeMap[key]) continue
+      const node = nodeMap[key]
+      node.isDrifted   = true
+      node.driftCount  = (node.driftCount || 0) + 1
+      if (severityOrder.indexOf(entity.severity) > severityOrder.indexOf(node.severity || 'none')) {
+        node.severity = entity.severity || 'low'
       }
+      if (!node.lastDriftAt || entity.detectedAt > node.lastDriftAt) {
+        node.lastDriftAt = entity.detectedAt
+      }
+      node.val = Math.min(4 + node.driftCount * 2, 20)
     }
   } catch (driftError) {
     console.log('[buildDependencyGraph] drift overlay non-fatal:', driftError.message)
@@ -120,7 +127,7 @@ async function buildDependencyGraph(subscriptionId, resourceGroupId) {
       const edgeKey = `${sourceKey}→${targetKey}`
       if (seenEdges.has(edgeKey)) continue
       seenEdges.add(edgeKey)
-      links.push({ source: r.id, target: ref.targetId, label: ref.label })
+      links.push({ source: r.id.toLowerCase(), target: ref.targetId.toLowerCase(), label: ref.label })
     }
   }
 

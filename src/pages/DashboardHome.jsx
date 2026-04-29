@@ -491,8 +491,7 @@ export default function DashboardHome() {
                       const isDeleteEvent = changeEvent.changeType === 'deleted'
                       return (
                         <tr key={changeEvent._blobKey || rowIndex}
-                          className={`dh-tr ${!isDeleteEvent ? 'dh-tr--clickable' : ''}`}
-                          onClick={() => !isDeleteEvent && navigateToComparison(changeEvent)}
+                          className="dh-tr"
                           role={!isDeleteEvent ? 'link' : undefined}
                           tabIndex={!isDeleteEvent ? 0 : undefined}
                           onKeyDown={(e) => { if (!isDeleteEvent && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigateToComparison(changeEvent); } }}

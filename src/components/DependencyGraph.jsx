@@ -11,23 +11,24 @@ import React, { useState, useEffect, useRef } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import { fetchDependencyGraph } from '../services/api'
 
-// Azure service icons — GitHub CDN (CORS allowed, no auth required)
+// Azure service icons — using official Azure icon set (SVG, publicly accessible)
+const ICON_BASE = 'https://raw.githubusercontent.com/benc-uk/icon-collection/master/azure-docs'
 const ICON_MAP = {
-  'microsoft.storage/storageaccounts':          'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Storage/Storage-Accounts.svg',
-  'microsoft.compute/virtualmachines':          'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Compute/Virtual-Machine.svg',
-  'microsoft.compute/disks':                    'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Compute/Disk.svg',
-  'microsoft.network/virtualnetworks':          'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Networking/Virtual-Networks.svg',
-  'microsoft.network/networksecuritygroups':    'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Networking/Network-Security-Groups.svg',
-  'microsoft.network/networkinterfaces':        'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Networking/Network-Interfaces.svg',
-  'microsoft.network/publicipaddresses':        'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Networking/Public-IP-Addresses.svg',
-  'microsoft.web/sites':                        'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/App-Services/App-Services.svg',
-  'microsoft.web/serverfarms':                  'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/App-Services/App-Service-Plans.svg',
-  'microsoft.logic/workflows':                  'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Integration/Logic-Apps.svg',
-  'microsoft.eventgrid/topics':                 'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Integration/Event-Grid-Topics.svg',
-  'microsoft.insights/components':              'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Management-Governance/Application-Insights.svg',
-  'microsoft.keyvault/vaults':                  'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Security/Key-Vaults.svg',
-  'microsoft.cognitiveservices/accounts':       'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/AI-Machine-Learning/Cognitive-Services.svg',
-  'microsoft.communication/communicationservices': 'https://raw.githubusercontent.com/Azure/azure-icons/main/icons/Web/Communication-Services.svg',
+  'microsoft.storage/storageaccounts':          `${ICON_BASE}/storage-accounts.svg`,
+  'microsoft.compute/virtualmachines':          `${ICON_BASE}/virtual-machine.svg`,
+  'microsoft.compute/disks':                    `${ICON_BASE}/disks.svg`,
+  'microsoft.network/virtualnetworks':          `${ICON_BASE}/virtual-networks.svg`,
+  'microsoft.network/networksecuritygroups':    `${ICON_BASE}/network-security-groups.svg`,
+  'microsoft.network/networkinterfaces':        `${ICON_BASE}/network-interfaces.svg`,
+  'microsoft.network/publicipaddresses':        `${ICON_BASE}/public-ip-addresses.svg`,
+  'microsoft.web/sites':                        `${ICON_BASE}/app-services.svg`,
+  'microsoft.web/serverfarms':                  `${ICON_BASE}/app-service-plans.svg`,
+  'microsoft.logic/workflows':                  `${ICON_BASE}/logic-apps.svg`,
+  'microsoft.eventgrid/topics':                 `${ICON_BASE}/event-grid-topics.svg`,
+  'microsoft.insights/components':              `${ICON_BASE}/application-insights.svg`,
+  'microsoft.keyvault/vaults':                  `${ICON_BASE}/key-vaults.svg`,
+  'microsoft.cognitiveservices/accounts':       `${ICON_BASE}/cognitive-services.svg`,
+  'microsoft.communication/communicationservices': `${ICON_BASE}/communication-services.svg`,
 }
 
 // Fallback color per type family (used when icon fails to load)
@@ -95,48 +96,78 @@ export default function DependencyGraph({ subscriptionId, resourceGroupId, onNod
     return () => { cancelled = true }
   }, [subscriptionId, resourceGroupId])
 
-  // Custom canvas node renderer — draws Azure icon + red ring for drifted nodes
+  // Custom canvas node renderer — severity-differentiated drift ring + drift count badge
   const paintNode = (node, ctx, globalScale) => {
     const r    = 18
     const x    = node.x
     const y    = node.y
     const img  = loadIcon(node.type)
+
+    // Severity → ring style
+    const severityStyle = {
+      critical: { color: '#ef4444', width: 4,   glow: 'rgba(239,68,68,0.3)',   bg: 'rgba(239,68,68,0.2)' },
+      high:     { color: '#f97316', width: 3,   glow: 'rgba(249,115,22,0.25)', bg: 'rgba(249,115,22,0.15)' },
+      medium:   { color: '#f59e0b', width: 2.5, glow: null,                    bg: 'rgba(245,158,11,0.12)' },
+      low:      { color: '#facc15', width: 2,   glow: null,                    bg: 'rgba(250,204,21,0.1)' },
+    }
+    const sev   = node.isDrifted ? (severityStyle[node.severity] || severityStyle.low) : null
     const color = nodeColor(node.type)
 
     // Background circle
     ctx.beginPath()
     ctx.arc(x, y, r, 0, 2 * Math.PI)
-    ctx.fillStyle = node.isDrifted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.08)'
+    ctx.fillStyle = sev ? sev.bg : 'rgba(255,255,255,0.08)'
     ctx.fill()
 
-    // Border
+    // Glow for critical
+    if (sev?.glow) {
+      ctx.beginPath()
+      ctx.arc(x, y, r + 3, 0, 2 * Math.PI)
+      ctx.strokeStyle = sev.glow
+      ctx.lineWidth   = 6
+      ctx.stroke()
+    }
+
+    // Border ring
     ctx.beginPath()
     ctx.arc(x, y, r, 0, 2 * Math.PI)
-    ctx.strokeStyle = node.isDrifted ? '#ef4444' : color
-    ctx.lineWidth   = node.isDrifted ? 2.5 : 1.5
+    ctx.strokeStyle = sev ? sev.color : color
+    ctx.lineWidth   = sev ? sev.width : 1.5
     ctx.stroke()
 
-    // Azure icon (if loaded)
+    // Azure icon
     if (img?.complete && img.naturalWidth > 0) {
       const iconSize = r * 1.4
-      try {
-        ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize)
-      } catch { /* cross-origin fallback */ }
+      try { ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize) } catch {}
     } else {
-      // Fallback: colored dot
       ctx.beginPath()
       ctx.arc(x, y, r * 0.5, 0, 2 * Math.PI)
       ctx.fillStyle = color
       ctx.fill()
     }
 
-    // Label below node
-    const label     = node.name || ''
-    const fontSize  = Math.max(8, 11 / globalScale)
+    // Drift count badge (top-right corner)
+    if (node.isDrifted && node.driftCount > 0) {
+      const bx = x + r * 0.7
+      const by = y - r * 0.7
+      ctx.beginPath()
+      ctx.arc(bx, by, 7, 0, 2 * Math.PI)
+      ctx.fillStyle = sev ? sev.color : '#ef4444'
+      ctx.fill()
+      ctx.font        = `bold ${Math.max(7, 9 / globalScale)}px Inter, sans-serif`
+      ctx.textAlign   = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillStyle   = '#fff'
+      ctx.fillText(node.driftCount > 9 ? '9+' : String(node.driftCount), bx, by)
+    }
+
+    // Label
+    const label    = node.name || ''
+    const fontSize = Math.max(8, 11 / globalScale)
     ctx.font        = `${fontSize}px Inter, sans-serif`
     ctx.textAlign   = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillStyle   = node.isDrifted ? '#ef4444' : '#e2e8f0'
+    ctx.fillStyle   = sev ? sev.color : '#e2e8f0'
     ctx.fillText(label.length > 18 ? label.slice(0, 16) + '…' : label, x, y + r + 3)
   }
 
@@ -162,7 +193,17 @@ export default function DependencyGraph({ subscriptionId, resourceGroupId, onNod
         graphData={graphData}
         width={dimensions.width}
         height={dimensions.height}
-        nodeLabel={node => `${node.name}\n${node.type}${node.isDrifted ? '\n⚠ Drifted recently' : ''}`}
+        nodeLabel={node => {
+          let label = `${node.name}\n${node.type}`
+          if (node.isDrifted) {
+            label += `\n⚠ ${node.driftCount || 1} drift event${(node.driftCount || 1) !== 1 ? 's' : ''} (${node.severity})`
+            if (node.lastDriftAt) {
+              const ago = Math.round((Date.now() - new Date(node.lastDriftAt)) / 3600000)
+              label += `\nLast: ${ago < 24 ? ago + 'h ago' : Math.round(ago/24) + 'd ago'}`
+            }
+          }
+          return label
+        }}
         nodeCanvasObject={paintNode}
         nodeCanvasObjectMode={() => 'replace'}
         nodeRelSize={18}
@@ -171,7 +212,7 @@ export default function DependencyGraph({ subscriptionId, resourceGroupId, onNod
         linkDirectionalArrowLength={4}
         linkDirectionalArrowRelPos={1}
         linkCurvature={0.1}
-        onNodeClick={node => onNodeClick && onNodeClick(node)}
+        onNodeClick={undefined}
         backgroundColor="transparent"
       />
 
