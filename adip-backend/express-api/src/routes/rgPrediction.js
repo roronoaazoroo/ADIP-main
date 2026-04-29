@@ -126,8 +126,12 @@ router.get('/rg-prediction', async (req, res) => {
 
       aiPredictions = await chatJson(
         `You are an Azure infrastructure risk analyst. Analyse drift frequency patterns across resources in a resource group and predict which are most likely to drift in the next 7 days.
-Respond ONLY with valid JSON array (no markdown), max 5 items, sorted by risk descending:
-[{"resourceName":"name","likelihood":"HIGH|MEDIUM|LOW","predictedDays":1-7,"reason":"1-2 sentences based on frequency and recency","fieldsAtRisk":["field1"]}]`,
+
+Use frequency features (total, last24h, last7d, severities) to compute driftProbability (0-100 integer) per resource.
+Rules: driftProbability >= 70 → HIGH, 40-69 → MEDIUM, < 40 → LOW
+
+Respond ONLY with valid JSON array (no markdown), max 5 items, sorted by driftProbability descending:
+[{"resourceName":"name","driftProbability":<0-100>,"likelihood":"HIGH|MEDIUM|LOW","predictedDays":1-7,"reason":"1-2 sentences referencing frequency numbers","fieldsAtRisk":["field1"]}]`,
         `Resource group drift history:\n${JSON.stringify(summary)}`,
         800
       ).catch(() => [])
