@@ -15,6 +15,7 @@ import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
 import ReportsDashboard from '../components/ReportsDashboard'
 import DriftImpactDashboard from '../components/DriftImpactDashboard'
+import TopChangers from '../components/TopChangers'
 import './AnalyticsPage.css'
 
 // ── Mock data generators ──────────────────────────────────────────────────────
@@ -230,8 +231,7 @@ function ForecastChart() {
 // MAIN PAGE COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const TABS = [
-  { key: 'trends', label: 'Drift Analysis & Trends', icon: 'trending_up' },
-  { key: 'impact', label: 'Drift Impact Analysis', icon: 'assessment' },
+  { key: 'impact', label: 'Drift Analysis & Trends', icon: 'trending_up' },
   { key: 'forecast', label: 'Prediction & Forecasting', icon: 'psychology' },
   { key: 'reports', label: 'Reports', icon: 'summarize' },
 ]
@@ -241,7 +241,7 @@ export default function AnalyticsPage() {
   const { subscription, resourceGroup, resource, configData } = useDashboard()
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
-  const [activeTab, setActiveTab] = useState('trends')
+  const [activeTab, setActiveTab] = useState('impact')
   const [trendRange, setTrendRange] = useState('7d')
   const [prediction, setPrediction] = useState(null)
   const [predLoading, setPredLoading] = useState(false)
@@ -286,7 +286,7 @@ export default function AnalyticsPage() {
     <div className="an-root">
       <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
 
-      <main className="an-main">
+      <main className="an-main" id="main-content" role="main">
         {/* Header */}
         <header className="an-header">
           <div>
@@ -302,12 +302,15 @@ export default function AnalyticsPage() {
         </header>
 
         {/* Tab bar */}
-        <div className="an-tab-bar">
+        <div className="an-tab-bar" role="tablist" aria-label="Analytics views">
           {TABS.map(tab => (
             <button
               key={tab.key}
               className={`an-tab-btn ${activeTab === tab.key ? 'an-tab-btn--active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              aria-controls={`tab-panel-${tab.key}`}
             >
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{tab.icon}</span>
               {tab.label}
@@ -315,128 +318,14 @@ export default function AnalyticsPage() {
           ))}
         </div>
 
-        {/* ═══ TAB 1: Drift Analysis & Trends ═══════════════════════════════ */}
-        {activeTab === 'trends' && (
-          <div className="an-tab-content" key="trends">
-            {/* Trend chart */}
-            <div className="an-card an-card--full">
-              <div className="an-card-header">
-                <div className="an-card-title-row">
-                  <span className="material-symbols-outlined an-card-icon">show_chart</span>
-                  <h2 className="an-card-title">Drift Trend Over Time</h2>
-                </div>
-                <div className="an-range-btns">
-                  {['7d', '30d', '90d'].map(r => (
-                    <button key={r} className={`an-range-btn ${trendRange === r ? 'an-range-btn--active' : ''}`}
-                      onClick={() => setTrendRange(r)}>{r}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="an-card-body">
-                <TrendAreaChart data={trendData} timeRange={trendRange} />
-                <div className="an-trend-legend">
-                  {[{ label: 'Critical', color: '#ef4444' }, { label: 'High', color: '#f97316' },
-                    { label: 'Medium', color: '#f59e0b' }, { label: 'Low', color: '#10b981' }].map(l => (
-                    <span key={l.label} className="an-trend-legend-item">
-                      <span className="an-legend-dot" style={{ background: l.color }} />{l.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="an-grid-2">
-              {/* Severity distribution */}
-              <div className="an-card">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">donut_large</span>
-                    <h2 className="an-card-title">Severity Distribution</h2>
-                  </div>
-                </div>
-                <div className="an-card-body an-severity-body">
-                  <SeverityDonut data={SEVERITY_DIST} />
-                  <div className="an-severity-list">
-                    {SEVERITY_DIST.map(s => (
-                      <div key={s.label} className="an-severity-row">
-                        <span className="an-severity-dot" style={{ background: s.color }} />
-                        <span className="an-severity-label">{s.label}</span>
-                        <span className="an-severity-count">{s.count}</span>
-                        <span className="an-severity-pct">{s.pct}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Drift by change type */}
-              <div className="an-card">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">category</span>
-                    <h2 className="an-card-title">Drift by Change Type</h2>
-                  </div>
-                </div>
-                <div className="an-card-body">
-                  {CHANGE_TYPES.map((ct, i) => (
-                    <div key={i} className="an-change-row">
-                      <div className="an-change-info">
-                        <span className="an-change-name">{ct.type}</span>
-                        <span className="an-change-impact" style={{ background: SEV_BG[ct.impact.toLowerCase()], color: SEV_COLOR[ct.impact.toLowerCase()] }}>{ct.impact}</span>
-                      </div>
-                      <div className="an-change-bar-wrap">
-                        <div className="an-change-bar" style={{ width: `${(ct.count / 50) * 100}%`, background: ct.color }} />
-                      </div>
-                      <span className="an-change-count">{ct.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Top drifted resources */}
-            <div className="an-card an-card--full">
-              <div className="an-card-header">
-                <div className="an-card-title-row">
-                  <span className="material-symbols-outlined an-card-icon">leaderboard</span>
-                  <h2 className="an-card-title">Top Drifted Resources</h2>
-                  <span className="an-card-badge">Top 6</span>
-                </div>
-              </div>
-              <div className="an-card-body an-card-body--table">
-                <table className="an-table">
-                  <thead>
-                    <tr>
-                      <th>Resource</th><th>Type</th><th>Resource Group</th>
-                      <th>Drift Count</th><th>Severity</th><th>Last Drift</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {TOP_DRIFTED.map((r, i) => (
-                      <tr key={i} className="an-tr">
-                        <td className="an-td-resource">{r.name}</td>
-                        <td className="an-td-type">{r.type.split('/').pop()}</td>
-                        <td>{r.group}</td>
-                        <td><span className="an-drift-count">{r.drifts}</span></td>
-                        <td>
-                          <span className="an-sev-badge" style={{ background: SEV_BG[r.severity], color: SEV_COLOR[r.severity] }}>
-                            {r.severity}
-                          </span>
-                        </td>
-                        <td className="an-td-time">{r.lastDrift}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
+        {/* ═══ TAB 1: Drift Impact Analysis ═══════════════════════════════ */}
         {/* ═══ TAB 2: Drift Impact Analysis ═════════════════════════════════ */}
         {activeTab === 'impact' && (
           <div className="an-tab-content" key="impact">
             <DriftImpactDashboard subscriptionId={activeSubscriptionId} />
+            <div style={{ marginTop: 24 }}>
+              <TopChangers subscriptionId={activeSubscriptionId} />
+            </div>
           </div>
         )}
 

@@ -286,10 +286,10 @@ export default {
 // ── Reports ──────────────────────────────────────────────────────────────────
 
 // Generates a drift analysis report and saves it to blob storage
-export async function generateDriftReport(subscriptionId, periodDays = 7, sendEmail = false) {
+export async function generateDriftReport(subscriptionId, periodDays = 7, sendEmail = false, recipientEmail = '') {
   return apiRequest('/reports/generate', {
     method: 'POST',
-    body: JSON.stringify({ subscriptionId, periodDays, sendEmail }),
+    body: JSON.stringify({ subscriptionId, periodDays, sendEmail, recipientEmail }),
   })
 }
 

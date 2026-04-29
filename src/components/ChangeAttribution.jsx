@@ -68,8 +68,8 @@ export default function ChangeAttribution({ subscriptionId: propSubId }) {
               </button>
             ))}
           </div>
-          <button className="an-range-btn" onClick={handleManualLoad} disabled={loading} title="Refresh">
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>refresh</span>
+          <button className="an-range-btn" onClick={handleManualLoad} disabled={loading} title="Refresh data" aria-label="Refresh attribution data">
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }} aria-hidden="true">refresh</span>
           </button>
         </div>
       </div>
@@ -77,7 +77,7 @@ export default function ChangeAttribution({ subscriptionId: propSubId }) {
       <div className="an-card-body an-card-body--table">
         {!propSubId && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <span style={{ fontSize: 13, color: '#94a3b8' }}>Subscription ID</span>
+            <span style={{ fontSize: 13, color: '#6b7280' }}>Subscription ID</span>
             <input className="an-report-sub-input" type="text"
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
               value={subInput} onChange={e => setSubInput(e.target.value.trim())} />
@@ -85,8 +85,8 @@ export default function ChangeAttribution({ subscriptionId: propSubId }) {
           </div>
         )}
 
-        {loading && <div style={{ color: '#94a3b8', fontSize: 13, padding: '12px 0' }}>Loading...</div>}
-        {error   && <div style={{ color: '#ef4444', fontSize: 13, padding: '12px 0' }}>{error}</div>}
+        {loading && <div role="status" style={{ color: '#6b7280', fontSize: 13, padding: '12px 0' }}>Loading attribution data...</div>}
+        {error   && <div role="alert" style={{ color: '#ef4444', fontSize: 13, padding: '12px 0' }}>{error}</div>}
 
         {!loading && !error && rows.length === 0 && (
           <div style={{ color: '#64748b', fontSize: 13, padding: '12px 0' }}>
@@ -95,14 +95,14 @@ export default function ChangeAttribution({ subscriptionId: propSubId }) {
         )}
 
         {rows.length > 0 && (
-          <table className="an-table">
+          <table className="an-table" aria-label="Change attribution report">
             <thead>
               <tr>
-                <th>Identity</th>
-                <th>Total Changes</th>
-                <th>Drift Events</th>
-                <th>Top Resource Type</th>
-                <th>Risk Level</th>
+                <th scope="col">Identity</th>
+                <th scope="col">Total Changes</th>
+                <th scope="col">Drift Events</th>
+                <th scope="col">Top Resource Type</th>
+                <th scope="col">Risk Level</th>
               </tr>
             </thead>
             <tbody>
@@ -114,7 +114,7 @@ export default function ChangeAttribution({ subscriptionId: propSubId }) {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span className="material-symbols-outlined"
-                          style={{ color: isUser ? '#8b5cf6' : '#1995ff', fontSize: 18 }}>
+                          style={{ color: isUser ? '#8b5cf6' : '#1995ff', fontSize: 18 }} aria-hidden="true">
                           {isUser ? 'person' : 'engineering'}
                         </span>
                         {row.caller || 'System'}

@@ -1,20 +1,32 @@
+// ============================================================
 // FILE: src/components/SuppressionRules.jsx
-// ROLE: Drift Suppression Rules manager — CRUD UI for rules stored in Azure Table Storage.
+// ROLE: Drift Suppression Rules manager for SettingsPage
 //
-// Fixes applied:
-//   - subscriptionId sourced from prop → context → VITE env var (all three fallbacks)
-//   - fetchResourceGroups called with subscriptionId, not empty string
-//   - fetchResources called with rg.id (full ARM path) not rg.name
-//   - Rules reload after successful add
-//   - Error shown inline per operation (not shared state)
-//   - "Add Rule" disabled until subscriptionId is resolved
-
-import { useState, useEffect } from 'react'
-import { useDashboard } from '../context/DashboardContext'
+// Form fields:
+//   1. Subscription (auto-filled from context/env)
+//   2. Resource Group dropdown (loaded from API)
+//   3. Resource dropdown (optional, loaded after RG selected)
+//   4. Change Types multi-select (added, removed, modified, all)
+//   5. Field Path (what to suppress, e.g. "tags")
+//   6. Reason
+//
+// Rules stored in Azure Table Storage (suppressionRules table).
+// Applied server-side in compare.js before severity classification.
+// ============================================================
+import React, { useState, useEffect } from 'react'
 import {
   fetchSuppressionRules, createSuppressionRule, deleteSuppressionRule,
   fetchResourceGroups, fetchResources,
 } from '../services/api'
+
+const ENV_SUB_ID = import.meta.env.VITE_AZURE_SUBSCRIPTION_ID || ''
+
+const CHANGE_TYPE_OPTIONS = [
+  { value: 'all',      label: 'All changes' },
+  { value: 'added',    label: 'Added' },
+  { value: 'removed',  label: 'Removed' },
+  { value: 'modified', label: 'Modified' },
+]
 
 const COMMON_FIELDS = [
   'tags', 'properties.provisioningState', 'properties.networkAcls',
@@ -24,68 +36,75 @@ const COMMON_FIELDS = [
 ]
 
 export default function SuppressionRules({ subscriptionId: propSubId }) {
-  const { subscription: ctxSubId } = useDashboard()
-  // Priority: prop → context → Vite env var
-  const subId = propSubId || ctxSubId || import.meta.env.VITE_AZURE_SUBSCRIPTION_ID || ''
+  const effectiveSubId = propSubId || ENV_SUB_ID
 
   const [rules,    setRules]    = useState([])
   const [loading,  setLoading]  = useState(false)
-  const [listError, setListError] = useState(null)
+  const [error,    setError]    = useState(null)
   const [saving,   setSaving]   = useState(false)
-  const [saveError, setSaveError] = useState(null)
 
   // Form state
   const [rgList,       setRgList]       = useState([])
   const [resourceList, setResourceList] = useState([])
-  const [selRg,        setSelRg]        = useState('')   // rg.id (full ARM path)
-  const [selResource,  setSelResource]  = useState('')   // resource.id (full ARM path)
+  const [selRg,        setSelRg]        = useState('')
+  const [selResource,  setSelResource]  = useState('')
+  const [changeTypes,  setChangeTypes]  = useState(['all'])
   const [fieldPath,    setFieldPath]    = useState('')
   const [reason,       setReason]       = useState('')
 
   // Load rules
   useEffect(() => {
-    if (!subId) return
+    if (!effectiveSubId) return
     setLoading(true)
-    setListError(null)
-    fetchSuppressionRules(subId)
-      .then(data => setRules(Array.isArray(data) ? data : []))
-      .catch(err => setListError(err.message))
+    fetchSuppressionRules(effectiveSubId)
+      .then(data => setRules(data || []))
+      .catch(err => setError(err.message))
       .finally(() => setLoading(false))
-  }, [subId])
+  }, [effectiveSubId])
 
-  // Load resource groups
+  // Load resource groups when subscription is known
   useEffect(() => {
-    if (!subId) return
-    fetchResourceGroups(subId)
-      .then(rgs => setRgList(Array.isArray(rgs) ? rgs : []))
+    if (!effectiveSubId) return
+    fetchResourceGroups(effectiveSubId)
+      .then(rgs => setRgList(rgs || []))
       .catch(() => {})
-  }, [subId])
+  }, [effectiveSubId])
 
-  // Load resources when RG selected — use rg.id (full ARM path) for the API call
+  // Load resources when RG is selected
   useEffect(() => {
     setSelResource('')
     setResourceList([])
-    if (!subId || !selRg) return
-    fetchResources(subId, selRg)
-      .then(res => setResourceList(Array.isArray(res) ? res : []))
+    if (!effectiveSubId || !selRg) return
+    fetchResources(effectiveSubId, selRg)
+      .then(res => setResourceList(res || []))
       .catch(() => {})
-  }, [subId, selRg])
+  }, [effectiveSubId, selRg])
+
+  const toggleChangeType = (val) => {
+    if (val === 'all') { setChangeTypes(['all']); return }
+    setChangeTypes(prev => {
+      const without = prev.filter(v => v !== 'all')
+      return without.includes(val) ? without.filter(v => v !== val) : [...without, val]
+    })
+  }
 
   const handleAdd = async () => {
-    if (!fieldPath.trim() || !subId) return
+    if (!fieldPath.trim() || !effectiveSubId) return
     setSaving(true)
-    setSaveError(null)
+    setError(null)
     try {
-      // Send rg name (not full ARM id) as resourceGroupId — compare.js uses .includes() match
-      const rgName = selRg ? selRg.split('/').pop() : ''
       const rule = await createSuppressionRule(
-        subId, fieldPath.trim(), rgName, selResource, ['all'], reason.trim()
+        effectiveSubId,
+        fieldPath.trim(),
+        selRg,
+        selResource,
+        changeTypes,
+        reason.trim()
       )
       setRules(prev => [...prev, rule])
-      // Reset form
       setFieldPath(''); setReason(''); setSelRg(''); setSelResource(''); setChangeTypes(['all'])
     } catch (err) {
-      setSaveError(err.message)
+      setError(err.message)
     } finally {
       setSaving(false)
     }
@@ -93,25 +112,17 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
 
   const handleDelete = async (rowKey) => {
     try {
-      await deleteSuppressionRule(subId, rowKey)
+      await deleteSuppressionRule(effectiveSubId, rowKey)
       setRules(prev => prev.filter(r => r.rowKey !== rowKey))
     } catch (err) {
-      setListError(err.message)
+      setError(err.message)
     }
   }
 
   const scopeLabel = (rule) => {
-    if (rule.resourceId)      return rule.resourceId.split('/').pop()
+    if (rule.resourceId) return rule.resourceId.split('/').pop()
     if (rule.resourceGroupId) return rule.resourceGroupId
     return 'All resources'
-  }
-
-  if (!subId) {
-    return (
-      <div style={{ color: '#f59e0b', fontSize: 13 }}>
-        ⚠ No subscription selected. Go to Drift Scanner and select a subscription first.
-      </div>
-    )
   }
 
   return (
@@ -120,15 +131,15 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
         Fields matching these rules are ignored during drift comparison and will not trigger alerts.
       </p>
 
-      {listError && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>⚠ {listError}</div>}
+      {error && <div role="alert" style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{error}</div>}
 
       {/* Rules table */}
       {loading ? (
-        <div style={{ color: '#94a3b8', fontSize: 13, marginBottom: 16 }}>Loading rules…</div>
+        <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>Loading rules...</div>
       ) : (
-        <table className="an-table" style={{ marginBottom: 24 }}>
+        <table className="an-table" style={{ marginBottom: 24 }} aria-label="Suppression rules">
           <thead>
-            <tr><th>Field Path</th><th>Scope</th><th>Change Types</th><th>Reason</th><th style={{ width: 40 }}>Del</th></tr>
+            <tr><th scope="col">Field Path</th><th scope="col">Scope</th><th scope="col">Change Types</th><th scope="col">Reason</th><th scope="col" style={{ width: 40 }}>Del</th></tr>
           </thead>
           <tbody>
             {rules.length === 0 && (
@@ -141,7 +152,7 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
                 <td style={{ fontSize: 12 }}>{(rule.changeTypes?.length ? rule.changeTypes : ['all']).join(', ')}</td>
                 <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{rule.reason || '—'}</td>
                 <td>
-                  <button className="cp-toolbar-btn" onClick={() => handleDelete(rule.rowKey)}>
+                  <button className="cp-toolbar-btn" onClick={() => handleDelete(rule.rowKey)} aria-label={`Delete rule for ${rule.fieldPath}`}>
                     <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444' }}>delete</span>
                   </button>
                 </td>
@@ -154,14 +165,16 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
       {/* Add rule form */}
       <div className="sp-form-grid" style={{ gap: 12 }}>
 
+        {/* Resource Group */}
         <div className="sp-form-field">
           <label className="sp-form-label">Resource Group (optional)</label>
           <select className="sp-select" value={selRg} onChange={e => setSelRg(e.target.value)}>
             <option value="">All resource groups</option>
-            {rgList.map(rg => <option key={rg.id} value={rg.id}>{rg.name}</option>)}
+            {rgList.map(rg => <option key={rg.id || rg.name} value={rg.name || rg.id}>{rg.name || rg.id}</option>)}
           </select>
         </div>
 
+        {/* Resource */}
         <div className="sp-form-field">
           <label className="sp-form-label">Resource (optional)</label>
           <select className="sp-select" value={selResource} onChange={e => setSelResource(e.target.value)} disabled={!selRg}>
@@ -170,8 +183,24 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
           </select>
         </div>
 
-<div className="sp-form-field">
-          <label className="sp-form-label">Field Path to Suppress *</label>
+        {/* Change Types */}
+        <div className="sp-form-field">
+          <label className="sp-form-label">Suppress Change Types</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+            {CHANGE_TYPE_OPTIONS.map(opt => (
+              <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox"
+                  checked={changeTypes.includes(opt.value) || (opt.value !== 'all' && changeTypes.includes('all'))}
+                  onChange={() => toggleChangeType(opt.value)} />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Field Path */}
+        <div className="sp-form-field">
+          <label className="sp-form-label">Field Path to Suppress</label>
           <input className="sp-input" list="field-suggestions" value={fieldPath}
             onChange={e => setFieldPath(e.target.value)}
             placeholder="e.g. tags or properties.provisioningState" />
@@ -180,6 +209,7 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
           </datalist>
         </div>
 
+        {/* Reason */}
         <div className="sp-form-field">
           <label className="sp-form-label">Reason</label>
           <input className="sp-input" value={reason} onChange={e => setReason(e.target.value)}
@@ -187,12 +217,10 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
         </div>
       </div>
 
-      {saveError && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 8 }}>⚠ {saveError}</div>}
-
       <button className="cp-btn cp-btn--secondary" style={{ marginTop: 12 }}
-        onClick={handleAdd} disabled={saving || !fieldPath.trim() || !subId}>
+        onClick={handleAdd} disabled={saving || !fieldPath.trim() || !effectiveSubId}>
         <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
-        {saving ? 'Saving…' : 'Add Rule'}
+        {saving ? 'Saving...' : 'Add Rule'}
       </button>
     </div>
   )

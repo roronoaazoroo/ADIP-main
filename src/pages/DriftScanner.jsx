@@ -194,16 +194,6 @@ export default function DriftScanner() {
                   timestamp: new Date().toLocaleTimeString(),
                   id: Date.now(),
                 }])
-                
-                // Fetch Drift Prediction — real AI call (only when a specific resource is selected)
-                if (resource) {
-                  setIsPredictionLoading(true)
-                  fetchDriftPrediction(subscription, resource)
-                    .then(pred => setDriftPrediction(pred))
-                    .catch(e => setDriftPrediction({ error: e.message }))
-                    .finally(() => setIsPredictionLoading(false))
-                }
-
                 // Dependency Graph is fetched on-demand by DependencyGraph.jsx when the tab is opened
               }
             }
@@ -273,7 +263,7 @@ export default function DriftScanner() {
         navigateToDriftScanner={() => {}}
       />
       {/* ── Main ── */}
-      <main className="ds-main">
+      <main className="ds-main" id="main-content" role="main">
         <div className="ds-content">
 
           {/* Header */}
@@ -295,30 +285,32 @@ export default function DriftScanner() {
           </header>
 
           {/* Filter Section */}
-          <section className="ds-filter-section">
+          <section className="ds-filter-section" aria-label="Resource selection">
             <div className="ds-filter-grid">
               <div className="ds-filter-field">
-                <label className="ds-filter-label">Subscription</label>
+                <label className="ds-filter-label" htmlFor="filter-subscription">Subscription</label>
                 <select className="ds-filter-select" value={subscription}
                   onChange={e => { const selectedSubId = e.target.value; setSubscription(selectedSubId); setResourceGroup(''); setResource(''); setConfigData(null); fetchRGs(selectedSubId) }}
-                  disabled={scopeLoading && !subscriptions.length} id="filter-subscription">
+                  disabled={scopeLoading && !subscriptions.length} id="filter-subscription"
+                  aria-required="true">
                   <option value="">Select subscription...</option>
                   {subscriptions.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
                 </select>
               </div>
 
               <div className="ds-filter-field">
-                <label className="ds-filter-label">Resource Group</label>
+                <label className="ds-filter-label" htmlFor="filter-resource-group">Resource Group</label>
                 <select className="ds-filter-select" value={resourceGroup}
                   onChange={e => { const selectedRgId = e.target.value; setResourceGroup(selectedRgId); setResource(''); setConfigData(null); fetchResources(subscription, selectedRgId) }}
-                  disabled={!subscription || scopeLoading} id="filter-resource-group">
+                  disabled={!subscription || scopeLoading} id="filter-resource-group"
+                  aria-required="true">
                   <option value="">Select resource group...</option>
                   {resourceGroups.map(resourceGroup => <option key={resourceGroup.id} value={resourceGroup.id}>{resourceGroup.name}</option>)}
                 </select>
               </div>
 
               <div className="ds-filter-field">
-                <label className="ds-filter-label">Resource</label>
+                <label className="ds-filter-label" htmlFor="filter-resource">Resource</label>
                 <select className="ds-filter-select" value={resource}
                   onChange={e => setResource(e.target.value)}
                   disabled={!resourceGroup || scopeLoading} id="filter-resource">
@@ -367,7 +359,7 @@ export default function DriftScanner() {
 
           {/* Progress */}
           {isScanning && (
-            <div className="ds-progress">
+            <div className="ds-progress" role="progressbar" aria-valuenow={scanProgress} aria-valuemin={0} aria-valuemax={100} aria-label="Scan progress">
               <div className="ds-progress-fill" style={{ width: `${scanProgress}%` }} />
             </div>
           )}

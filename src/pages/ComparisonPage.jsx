@@ -54,7 +54,8 @@ function normaliseState(state) {
   const VOLATILE = ['etag','changedTime','createdTime','provisioningState','lastModifiedAt','systemData','_ts','_etag','_rid','_self']
   // VM and general read-only fields that should never appear as drift
   const READONLY = ['vmId','timeCreated','instanceView','powerState','statuses','resources','latestModelApplied',
-    'resourceGuid','defaultSecurityRules','adminUsername','adminPassword','computerName']
+    'resourceGuid','defaultSecurityRules','adminUsername','adminPassword','computerName',
+    'disablePasswordAuthentication','ssh','provisionVMAgent','patchSettings','enableAutomaticUpdates','winRM']
   const strip = (obj, parentKey = '') => {
     if (Array.isArray(obj)) return obj.map(item => strip(item, parentKey))
     if (obj && typeof obj === 'object') return Object.fromEntries(
@@ -293,10 +294,10 @@ export default function ComparisonPage() {
     return (
       <div className="cp-root">
         <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
-        <div className="cp-empty-state">
+        <div className="cp-empty-state" role="status">
           <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#c2c7d0' }}>compare_arrows</span>
-          <p>No comparison data. Navigate here from the Drift Scanner.</p>
-          <button className="cp-btn cp-btn--primary" onClick={() => navigate('/dashboard')}>← Go to Drift Scanner</button>
+          <p>No comparison data available. Navigate here from the Drift Scanner or Dashboard.</p>
+          <button className="cp-btn cp-btn--primary" onClick={() => navigate('/dashboard')}>← Go to Dashboard</button>
         </div>
       </div>
     )
@@ -306,7 +307,7 @@ export default function ComparisonPage() {
     <div className="cp-root">
       <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
 
-      <main className="cp-main">
+      <main className="cp-main" id="main-content" role="main">
         {/* Page header */}
         <header className="cp-header">
           <div>
@@ -356,8 +357,8 @@ export default function ComparisonPage() {
         </header>
 
         {/* Alerts */}
-        {baselineUploadMessage && <div className={`cp-alert cp-alert--${baselineUploadMessage.ok ? 'success' : 'error'}`}>{baselineUploadMessage.text}</div>}
-        {remediationError && <div className="cp-alert cp-alert--error">Failed to remediate: {remediationError}</div>}
+        {baselineUploadMessage && <div className={`cp-alert cp-alert--${baselineUploadMessage.ok ? 'success' : 'error'}`} role="alert">{baselineUploadMessage.text}</div>}
+        {remediationError && <div className="cp-alert cp-alert--error" role="alert">Failed to remediate: {remediationError}</div>}
         {remediationSucceeded && remediationDiffSummary !== null && (
           <div className="cp-alert cp-alert--success" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
@@ -400,7 +401,7 @@ export default function ComparisonPage() {
         )}
 
         {/* Loading */}
-        {isLoadingBaseline && <div className="cp-loading"><div className="cp-loading-ring" /><span>Loading golden baseline...</span></div>}
+        {isLoadingBaseline && <div className="cp-loading" role="status" aria-live="polite"><div className="cp-loading-ring" aria-hidden="true" /><span>Loading golden baseline...</span></div>}
 
         {/* No baseline */}
         {!isLoadingBaseline && baselineNotFound && (
@@ -465,8 +466,8 @@ export default function ComparisonPage() {
                   <h3>Golden Baseline</h3>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="cp-toolbar-btn" onClick={expandAll}><span className="material-symbols-outlined">unfold_more</span></button>
-                  <button className="cp-toolbar-btn" onClick={collapseAll}><span className="material-symbols-outlined">unfold_less</span></button>
+                  <button className="cp-toolbar-btn" onClick={expandAll} aria-label="Expand all nodes"><span className="material-symbols-outlined">unfold_more</span></button>
+                  <button className="cp-toolbar-btn" onClick={collapseAll} aria-label="Collapse all nodes"><span className="material-symbols-outlined">unfold_less</span></button>
                   <span className="cp-arm-badge">ARM</span>
                 </div>
               </div>

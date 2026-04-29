@@ -88,7 +88,7 @@
   justify-content: center;
   padding: 48px 24px;
   gap: 12px;
-  color: #94a3b8;
+  color: #6b7280;
   text-align: center;
 }
 
@@ -119,7 +119,7 @@
 }
 
 .log-time {
-  color: #94a3b8;
+  color: #6b7280;
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
   white-space: nowrap;
@@ -166,7 +166,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #94a3b8;
+  color: #6b7280;
   white-space: nowrap;
 }
 
@@ -197,7 +197,7 @@
 .drift-time {
   font-size: 11px;
   font-family: 'JetBrains Mono', monospace;
-  color: #94a3b8;
+  color: #6b7280;
   flex-shrink: 0;
 }
 
@@ -254,7 +254,7 @@
 
 .drift-operation {
   font-size: 11px;
-  color: #94a3b8;
+  color: #6b7280;
   font-style: italic;
 }
 
@@ -325,7 +325,7 @@
 }
 
 .drift-change-arrow {
-  color: #94a3b8;
+  color: #6b7280;
   font-size: 11px;
   margin: 0 2px;
 }
@@ -348,7 +348,7 @@
 
 .drift-more-fields {
   font-size: 11px;
-  color: #94a3b8;
+  color: #6b7280;
   font-style: italic;
   padding: 2px 10px;
 }
@@ -367,7 +367,7 @@
 }
 
 .drift-hint {
-  color: #94a3b8;
+  color: #6b7280;
   font-style: italic;
   margin-left: 6px;
 }

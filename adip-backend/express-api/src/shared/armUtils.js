@@ -18,6 +18,9 @@ const READONLY_FIELDS = [
   'resources', 'latestModelApplied',
   // VM osProfile: immutable after provisioning
   'adminUsername', 'adminPassword', 'computerName',
+  // VM linuxConfiguration / windowsConfiguration: immutable after provisioning
+  'disablePasswordAuthentication', 'ssh', 'provisionVMAgent', 'patchSettings',
+  'enableAutomaticUpdates', 'winRM',
   // VM storageProfile: disk identity is immutable
   'diskSizeGB', 'createOption',
   // VM networkProfile: NIC IDs are references, not settable via VM PUT

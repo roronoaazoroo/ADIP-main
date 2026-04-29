@@ -89,29 +89,35 @@ export default function LiveActivityFeed({ liveEvents, driftEvents, isScanning, 
   }
 
   return (
-    <section className="panel panel-live">
+    <section className="panel panel-live" role="feed" aria-label="Live activity feed">
       <div className="panel-body panel-body-log" ref={logRef}>
         {/* Header controls */}
         <div className="feed-controls" style={{ marginBottom: 12, justifyContent: 'flex-end' }}>
-          <span className="panel-badge">{driftEvents.length} events</span>
+          <span className="panel-badge" aria-label={`${driftEvents.length} events detected`}>{driftEvents.length} events</span>
           {uniqueCallerNames.length > 0 && (
-            <select value={selectedUserFilter} onChange={e=>setSelectedUserFilter(e.target.value)} className="feed-user-filter">
+            <select
+              value={selectedUserFilter}
+              onChange={e=>setSelectedUserFilter(e.target.value)}
+              className="feed-user-filter"
+              aria-label="Filter events by user"
+            >
               <option value=''>All users</option>
               {uniqueCallerNames.map(callerName=><option key={callerName} value={callerName}>{callerName}</option>)}
             </select>
           )}
           {(liveEvents.length > 0 || driftEvents.length > 0) && (
-            <button onClick={downloadCSV} title="Download as CSV" className="feed-csv-btn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <button onClick={downloadCSV} title="Download all events as CSV" className="feed-csv-btn" aria-label="Download events as CSV">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               CSV
             </button>
           )}
         </div>
 
         {liveEvents.length === 0 && driftEvents.length === 0 && (
-          <div className="panel-empty">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <div className="panel-empty" role="status">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             <p>Activity log will appear here during operations</p>
+            <p style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Start a scan or enable monitoring to see real-time changes</p>
           </div>
         )}
 

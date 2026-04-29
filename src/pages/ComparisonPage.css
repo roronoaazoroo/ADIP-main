@@ -60,7 +60,7 @@
 .cp-change-badge--array   { background: rgba(0,96,169,0.1); color: #003359; }
 .cp-change-path { font-family: monospace; font-size: 12px; color: #003359; word-break: break-all; }
 .cp-change-values { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cp-arrow { color: #94a3b8; font-size: 13px; }
+.cp-arrow { color: #6b7280; font-size: 13px; }
 .cp-value-chip { display: inline-block; padding: 2px 8px; border-radius: 6px; font-family: monospace; font-size: 11px; max-width: 480px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
 .cp-value-chip--old { background: rgba(239,68,68,0.08); color: #991b1b; text-decoration: line-through; }
 .cp-value-chip--new { background: rgba(16,185,129,0.08); color: #065f46; }
@@ -70,14 +70,14 @@
 .cp-json-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; }
 .cp-json-panel-header h3 { font-size: 14px; font-weight: 600; color: #003359; }
 .cp-dot { width: 10px; height: 10px; border-radius: 50%; }
-.cp-dot--baseline { background: #94a3b8; }
+.cp-dot--baseline { background: #6b7280; }
 .cp-dot--live { background: #0060a9; }
 .cp-arm-badge { padding: 2px 10px; background: rgba(0,96,169,0.08); color: #0060a9; border-radius: 999px; font-size: 11px; font-weight: 600; }
 .cp-toolbar-btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid #e2e8f0; background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; transition: all 0.15s; }
 .cp-toolbar-btn:hover { background: #f3f3f6; color: #003359; }
 .cp-toolbar-btn .material-symbols-outlined { font-size: 16px; }
 .cp-json-body { flex: 1; overflow: auto; padding: 16px 20px; font-family: monospace; font-size: 12.5px; }
-.cp-json-empty { color: #94a3b8; font-size: 13px; padding: 24px; text-align: center; }
+.cp-json-empty { color: #6b7280; font-size: 13px; padding: 24px; text-align: center; }
 
 .cp-empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: #64748b; text-align: center; padding: 40px; }
 .cp-empty-state p { font-size: 14px; max-width: 320px; line-height: 1.6; }

@@ -34,10 +34,10 @@ function BarChart({ data, height = 120 }) {
         return (
           <g key={i}>
             <rect x={x} y={y} width={barW} height={barH} rx={2}
-              fill={d.count > 0 ? '#1995ff' : 'rgba(255,255,255,0.06)'} />
+              fill={d.count > 0 ? '#0060a9' : '#f1f5f9'} />
             {i % Math.ceil(data.length / 7) === 0 && (
               <text x={x + barW / 2} y={height + 16} textAnchor="middle"
-                fontSize={9} fill="#64748b">{d.label}</text>
+                fontSize={9} fill="#6b7280">{d.label}</text>
             )}
           </g>
         )
@@ -78,17 +78,17 @@ function PieChart({ data }) {
             fill={s.color} opacity={0.9} />
         ))}
         {/* Center hole */}
-        <circle cx={cx} cy={cy} r={38} fill="var(--panel-bg, #0f172a)" />
-        <text x={cx} y={cy - 6} textAnchor="middle" fontSize={18} fontWeight={700} fill="#e2e8f0">{total}</text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fontSize={9} fill="#64748b">total drifts</text>
+        <circle cx={cx} cy={cy} r={38} fill="var(--panel-bg, #fff)" />
+        <text x={cx} y={cy - 6} textAnchor="middle" fontSize={18} fontWeight={700} fill="#003359">{total}</text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fontSize={9} fill="#6b7280">total drifts</text>
       </svg>
       {/* Legend */}
       <div>
         {slices.map((s, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ width: 12, height: 12, borderRadius: 3, background: s.color, display: 'inline-block', flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: '#e2e8f0', textTransform: 'capitalize', minWidth: 60 }}>{s.label}</span>
-            <span style={{ fontSize: 13, color: '#94a3b8' }}>{s.value} <span style={{ color: '#475569' }}>({s.pct}%)</span></span>
+            <span style={{ fontSize: 13, color: '#374151', textTransform: 'capitalize', minWidth: 60 }}>{s.label}</span>
+            <span style={{ fontSize: 13, color: '#6b7280' }}>{s.value} <span style={{ color: '#9ca3af' }}>({s.pct}%)</span></span>
           </div>
         ))}
       </div>
@@ -108,35 +108,35 @@ function ResourceDriftEvents({ subscriptionId, resourceId }) {
       .finally(() => setLoading(false))
   }, [subscriptionId, resourceId])
 
-  if (loading) return <div style={{ padding: '10px 16px', color: '#94a3b8', fontSize: 12 }}>Loading events...</div>
-  if (!events?.length) return <div style={{ padding: '10px 16px', color: '#64748b', fontSize: 12 }}>No detailed events found.</div>
+  if (loading) return <div style={{ padding: '10px 16px', color: '#6b7280', fontSize: 12 }}>Loading events...</div>
+  if (!events?.length) return <div style={{ padding: '10px 16px', color: '#6b7280', fontSize: 12 }}>No detailed events found.</div>
 
   return (
-    <div style={{ background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+    <div style={{ background: '#f9f9fc', borderTop: '1px solid #f1f5f9' }}>
       {events.map((ev, i) => (
-        <div key={i} style={{ padding: '10px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <div key={i} style={{ padding: '10px 20px', borderBottom: '1px solid #f1f5f9' }}>
           {/* Event header */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: ev.differences.length ? 8 : 0, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-              color: SEV_COLOR[ev.severity] || '#94a3b8',
+              color: SEV_COLOR[ev.severity] || '#6b7280',
               background: `${SEV_COLOR[ev.severity]}18`, padding: '2px 7px', borderRadius: 4 }}>
               {ev.severity}
             </span>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>
               {ev.detectedAt ? new Date(ev.detectedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
             </span>
             {ev.caller && ev.caller !== 'Unknown' && (
-              <span style={{ fontSize: 12, color: '#cbd5e1' }}>by <strong>{ev.caller}</strong></span>
+              <span style={{ fontSize: 12, color: '#374151' }}>by <strong>{ev.caller}</strong></span>
             )}
-            <span style={{ fontSize: 11, color: '#64748b' }}>
+            <span style={{ fontSize: 11, color: '#6b7280' }}>
               {ev.changeCount} change{ev.changeCount !== 1 ? 's' : ''}
             </span>
           </div>
           {/* Change bullets */}
           {ev.differences.map((d, j) => (
-            <div key={j} style={{ fontSize: 12, color: '#94a3b8', paddingLeft: 12, marginBottom: 2, display: 'flex', gap: 6 }}>
-              <span style={{ color: '#475569' }}>•</span>
-              <span style={{ color: '#cbd5e1' }}>{d.sentence || d.path}</span>
+            <div key={j} style={{ fontSize: 12, color: '#6b7280', paddingLeft: 12, marginBottom: 2, display: 'flex', gap: 6 }}>
+              <span style={{ color: '#9ca3af' }}>•</span>
+              <span style={{ color: '#374151' }}>{d.sentence || d.path}</span>
             </div>
           ))}
         </div>
@@ -186,7 +186,7 @@ export default function DriftImpactDashboard({ subscriptionId: propSubId }) {
               onClick={() => setDays(d)}>{d}d</button>
           ))}
         </div>
-        {loading && <span style={{ fontSize: 12, color: '#94a3b8' }}>Loading...</span>}
+        {loading && <span style={{ fontSize: 12, color: '#6b7280' }}>Loading...</span>}
       </div>
 
       {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 16 }}>{error}</div>}
@@ -250,7 +250,7 @@ export default function DriftImpactDashboard({ subscriptionId: propSubId }) {
               </div>
               <div className="an-card-body an-card-body--table">
                 {data.topResources.length === 0 ? (
-                  <div style={{ color: '#64748b', fontSize: 13 }}>No drift events in this period.</div>
+                  <div style={{ color: '#6b7280', fontSize: 13 }}>No drift events in this period.</div>
                 ) : (
                   <table className="an-table">
                     <thead><tr><th>Resource</th><th>Drifts</th><th>Max Severity</th><th style={{ width: 40 }}></th></tr></thead>
@@ -263,7 +263,7 @@ export default function DriftImpactDashboard({ subscriptionId: propSubId }) {
                             <td>{r.driftCount}</td>
                             <td style={{ color: SEV_COLOR[r.maxSeverity], textTransform: 'capitalize', fontWeight: 600 }}>{r.maxSeverity}</td>
                             <td>
-                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#64748b' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#6b7280' }}>
                                 {expandedResource === r.resourceId ? 'expand_less' : 'expand_more'}
                               </span>
                             </td>
@@ -293,7 +293,7 @@ export default function DriftImpactDashboard({ subscriptionId: propSubId }) {
               </div>
               <div className="an-card-body">
                 {data.resourceGroupRisk.length === 0 ? (
-                  <div style={{ color: '#64748b', fontSize: 13 }}>No drift events in this period.</div>
+                  <div style={{ color: '#6b7280', fontSize: 13 }}>No drift events in this period.</div>
                 ) : (
                   data.resourceGroupRisk.map((rg, i) => {
                     const rgResources = data.topResources.filter(r => r.resourceGroup === rg.resourceGroup)
@@ -311,22 +311,22 @@ export default function DriftImpactDashboard({ subscriptionId: propSubId }) {
                               {RISK_LABEL[rg.riskLevel]}
                             </span>
                             {rgResources.length > 0 && (
-                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#64748b' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#6b7280' }}>
                                 {isExpanded ? 'expand_less' : 'expand_more'}
                               </span>
                             )}
                           </div>
                         </div>
                         {isExpanded && (
-                          <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 6, margin: '4px 0 8px 0', padding: '6px 0' }}>
+                          <div style={{ background: '#f9f9fc', borderRadius: 6, margin: '4px 0 8px 0', padding: '6px 0' }}>
                             {rgResources.map((r, j) => (
                               <div key={j} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 16px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#64748b' }}>dns</span>
-                                  <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#e2e8f0' }}>{r.name}</span>
+                                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#6b7280' }}>dns</span>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#003359' }}>{r.name}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                  <span style={{ fontSize: 11, color: '#64748b' }}>{r.driftCount} drift{r.driftCount !== 1 ? 's' : ''}</span>
+                                  <span style={{ fontSize: 11, color: '#6b7280' }}>{r.driftCount} drift{r.driftCount !== 1 ? 's' : ''}</span>
                                   <span style={{ fontSize: 11, fontWeight: 600, color: SEV_COLOR[r.maxSeverity], textTransform: 'capitalize' }}>{r.maxSeverity}</span>
                                 </div>
                               </div>

@@ -34,11 +34,11 @@
   --color-drift:    #f97316;
 
   /* ── Text ─────────────────────────────────────── */
-  --text-primary:   #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted:     #64748b;
-  --text-accent:    #1995ff;
-  --text-inverse:   #0a0e1a;
+  --text-primary:   #1a1c1e;
+  --text-secondary: #6b7280;
+  --text-muted:     #9ca3af;
+  --text-accent:    #0060a9;
+  --text-inverse:   #ffffff;
 
   /* ── Borders ──────────────────────────────────── */
   --border-subtle:  rgba(255, 255, 255, 0.06);
@@ -86,6 +86,10 @@
   --nav-height: 56px;
   --filter-height: 60px;
   --tab-height: 44px;
+
+  /* ── Focus ring ────────────────────────────────── */
+  --focus-ring: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent);
+  --focus-ring-light: 0 0 0 2px #fff, 0 0 0 4px var(--accent);
 }
 
 /* ── Reset ──────────────────────────────────────── */
@@ -99,6 +103,7 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -138,6 +143,59 @@ select, input {
 img {
   max-width: 100%;
   height: auto;
+}
+
+/* ── Accessibility: Focus Visible ──────────────── */
+/* Show focus ring only for keyboard navigation (not clicks) */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Buttons and interactive elements */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* Remove default outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ── Skip to content link (accessibility) ──────── */
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 10000;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 0 0 var(--radius-sm) 0;
+  transition: top var(--transition-fast);
+}
+.skip-to-content:focus {
+  top: 0;
+}
+
+/* ── Reduced Motion Preference ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Scrollbar — Dark ───────────────────────────── */
@@ -210,6 +268,155 @@ img {
   100% { left: 130%; }
 }
 
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastSlideOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(100%); }
+}
+
+/* ── Skeleton Loading Utility ──────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-xs);
+}
+
+.skeleton-text--short { width: 40%; }
+.skeleton-text--medium { width: 65%; }
+.skeleton-text--long { width: 90%; }
+
+.skeleton-circle {
+  border-radius: 50%;
+}
+
+.skeleton-card {
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  min-height: 120px;
+}
+
+/* ── Toast Notification System ─────────────────── */
+.toast-container {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  animation: toastSlideIn 0.3s ease-out;
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-lg);
+  max-width: 400px;
+}
+
+.toast--success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--color-success);
+}
+
+.toast--error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--color-danger);
+}
+
+.toast--info {
+  background: rgba(25, 149, 255, 0.15);
+  border: 1px solid rgba(25, 149, 255, 0.3);
+  color: var(--color-info);
+}
+
+.toast--warning {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--color-warning);
+}
+
+/* ── Tooltip Utility ───────────────────────────── */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md);
+  z-index: 1000;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* ── Screen Reader Only Utility ────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
 /* ═══════════════════════════════════════════════════
    LIGHT THEME OVERRIDES
    ═══════════════════════════════════════════════════ */
@@ -250,6 +457,9 @@ img {
   --shadow-xl:   0 20px 60px rgba(0, 0, 0, 0.12), 0 8px 20px rgba(0, 0, 0, 0.06);
   --shadow-glow: 0 0 20px rgba(25, 149, 255, 0.12);
   --shadow-glow-strong: 0 0 30px rgba(25, 149, 255, 0.2);
+
+  /* ── Focus ring (light) ────────────────────────── */
+  --focus-ring: 0 0 0 2px #fff, 0 0 0 4px var(--accent);
 }
 
 [data-theme="light"] body {
@@ -264,4 +474,22 @@ img {
 
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.2);
+}
+
+/* Light skeleton */
+[data-theme="light"] .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.04) 25%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.04) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Light tooltip */
+[data-theme="light"] [data-tooltip]::after {
+  background: #1a202c;
+  color: #fff;
+  border-color: transparent;
 }

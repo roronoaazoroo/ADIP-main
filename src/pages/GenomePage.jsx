@@ -159,10 +159,10 @@ export default function GenomePage() {
     return (
       <div className="gp-root">
         <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
-        <div className="gp-empty-state">
+        <div className="gp-empty-state" role="status">
           <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#c2c7d0' }}>history</span>
-          <p>No resource selected. Navigate here from the Drift Scanner.</p>
-          <button className="gp-btn gp-btn--primary" onClick={() => navigate('/dashboard')}>Go to Drift Scanner</button>
+          <p>No resource selected. Navigate here from the Drift Scanner to view configuration snapshots.</p>
+          <button className="gp-btn gp-btn--primary" onClick={() => navigate('/scanner')}>Go to Drift Scanner</button>
         </div>
       </div>
     )
@@ -172,7 +172,7 @@ export default function GenomePage() {
     <div className="gp-root">
       <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
 
-      <main className="gp-main">
+      <main className="gp-main" id="main-content" role="main">
         {/* Header */}
         <header className="gp-header">
           <div>
@@ -181,7 +181,7 @@ export default function GenomePage() {
           </div>
           <div className="gp-save-row">
             <input className="gp-label-input" value={snapshotLabelInput} onChange={e => setSnapshotLabelInput(e.target.value)}
-              placeholder="Snapshot label (optional)" />
+              placeholder="Snapshot label (optional)" aria-label="Snapshot label" />
             <button className="gp-btn gp-btn--primary" onClick={handleSave} disabled={isSavingSnapshot}>
               {isSavingSnapshot ? <><div className="gp-spinner" />Saving...</> : <>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>Save Snapshot
@@ -192,7 +192,7 @@ export default function GenomePage() {
 
         {/* Alert */}
         {actionFeedbackMessage && (
-          <div className={`gp-alert gp-alert--${actionFeedbackMessage.ok ? 'success' : 'error'}`}>{actionFeedbackMessage.text}</div>
+          <div className={`gp-alert gp-alert--${actionFeedbackMessage.ok ? 'success' : 'error'}`} role="alert" aria-live="polite">{actionFeedbackMessage.text}</div>
         )}
 
         {/* Tab bar */}

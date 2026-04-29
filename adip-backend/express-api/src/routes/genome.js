@@ -17,15 +17,15 @@ function getGenomeIndexTable() {
 }
 
 // Updates a flag field on all genomeIndex entities for a resource.
-// Sets flagValue on the matching blobKey, null on all others.
-// Used by promote (isCurrentBaseline) and rollback (rolledBackAt).
+// Sets flagValue on the matching blobKey only — does NOT clear the flag on other entities.
+// Each rollback/promote event is preserved independently in history.
 async function updateGenomeFlag(subscriptionId, resourceId, blobKey, flagField, flagValue) {
   const genomeTable = getGenomeIndexTable()
-  const filter = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}'`
+  const filter = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}' and blobKey eq '${blobKey}'`
   for await (const entity of genomeTable.listEntities({ queryOptions: { filter } })) {
     await genomeTable.upsertEntity({
       ...entity,
-      [flagField]: entity.blobKey === blobKey ? flagValue : null,
+      [flagField]: flagValue,
     }, 'Replace').catch(flagUpdateError => {
       console.warn('[updateGenomeFlag] non-fatal upsert error:', flagUpdateError.message)
     })

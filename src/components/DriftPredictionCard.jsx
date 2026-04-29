@@ -157,7 +157,7 @@ export default function DriftPredictionCard({ prediction, loading, error, resour
   if (!prediction) return null
 
   const { likelihood = 'LOW', predictedDays, fieldsAtRisk = [], reasoning, basedOn } = prediction
-  const color = LIKELIHOOD_COLOR[likelihood] || '#94a3b8'
+  const color = LIKELIHOOD_COLOR[likelihood] || '#6b7280'
   const pct   = LIKELIHOOD_PCT[likelihood] || 20
 
   return (

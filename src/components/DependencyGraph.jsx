@@ -46,25 +46,26 @@ export default function DependencyGraph({ subscriptionId, resourceGroupId, onNod
   }, [subscriptionId, resourceGroupId])
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: 14 }}>
+    <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6b7280', fontSize: 14 }}>
+      <div className="skeleton" style={{ width: 18, height: 18, borderRadius: '50%', marginRight: 10 }} />
       Building dependency graph...
     </div>
   )
 
   if (error) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#ef4444', fontSize: 14 }}>
+    <div role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#ef4444', fontSize: 14 }}>
       {error}
     </div>
   )
 
   if (!graphData.nodes.length) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: 14 }}>
+    <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: 14 }}>
       No resources found in this resource group.
     </div>
   )
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }} role="img" aria-label="Resource dependency graph visualization">
       <ForceGraph2D
         graphData={graphData}
         width={dimensions.width}

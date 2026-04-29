@@ -58,8 +58,10 @@ export default function ReportsDashboard({ subscriptionId: propSubscriptionId })
     setIsGenerating(true)
     setGenerationResult(null)
     setGenerationError(null)
+    // Read recipient email from logged-in user's session
+    const userEmail = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}').email || '' } catch { return '' } })()
     try {
-      const result = await generateDriftReport(effectiveSubId, selectedPeriodDays, sendEmailOnGenerate)
+      const result = await generateDriftReport(effectiveSubId, selectedPeriodDays, sendEmailOnGenerate, userEmail)
       setGenerationResult(result)
       // Refresh the saved reports list
       await loadSavedReports()
@@ -83,9 +85,23 @@ export default function ReportsDashboard({ subscriptionId: propSubscriptionId })
     }
   }
 
-  const handlePrintReport = () => {
-    if (!iframeRef.current) return
-    iframeRef.current.contentWindow.print()
+  const handlePrintReport = async () => {
+    const key = viewingReportKey
+    if (!key) return
+    // Fetch the HTML, open in new tab, trigger print (Save as PDF)
+    try {
+      const url = getReportViewUrl(key)
+      const resp = await fetch(url)
+      const html = await resp.text()
+      const blob = new Blob([html], { type: 'text/html' })
+      const blobUrl = URL.createObjectURL(blob)
+      const win = window.open(blobUrl, '_blank')
+      if (win) {
+        win.onload = () => { win.print(); URL.revokeObjectURL(blobUrl) }
+      }
+    } catch { /* fallback: open URL directly */ 
+      window.open(getReportViewUrl(key), '_blank')
+    }
   }
 
   return (
@@ -176,7 +192,7 @@ export default function ReportsDashboard({ subscriptionId: propSubscriptionId })
           </div>
         </div>
         <div className="an-card-body">
-          {isLoadingReports && <div style={{ color: '#94a3b8', fontSize: 13 }}>Loading reports...</div>}
+          {isLoadingReports && <div style={{ color: '#6b7280', fontSize: 13 }}>Loading reports...</div>}
           {!isLoadingReports && savedReports.length === 0 && (
             <div style={{ color: '#64748b', fontSize: 13, padding: '12px 0' }}>
               No reports generated yet. Click "Generate Report" above to create your first report.
@@ -203,7 +219,17 @@ export default function ReportsDashboard({ subscriptionId: propSubscriptionId })
                   {viewingReportKey === report.blobKey ? 'Close' : 'View'}
                 </button>
                 <button className="an-report-view-btn" title="Download as PDF"
-                  onClick={() => { setViewingReportKey(report.blobKey); setTimeout(handlePrintReport, 800) }}>
+                  onClick={async () => {
+                    try {
+                      const url = getReportViewUrl(report.blobKey)
+                      const resp = await fetch(url)
+                      const html = await resp.text()
+                      const blob = new Blob([html], { type: 'text/html' })
+                      const blobUrl = URL.createObjectURL(blob)
+                      const win = window.open(blobUrl, '_blank')
+                      if (win) win.onload = () => { win.print(); URL.revokeObjectURL(blobUrl) }
+                    } catch { window.open(getReportViewUrl(report.blobKey), '_blank') }
+                  }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>picture_as_pdf</span>
                   PDF
                 </button>

@@ -64,8 +64,8 @@ const JsonTree = forwardRef(function JsonTree({ data }, ref) {
       const isExpanded = expandedNodes.has(path)
       return (
         <span className="json-array">
-          <button className="json-toggle" onClick={() => toggleNode(path)}>
-            <span className={`json-arrow ${isExpanded ? 'expanded' : ''}`}>▶</span>
+          <button className="json-toggle" onClick={() => toggleNode(path)} aria-expanded={isExpanded} aria-label={`Toggle array with ${val.length} items`}>
+            <span className={`json-arrow ${isExpanded ? 'expanded' : ''}`} aria-hidden="true">▶</span>
           </button>
           <span className="json-bracket">[</span>
           <span className="json-count">{val.length} items</span>
@@ -90,8 +90,8 @@ const JsonTree = forwardRef(function JsonTree({ data }, ref) {
       const isExpanded = expandedNodes.has(path)
       return (
         <span className="json-object">
-          <button className="json-toggle" onClick={() => toggleNode(path)}>
-            <span className={`json-arrow ${isExpanded ? 'expanded' : ''}`}>▶</span>
+          <button className="json-toggle" onClick={() => toggleNode(path)} aria-expanded={isExpanded} aria-label={`Toggle object with ${entries.length} properties`}>
+            <span className={`json-arrow ${isExpanded ? 'expanded' : ''}`} aria-hidden="true">▶</span>
           </button>
           <span className="json-bracket">{'{'}</span>
           <span className="json-count">{entries.length} properties</span>
@@ -114,7 +114,7 @@ const JsonTree = forwardRef(function JsonTree({ data }, ref) {
     return <span>{String(val)}</span>
   }
 
-  return <div className="json-tree">{renderNode(data)}</div>
+  return <div className="json-tree" role="tree" aria-label="JSON configuration viewer">{renderNode(data)}</div>
 })
 
 export default JsonTree

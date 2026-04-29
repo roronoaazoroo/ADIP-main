@@ -170,7 +170,7 @@ export default function DriftForecastChart({ subscriptionId, resourceId }) {
                   {/* Count label on top of bar */}
                   {bar.total > 0 && (
                     <text x={x + innerW / 2} y={stackY - 3}
-                      textAnchor="middle" fontSize="9" fill="#94a3b8" fontWeight="600">
+                      textAnchor="middle" fontSize="9" fill="#6b7280" fontWeight="600">
                       {bar.total}
                     </text>
                   )}

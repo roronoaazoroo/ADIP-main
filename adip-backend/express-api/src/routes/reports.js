@@ -17,7 +17,7 @@ const REPORTS_CONTAINER = 'drift-reports'
 // Body: { subscriptionId, periodDays?, sendEmail? }
 router.post('/reports/generate', async (req, res) => {
   console.log('[POST /reports/generate] starts')
-  const { subscriptionId, periodDays = 7, sendEmail = false } = req.body
+  const { subscriptionId, periodDays = 7, sendEmail = false, recipientEmail = '' } = req.body
 
   if (!subscriptionId) {
     return res.status(400).json({ error: 'subscriptionId required' })
@@ -27,7 +27,7 @@ router.post('/reports/generate', async (req, res) => {
   }
 
   try {
-    const { blobKey, reportData } = await generateAndSaveReport(subscriptionId, Number(periodDays), sendEmail)
+    const { blobKey, reportData } = await generateAndSaveReport(subscriptionId, Number(periodDays), sendEmail, recipientEmail)
     res.json({ generated: true, blobKey, summary: reportData })
     console.log('[POST /reports/generate] ends — blobKey:', blobKey)
   } catch (generateError) {

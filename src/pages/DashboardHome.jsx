@@ -23,7 +23,6 @@ import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
 import NavBar from '../components/NavBar'
 import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
-import TopChangers from '../components/TopChangers'
 import './DashboardHome.css'
 
 // ── Filter dropdown component ─────────────────────────────────────────────────
@@ -68,18 +67,35 @@ const SEVERITY_COLOR = {
   low:      { dot: '#10b981', text: '#10b981', label: 'Low' },
 }
 
-function KpiCard({ label, value, icon }) {
+function KpiCard({ label, value, icon, loading }) {
   return (
-    <div className="kpi-card">
+    <div className="kpi-card" role="region" aria-label={label}>
       <div className="kpi-card-header">
         <span className="kpi-label">{label}</span>
-        <span className="kpi-icon material-symbols-outlined">{icon}</span>
+        <div className="kpi-icon-wrap">
+          <span className="kpi-icon material-symbols-outlined">{icon}</span>
+        </div>
       </div>
       <div className="kpi-value-row">
-        <span className="kpi-value">{value ?? '—'}</span>
+        {loading ? (
+          <div className="kpi-skeleton skeleton" style={{ width: 60, height: 36, borderRadius: 8 }} />
+        ) : (
+          <span className="kpi-value" key={value}>{value ?? '—'}</span>
+        )}
       </div>
     </div>
   )
+}
+
+// Skeleton row for table loading
+function TableSkeletonRows({ count = 6 }) {
+  return Array.from({ length: count }).map((_, i) => (
+    <tr key={i} className="dh-tr dh-tr--skeleton">
+      {Array.from({ length: 6 }).map((_, j) => (
+        <td key={j}><div className="skeleton skeleton-text" style={{ width: `${50 + Math.random() * 40}%`, height: 14 }} /></td>
+      ))}
+    </tr>
+  ))
 }
 
 function DonutChart({ changed, total }) {
@@ -185,7 +201,6 @@ export default function DashboardHome() {
 
   // Whether the page is currently loading data (shows 'Loading...' in the table)
   const [isLoadingData,       setIsLoadingData]       = useState(true)
-  const [dashTab,             setDashTab]             = useState('events')
 
   // Text typed in the search box — used for client-side filtering of the table
   const [searchText,          setSearchText]          = useState('')
@@ -388,13 +403,13 @@ export default function DashboardHome() {
     <div className="dh-root">
       <NavBar user={user} subscription={ctxSub} resourceGroup={resourceGroup} resource={resource} configData={configData} />
 
-      <main className="dh-main">
+      <main className="dh-main" id="main-content">
         {/* KPI Cards */}
         <div className="dh-kpi-grid">
-          <KpiCard label="Subscriptions"           value={subscriptionList.length}   icon="layers" />
-          <KpiCard label="Resource Groups"         value={kpiResourceGroupCount}     icon="folder" />
-          <KpiCard label="Total Resources"         value={totalResourceCount}        icon="dns" />
-          <KpiCard label="Changes (Last 24h)" value={kpiTotalChangesAllTime}  icon="history" />
+          <KpiCard label="Subscriptions"     value={subscriptionList.length}   icon="layers"  loading={isLoadingData && !subscriptionList.length} />
+          <KpiCard label="Resource Groups"   value={kpiResourceGroupCount}     icon="folder"  loading={isLoadingData && !resourceGroupList.length} />
+          <KpiCard label="Total Resources"   value={totalResourceCount}        icon="dns"     loading={isLoadingData && !totalResourceCount} />
+          <KpiCard label="Changes (Last 24h)" value={kpiTotalChangesAllTime}  icon="history" loading={isLoadingData && !todayStats} />
         </div>
 
         {/* Charts */}
@@ -405,13 +420,6 @@ export default function DashboardHome() {
 
         {/* Table */}
         <div className="dh-table-section">
-          {/* Tab bar */}
-          <div className="dh-tab-bar">
-            <button className={`dh-tab-btn ${dashTab === 'events' ? 'dh-tab-btn--active' : ''}`} onClick={() => setDashTab('events')}>Recent Events</button>
-            <button className={`dh-tab-btn ${dashTab === 'changers' ? 'dh-tab-btn--active' : ''}`} onClick={() => setDashTab('changers')}>Top Drift Causers</button>
-          </div>
-          {dashTab === 'changers' && <TopChangers subscriptionId={activeSubscriptionId} />}
-          {dashTab === 'events' && <>
           <div className="dh-table-header">
             <div className="dh-table-title-row">
               <h2 className="dh-table-title">Recent Events</h2>
@@ -447,57 +455,75 @@ export default function DashboardHome() {
             </div>
           </div>
 
-          <div className="dh-table-wrap">
-            {isLoadingData ? (
-              <div className="dh-empty">Loading changes...</div>
-            ) : filteredChangeEvents.length === 0 ? (
-              <div className="dh-empty">
-                {activeSubscriptionId ? 'No changes found for the selected period.' : 'No subscription available.'}
-              </div>
-            ) : (
-              <table className="dh-table">
+          <div className="dh-table-wrap" role="region" aria-label="Recent events table" tabIndex={0}>
+              <table className="dh-table" aria-label="Recent change events">
                 <thead>
                   <tr>
-                    <th>Time</th><th>User</th><th>Resource</th>
-                    <th>Resource Group</th><th>Operation</th><th>Type</th>
+                    <th scope="col">Time</th>
+                    <th scope="col">User</th>
+                    <th scope="col">Resource</th>
+                    <th scope="col">Resource Group</th>
+                    <th scope="col">Operation</th>
+                    <th scope="col">Type</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Render up to 100 rows — each row is one ARM change event */}
-                  {filteredChangeEvents.slice(0, 1000).map((changeEvent, rowIndex) => {
-                    // Extract the short resource name from the full ARM resource ID
-                    const resourceShortName = changeEvent.resourceId?.split('/').pop() || '—'
-                    // Shorten the operation name to the last two segments (e.g. storageAccounts/write)
-                    const shortOperationName = (changeEvent.operationName || changeEvent.eventType || '').split('/').slice(-2).join('/')
-                    const isDeleteEvent = changeEvent.changeType === 'deleted'
-                    return (
-                      <tr key={changeEvent._blobKey || rowIndex} className="dh-tr"
-                        style={{ cursor: isDeleteEvent ? 'default' : 'pointer' }}
-                        onClick={() => !isDeleteEvent && navigateToComparison(changeEvent)}
-                        title={isDeleteEvent ? '' : 'Click to compare against baseline'}>
-                        <td style={{ whiteSpace: 'nowrap', color: '#94a3b8', fontSize: 12 }}>
-                          {changeEvent.detectedAt ? new Date(changeEvent.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </td>
-                        <td style={{ color: '#60a5fa', fontWeight: 500 }}>{changeEvent.caller || '—'}</td>
-                        <td className="dh-td-resource" title={changeEvent.resourceId}>{resourceShortName}</td>
-                        <td>{changeEvent.resourceGroup || '—'}</td>
-                        <td style={{ fontSize: 12, color: '#94a3b8', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={changeEvent.operationName}>{shortOperationName || '—'}</td>
-                        <td>
-                          <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: 10,
-                            fontSize: 11, fontWeight: 600,
-                            background: isDeleteEvent ? 'rgba(239,68,68,0.15)' : 'rgba(99,179,237,0.15)',
-                            color: isDeleteEvent ? '#ef4444' : '#63b3ed',
-                          }}>{changeEvent.changeType || 'modified'}</span>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {isLoadingData ? (
+                    <TableSkeletonRows count={8} />
+                  ) : filteredChangeEvents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6}>
+                        <div className="dh-empty">
+                          <span className="material-symbols-outlined" style={{ fontSize: 40, opacity: 0.3 }}>
+                            {activeSubscriptionId ? 'search_off' : 'cloud_off'}
+                          </span>
+                          <p>{activeSubscriptionId ? 'No changes found for the selected filters.' : 'No subscription available. Connect your Azure account to get started.'}</p>
+                          {hasActiveFilters && (
+                            <button className="dh-goto-btn" onClick={clearFilters}>Clear all filters</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredChangeEvents.slice(0, 200).map((changeEvent, rowIndex) => {
+                      const resourceShortName = changeEvent.resourceId?.split('/').pop() || '—'
+                      const shortOperationName = (changeEvent.operationName || changeEvent.eventType || '').split('/').slice(-2).join('/')
+                      const isDeleteEvent = changeEvent.changeType === 'deleted'
+                      return (
+                        <tr key={changeEvent._blobKey || rowIndex}
+                          className={`dh-tr ${!isDeleteEvent ? 'dh-tr--clickable' : ''}`}
+                          onClick={() => !isDeleteEvent && navigateToComparison(changeEvent)}
+                          role={!isDeleteEvent ? 'link' : undefined}
+                          tabIndex={!isDeleteEvent ? 0 : undefined}
+                          onKeyDown={(e) => { if (!isDeleteEvent && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigateToComparison(changeEvent); } }}
+                          aria-label={!isDeleteEvent ? `Compare ${resourceShortName} against baseline` : undefined}
+                        >
+                          <td className="dh-td-time">
+                            {changeEvent.detectedAt ? new Date(changeEvent.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
+                          <td className="dh-td-user">{changeEvent.caller || '—'}</td>
+                          <td className="dh-td-resource" title={changeEvent.resourceId}>{resourceShortName}</td>
+                          <td className="dh-td-rg">{changeEvent.resourceGroup || '—'}</td>
+                          <td className="dh-td-operation" title={changeEvent.operationName}>{shortOperationName || '—'}</td>
+                          <td>
+                            <span className={`dh-change-badge dh-change-badge--${isDeleteEvent ? 'deleted' : 'modified'}`}>
+                              {changeEvent.changeType || 'modified'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                  {!isLoadingData && filteredChangeEvents.length > 200 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: 12 }}>
+                        Showing 200 of {filteredChangeEvents.length} events
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
-            )}
           </div>
-          </>}
         </div>
       </main>
     </div>
