@@ -105,6 +105,7 @@ app.use('/api', require('./routes/userPreferences'))
 app.use('/api', require('./routes/costEstimate'))
 app.use('/api', require('./routes/chat'))
 app.use('/api', require('./routes/rgPrediction'))
+app.use('/api', require('./routes/driftRiskTimeline'))
 
 
 

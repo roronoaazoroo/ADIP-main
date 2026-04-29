@@ -6,7 +6,6 @@ import { fetchDriftHistory } from '../services/driftPredictionApi'
 import './DriftPredictionCard.css'
 
 const LIKELIHOOD_COLOR = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#10b981' }
-const LIKELIHOOD_PCT   = { HIGH: 82, MEDIUM: 55, LOW: 22 }
 const SEV_COLOR = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#10b981', none: '#1e293b' }
 const SEV_RANK  = { critical: 4, high: 3, medium: 2, low: 1, none: 0 }
 
@@ -158,7 +157,7 @@ export default function DriftPredictionCard({ prediction, loading, error, resour
 
   const { likelihood = 'LOW', predictedDays, fieldsAtRisk = [], reasoning, basedOn } = prediction
   const color = LIKELIHOOD_COLOR[likelihood] || '#6b7280'
-  const pct   = LIKELIHOOD_PCT[likelihood] || 20
+  const pct   = prediction?.driftProbability ?? (likelihood === 'HIGH' ? 70 : likelihood === 'MEDIUM' ? 40 : 10)
 
   return (
     <div className="dpc-wrap">

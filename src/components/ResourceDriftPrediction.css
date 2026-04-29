@@ -1,0 +1,71 @@
+/* FILE: src/components/ResourceDriftPrediction.css */
+
+.rdp-wrap { display: flex; flex-direction: column; gap: 16px; }
+
+.rdp-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.rdp-title  { font-size: 16px; font-weight: 700; color: #003359; margin: 0; }
+.rdp-subtitle { font-size: 12px; color: #94a3b8; margin: 4px 0 0; }
+
+/* ── 7d / 30d toggle ── */
+.rdp-toggle { display: flex; gap: 4px; }
+.rdp-toggle-btn {
+  padding: 6px 18px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  border: 1px solid #e2e8f0; background: #fff; color: #64748b;
+  cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.rdp-toggle-btn:hover { border-color: #003359; color: #003359; }
+.rdp-toggle-btn--active { background: #003359; color: #fff; border-color: #003359; }
+
+/* ── Chart wrapper ── */
+.rdp-chart-wrap { position: relative; width: 100%; }
+.rdp-svg { width: 100%; height: auto; display: block; cursor: crosshair; }
+
+/* ── Tooltip — fixed top-right corner of chart ── */
+.rdp-tooltip {
+  position: absolute; top: 8px; right: 8px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  padding: 12px 14px; min-width: 220px; max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0,53,89,0.10);
+  font-size: 12px; pointer-events: none; z-index: 10;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rdp-tt-date { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.rdp-tt-resource { display: flex; gap: 8px; align-items: flex-start; }
+.rdp-tt-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.rdp-tt-body { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.rdp-tt-top { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.rdp-tt-name { font-weight: 700; color: #003359; font-size: 13px; }
+.rdp-tt-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  border: 1px solid; border-radius: 4px; padding: 1px 5px;
+}
+.rdp-tt-score { font-size: 11px; font-weight: 600; margin-left: auto; }
+.rdp-tt-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: #64748b; }
+.rdp-tt-fields { color: #0060a9; font-family: monospace; font-size: 10px; }
+
+/* ── Legend ── */
+.rdp-legend { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+.rdp-legend-item {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: #475569; background: none; border: none;
+  cursor: pointer; padding: 4px 8px; border-radius: 6px;
+  transition: background 0.15s; font-family: inherit;
+}
+.rdp-legend-item:hover { background: #f8fafc; }
+.rdp-legend-item--dim { opacity: 0.3; }
+.rdp-legend-dot { width: 12px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+.rdp-legend-reset {
+  font-size: 11px; color: #0060a9; background: none; border: 1px solid #0060a9;
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit;
+}
+
+/* ── Loading / Empty ── */
+.rdp-loading { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 13px; padding: 24px 0; }
+.rdp-spinner {
+  width: 14px; height: 14px; border: 2px solid #e2e8f0;
+  border-top-color: #0060a9; border-radius: 50%;
+  animation: rdp-spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes rdp-spin { to { transform: rotate(360deg); } }
+.rdp-empty { color: #94a3b8; font-size: 13px; padding: 24px 0; text-align: center; }

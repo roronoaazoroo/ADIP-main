@@ -197,6 +197,7 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
       .finally(() => setLoading(false))
   }, [subscriptionId, resourceGroup])
 
+
   const handleSelect = useCallback(name => setSelected(name), [])
 
   if (!subscriptionId || !resourceGroup) {
@@ -269,13 +270,25 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
                     </span>
                     {stat && (
                       <>
-                        <span className="rgp-pred-meta-item">
-                          <span className="material-symbols-outlined">history</span>
-                          {stat.total} total · {stat.last24h} in 24h · {stat.last7d} in 7d
-                        </span>
+                        {/* Mini frequency bars: 24h / 7d / total */}
+                        <div className="rgp-freq-bars">
+                          {[
+                            { label: '24h', value: stat.last24h, max: Math.max(stat.total, 1), color: '#ef4444' },
+                            { label: '7d',  value: stat.last7d,  max: Math.max(stat.total, 1), color: '#f97316' },
+                            { label: 'All', value: stat.total,   max: Math.max(stat.total, 1), color: '#60a5fa' },
+                          ].map(({ label, value, max, color }) => (
+                            <div key={label} className="rgp-freq-bar-item">
+                              <span className="rgp-freq-bar-label">{label}</span>
+                              <div className="rgp-freq-bar-track">
+                                <div className="rgp-freq-bar-fill" style={{ width: `${(value / max) * 100}%`, background: color }} />
+                              </div>
+                              <span className="rgp-freq-bar-val">{value}</span>
+                            </div>
+                          ))}
+                        </div>
                         <span className="rgp-pred-meta-item" style={{ color: '#ef4444' }}>
                           <span className="material-symbols-outlined">warning</span>
-                          {stat.severities.critical} critical
+                          {stat.severities.critical} critical · {stat.severities.high} high
                         </span>
                       </>
                     )}
@@ -295,6 +308,7 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
       {aiPredictions.length === 0 && driftedCount === 0 && (
         <div className="rgp-empty">No drift history found for resources in <strong>{resourceGroup}</strong>.</div>
       )}
+
     </div>
   )
 }

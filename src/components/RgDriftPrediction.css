@@ -104,3 +104,105 @@
 .rgp-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
 .rgp-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
 .rgp-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── AI Recommendations Card ─────────────────────────────────────────────── */
+.rgp-recs-card {
+  margin-top: 28px;
+  background: var(--card-bg, #1e293b);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.rgp-rec-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
+}
+.rgp-rec-item:last-child { border-bottom: none; }
+
+.rgp-rec-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.rgp-rec-priority {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.rgp-rec-priority--high   { background: rgba(239,68,68,0.15);  color: #ef4444; }
+.rgp-rec-priority--medium { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.rgp-rec-priority--low    { background: rgba(16,185,129,0.15); color: #10b981; }
+
+.rgp-rec-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.rgp-rec-desc {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+
+.rgp-rec-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #60a5fa;
+}
+.rgp-rec-action .material-symbols-outlined { font-size: 14px; }
+
+/* ── Mini Frequency Bars in Prediction Cards ─────────────────────────────── */
+.rgp-freq-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 4px;
+  width: 100%;
+}
+
+.rgp-freq-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.rgp-freq-bar-label {
+  width: 24px;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.rgp-freq-bar-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rgp-freq-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  min-width: 2px;
+  transition: width 0.4s ease;
+}
+
+.rgp-freq-bar-val {
+  width: 20px;
+  text-align: right;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+  flex-shrink: 0;
+}

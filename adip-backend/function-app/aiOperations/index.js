@@ -144,28 +144,60 @@ async function predictDrift(subscriptionId, resourceId) {
 
   if (!records.length) {
     console.log('[predictDrift] ends — no history, returning low risk')
-    return { likelihood: 'LOW', predictedDays: null, fieldsAtRisk: [], reasoning: 'No drift history found for this resource.', basedOn: '0 drift events' }
+    return { likelihood: 'LOW', driftProbability: 5, predictedDays: null, fieldsAtRisk: [], reasoning: 'No drift history found for this resource.', basedOn: '0 drift events' }
   }
 
-  const sorted  = records.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
-  const summary = sorted.map(r => ({
+  const sorted = records.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+  const now    = Date.now()
+
+  // Compute frequency features to give GPT concrete numbers
+  const last24h  = sorted.filter(r => (now - new Date(r.detectedAt)) < 86400000).length
+  const last7d   = sorted.filter(r => (now - new Date(r.detectedAt)) < 7 * 86400000).length
+  const last30d  = sorted.filter(r => (now - new Date(r.detectedAt)) < 30 * 86400000).length
+  const totalDrifts = sorted.length
+  const daysSinceFirst = Math.max(1, Math.round((now - new Date(sorted[sorted.length - 1].detectedAt)) / 86400000))
+  const avgPerDay = (totalDrifts / daysSinceFirst).toFixed(2)
+  const daysSinceLast = Math.round((now - new Date(sorted[0].detectedAt)) / 86400000)
+  const sevCounts = sorted.reduce((acc, r) => { acc[r.severity] = (acc[r.severity] || 0) + 1; return acc }, {})
+
+  const summary = sorted.slice(0, 20).map(r => ({
     detectedAt:  r.detectedAt,
     severity:    r.severity,
     changeCount: r.changeCount,
     fields:      (r.differences || r.changes || []).map(d => d.path).slice(0, 5),
-    caller:      r.caller || 'unknown',
   }))
 
   const response = await chat(
-    `You are an Azure infrastructure risk analyst. Analyse this resource's drift history and predict future drift risk.
+    `You are an Azure infrastructure risk analyst. Analyse this resource's drift history and predict the probability it will drift in the next 7 days.
+
+Use these features to compute driftProbability (0-100 integer):
+- Higher frequency (drifts per day) → higher probability
+- More recent last drift → higher probability  
+- More critical/high severity events → higher probability
+- Consistent recurring pattern → higher probability
+- No drift in 30+ days → lower probability
+
 Respond ONLY with valid JSON (no markdown):
-{"likelihood":"HIGH|MEDIUM|LOW","predictedDays":<integer 1-7 or null>,"fieldsAtRisk":["field.path"],"reasoning":"2-3 sentences","basedOn":"X drift events over Y days"}`,
-    `Resource: ${resourceId.split('/').pop()} (${resourceId.split('/')[7] || 'unknown'})\nHistory (newest first):\n${JSON.stringify(summary)}`,
-    400
+{"driftProbability":<0-100 integer>,"likelihood":"HIGH|MEDIUM|LOW","predictedDays":<integer 1-7 or null>,"fieldsAtRisk":["field.path"],"reasoning":"2-3 sentences referencing the frequency and recency numbers","basedOn":"X drift events over Y days"}
+
+Rules: driftProbability >= 70 → HIGH, 40-69 → MEDIUM, < 40 → LOW`,
+    `Resource: ${resourceId.split('/').pop()} (${resourceId.split('/')[7] || 'unknown'})
+Frequency features:
+- Total drifts: ${totalDrifts}
+- Last 24h: ${last24h}, Last 7d: ${last7d}, Last 30d: ${last30d}
+- Avg drifts/day: ${avgPerDay}
+- Days since last drift: ${daysSinceLast}
+- Severity breakdown: ${JSON.stringify(sevCounts)}
+Recent history: ${JSON.stringify(summary)}`,
+    500
   )
 
   const parsed = JSON.parse(response.replace(/```json|```/g, '').trim())
-  console.log('[predictDrift] ends — likelihood:', parsed.likelihood)
+  // Ensure likelihood is consistent with driftProbability
+  if (parsed.driftProbability >= 70) parsed.likelihood = 'HIGH'
+  else if (parsed.driftProbability >= 40) parsed.likelihood = 'MEDIUM'
+  else parsed.likelihood = 'LOW'
+  console.log('[predictDrift] ends — probability:', parsed.driftProbability, 'likelihood:', parsed.likelihood)
   return parsed
 }
 // ── predictDrift END ──────────────────────────────────────────────────────────
