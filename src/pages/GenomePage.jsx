@@ -52,6 +52,14 @@ export default function GenomePage() {
   const { subscriptionId, resourceGroupId, resourceId, resourceName } = location.state ?? {}
   const { subscription, resourceGroup, resource, configData } = useDashboard()
   const [liveConfig, setLiveConfig] = React.useState(configData)
+
+  // Fetch fresh live config on mount (in case configData is stale or null)
+  useEffect(() => {
+    if (!subscriptionId || !resourceId) return
+    fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
+      .then(fresh => { if (fresh) setLiveConfig(fresh) })
+      .catch(() => {})
+  }, [subscriptionId, resourceGroupId, resourceId])
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
   // List of all snapshots for this resource, sorted newest-first

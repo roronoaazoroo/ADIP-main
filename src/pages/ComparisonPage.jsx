@@ -86,6 +86,21 @@ export default function ComparisonPage() {
   const { subscription, resourceGroup, resource, configData } = useDashboard()
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
+  // Live config — starts from navigation state, refreshed every 5 seconds
+  const [currentLive, setCurrentLive] = useState(passedLive)
+
+  // Poll live ARM config every 5 seconds — updates diff silently without loading screen
+  useEffect(() => {
+    if (!subscriptionId || !resourceGroupId || !resourceId) return
+    const id = setInterval(async () => {
+      try {
+        const fresh = await fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
+        if (fresh) setCurrentLive(fresh)
+      } catch { /* non-fatal */ }
+    }, 5000)
+    return () => clearInterval(id)
+  }, [subscriptionId, resourceGroupId, resourceId])
+
   // The stripped golden baseline config fetched from 'baselines' blob storage
   const [baselineConfig, setBaselineConfig] = useState(null)
 
@@ -143,7 +158,7 @@ export default function ComparisonPage() {
   // Suppression rules stored in Azure Table Storage are applied before returning diffs
   useEffect(() => {
     if (!subscriptionId || !resourceGroupId) return
-    setIsLoadingBaseline(true)
+    if (!baselineConfig) setIsLoadingBaseline(true)
 
     runCompare(subscriptionId, resourceGroupId, resourceId || null)
       .then(result => {
@@ -153,6 +168,7 @@ export default function ComparisonPage() {
         if (!result.baselineState) { setBaselineNotFound(true); return }
 
         setBaselineConfig(normaliseState(result.baselineState))
+        if (result.liveState) setCurrentLive(result.liveState)
         const diffs = result.differences || []
         setFieldDifferences(diffs)
         setDriftSeverity(classifySeverity(diffs))
@@ -170,7 +186,7 @@ export default function ComparisonPage() {
       })
       .catch(() => setBaselineNotFound(true))
       .finally(() => setIsLoadingBaseline(false))
-  }, [subscriptionId, resourceId])
+  }, [subscriptionId, resourceId, currentLive])
 
   // handleRemediate — called when the user clicks 'Apply Fix Now' or 'Request Approval'
   // Low severity: immediately calls ARM PUT via /api/remediate to revert to baseline
@@ -193,7 +209,7 @@ export default function ComparisonPage() {
 
     try {
       // Compute the diff that will be shown in the success banner
-      const strippedLiveForSummary = normaliseState(passedLive)
+      const strippedLiveForSummary = normaliseState(currentLive)
       setRemediationDiffSummary(formatDifferences(deepDiff(baselineConfig || {}, strippedLiveForSummary) || []))
 
       if (driftSeverity === 'low') {
@@ -290,7 +306,7 @@ export default function ComparisonPage() {
   const collapseAll = useCallback(() => { baselineTreeRef.current?.collapseAll(); liveTreeRef.current?.collapseAll() }, [])
   const displayName = resourceName ?? resourceId?.split('/').pop() ?? resourceGroupId
 
-  if (!subscriptionId || !passedLive) {
+  if (!subscriptionId || !currentLive) {
     return (
       <div className="cp-root">
         <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
@@ -457,7 +473,7 @@ export default function ComparisonPage() {
         )}
 
         {/* JSON panels */}
-        {!isLoadingBaseline && (baselineConfig || passedLive) && (
+        {!isLoadingBaseline && (baselineConfig || currentLive) && (
           <div className="cp-json-row">
             <div className="cp-json-panel">
               <div className="cp-json-panel-header">
@@ -484,7 +500,7 @@ export default function ComparisonPage() {
                 <span className="cp-arm-badge">ARM</span>
               </div>
               <div className="cp-json-body">
-                <JsonTree ref={liveTreeRef} data={normaliseState(passedLive)} />
+                <JsonTree ref={liveTreeRef} data={normaliseState(currentLive)} />
               </div>
             </div>
           </div>
