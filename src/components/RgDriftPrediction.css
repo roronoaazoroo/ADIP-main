@@ -1,124 +1,347 @@
 /* FILE: src/components/RgDriftPrediction.css */
 
-.rgp-wrap { display: flex; flex-direction: column; gap: 20px; }
+.rgp-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
 /* ── Header stats ── */
-.rgp-stats { display: flex; gap: 12px; flex-wrap: wrap; }
-.rgp-stat {
-  flex: 1; min-width: 110px;
-  background: #0f1623; border: 1px solid #2d3748; border-radius: 8px; padding: 12px 16px;
+.rgp-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.rgp-stat-value { font-size: 28px; font-weight: 700; color: #f1f5f9; }
-.rgp-stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+.rgp-stat {
+  flex: 1;
+  min-width: 110px;
+  background: #0f1623;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.rgp-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.rgp-stat-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
 
 /* ── AI Predictions list ── */
-.rgp-predictions { display: flex; flex-direction: column; gap: 10px; }
+.rgp-predictions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
 .rgp-pred-card {
-  background: #0f1623; border: 1px solid #2d3748; border-radius: 8px;
-  padding: 14px 16px; cursor: pointer; transition: border-color 0.15s;
-  position: relative; overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  position: relative;
+  overflow: hidden;
 }
-.rgp-pred-card:hover { border-color: #334155; }
-.rgp-pred-card--selected { border-color: #1995ff !important; }
 
-/* Left accent bar coloured by likelihood */
-.rgp-pred-card::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+.rgp-pred-card:hover {
+  border-color: #cbd5e1;
 }
-.rgp-pred-card--HIGH::before   { background: #ef4444; }
-.rgp-pred-card--MEDIUM::before { background: #f59e0b; }
-.rgp-pred-card--LOW::before    { background: #10b981; }
 
-.rgp-pred-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.rgp-pred-name { font-size: 14px; font-weight: 600; color: #60a5fa; flex: 1; }
-.rgp-pred-type { font-size: 11px; color: #64748b; background: #1e293b; border: 1px solid #2d3748; border-radius: 4px; padding: 1px 7px; }
+.rgp-pred-card--selected {
+  border-color: #1995ff !important;
+}
+
+.rgp-pred-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.rgp-pred-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  flex: 1;
+}
+
+.rgp-pred-type {
+  font-size: 11px;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 7px;
+}
 
 .rgp-likelihood {
-  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
-  text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
-.rgp-likelihood--HIGH   { background: rgba(239,68,68,0.12);  color: #ef4444; }
-.rgp-likelihood--MEDIUM { background: rgba(245,158,11,0.12); color: #f59e0b; }
-.rgp-likelihood--LOW    { background: rgba(16,185,129,0.12); color: #10b981; }
 
-.rgp-pred-reason { font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 4px 0 10px; }
+.rgp-likelihood--HIGH {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
 
-.rgp-pred-meta { display: flex; flex-direction: column; gap: 6px; width: 100%; }
-.rgp-pred-meta-item { font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 4px; }
-.rgp-pred-meta-item .material-symbols-outlined { font-size: 13px; }
+.rgp-likelihood--MEDIUM {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
 
-.rgp-fields { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.rgp-likelihood--LOW {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.rgp-pred-reason {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 4px 0 10px;
+}
+
+.rgp-pred-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.rgp-pred-meta-item {
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rgp-pred-meta-item .material-symbols-outlined {
+  font-size: 13px;
+}
+
+.rgp-fields {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
 .rgp-field-tag {
-  background: #1a1f2e; border: 1px solid #2d3748; border-radius: 4px;
-  padding: 1px 7px; font-size: 10px; color: #60a5fa; font-family: monospace;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 10px;
+  color: #475569;
+  font-family: monospace;
 }
 
 /* ── Resource risk matrix (bubble chart) ── */
-.rgp-matrix-wrap { position: relative; width: 100%; }
+.rgp-matrix-wrap {
+  position: relative;
+  width: 100%;
+}
 
-.rgp-matrix-svg { width: 100%; overflow: visible; }
+.rgp-matrix-svg {
+  width: 100%;
+  overflow: visible;
+}
 
-.rgp-bubble { cursor: pointer; transition: opacity 0.15s; }
-.rgp-bubble:hover { opacity: 0.8; }
-.rgp-bubble--selected { stroke: #fff; stroke-width: 2; }
+.rgp-bubble {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.rgp-bubble:hover {
+  opacity: 0.8;
+}
+
+.rgp-bubble--selected {
+  stroke: #fff;
+  stroke-width: 2;
+}
 
 /* ── Frequency heatmap per resource ── */
-.rgp-heatmap { display: flex; flex-direction: column; gap: 6px; }
-.rgp-heatmap-row { display: flex; align-items: center; gap: 8px; }
-.rgp-heatmap-label { font-size: 11px; color: #64748b; width: 110px; text-align: right; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rgp-heatmap-cells { display: flex; gap: 3px; flex: 1; }
-.rgp-heatmap-cell {
-  flex: 1; height: 20px; border-radius: 3px; cursor: pointer;
-  transition: opacity 0.12s; position: relative;
+.rgp-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.rgp-heatmap-cell:hover { opacity: 0.75; }
-.rgp-heatmap-day-labels { display: flex; gap: 3px; padding-left: 118px; margin-top: 2px; }
-.rgp-heatmap-day-label { flex: 1; font-size: 9px; color: #334155; text-align: center; }
+
+.rgp-heatmap-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rgp-heatmap-label {
+  font-size: 11px;
+  color: #64748b;
+  width: 110px;
+  text-align: right;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rgp-heatmap-cells {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.rgp-heatmap-cell {
+  flex: 1;
+  height: 20px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.12s;
+  position: relative;
+}
+
+.rgp-heatmap-cell:hover {
+  opacity: 0.75;
+}
+
+.rgp-heatmap-day-labels {
+  display: flex;
+  gap: 3px;
+  padding-left: 118px;
+  margin-top: 2px;
+}
+
+.rgp-heatmap-day-label {
+  flex: 1;
+  font-size: 9px;
+  color: #334155;
+  text-align: center;
+}
 
 /* ── Tooltip ── */
 .rgp-tooltip {
-  position: absolute; background: #0f172a; border: 1px solid #334155;
-  border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #f1f5f9;
-  pointer-events: none; z-index: 30; min-width: 160px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5); white-space: nowrap;
+  position: absolute;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #f1f5f9;
+  pointer-events: none;
+  z-index: 30;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
 }
-.rgp-tooltip-title { font-weight: 600; margin-bottom: 6px; }
-.rgp-tooltip-row { display: flex; justify-content: space-between; gap: 16px; font-size: 11px; color: #94a3b8; }
+
+.rgp-tooltip-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.rgp-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  color: #94a3b8;
+}
 
 /* ── Loading / empty ── */
-.rgp-loading { display: flex; align-items: center; gap: 10px; color: #64748b; font-size: 13px; padding: 24px 0; }
-.rgp-spinner {
-  width: 16px; height: 16px; border: 2px solid #2d3748;
-  border-top-color: #1995ff; border-radius: 50%;
-  animation: rgp-spin 0.7s linear infinite; flex-shrink: 0;
+.rgp-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #64748b;
+  font-size: 13px;
+  padding: 24px 0;
 }
-@keyframes rgp-spin { to { transform: rotate(360deg); } }
-.rgp-empty { color: #64748b; font-size: 13px; text-align: center; padding: 32px 0; }
+
+.rgp-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #2d3748;
+  border-top-color: #1995ff;
+  border-radius: 50%;
+  animation: rgp-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes rgp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rgp-empty {
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+  padding: 32px 0;
+}
 
 .rgp-section-title {
-  font-size: 12px; font-weight: 600; color: #64748b;
-  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
 }
 
-.rgp-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
-.rgp-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
-.rgp-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.rgp-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.rgp-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.rgp-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 
 /* ── AI Recommendations Card ─────────────────────────────────────────────── */
 .rgp-recs-card {
   margin-top: 28px;
   background: var(--card-bg, #1e293b);
-  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   border-radius: 12px;
   padding: 20px 24px;
 }
 
 .rgp-rec-item {
   padding: 14px 0;
-  border-bottom: 1px solid var(--border, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
 }
-.rgp-rec-item:last-child { border-bottom: none; }
+
+.rgp-rec-item:last-child {
+  border-bottom: none;
+}
 
 .rgp-rec-header {
   display: flex;
@@ -135,9 +358,21 @@
   border-radius: 4px;
   text-transform: uppercase;
 }
-.rgp-rec-priority--high   { background: rgba(239,68,68,0.15);  color: #ef4444; }
-.rgp-rec-priority--medium { background: rgba(245,158,11,0.15); color: #f59e0b; }
-.rgp-rec-priority--low    { background: rgba(16,185,129,0.15); color: #10b981; }
+
+.rgp-rec-priority--high {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.rgp-rec-priority--medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.rgp-rec-priority--low {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
 
 .rgp-rec-title {
   font-size: 14px;
@@ -159,7 +394,10 @@
   font-size: 12px;
   color: #60a5fa;
 }
-.rgp-rec-action .material-symbols-outlined { font-size: 14px; }
+
+.rgp-rec-action .material-symbols-outlined {
+  font-size: 14px;
+}
 
 /* ── Mini Frequency Bars in Prediction Cards ─────────────────────────────── */
 .rgp-freq-bars {
@@ -187,7 +425,7 @@
 .rgp-freq-bar-track {
   flex: 1;
   height: 8px;
-  background: rgba(255,255,255,0.07);
+  background: #f1f5f9;
   border-radius: 4px;
   overflow: hidden;
 }
@@ -202,7 +440,7 @@
 .rgp-freq-bar-val {
   width: 28px;
   text-align: right;
-  color: #94a3b8;
+  color: #475569;
   font-weight: 600;
   font-size: 11px;
   flex-shrink: 0;
@@ -217,5 +455,12 @@
   gap: 6px;
   margin-top: 2px;
 }
-.rgp-sev-summary .material-symbols-outlined { font-size: 13px; }
-.rgp-sev-high { color: #f97316; margin-left: 4px; }
+
+.rgp-sev-summary .material-symbols-outlined {
+  font-size: 13px;
+}
+
+.rgp-sev-high {
+  color: #f97316;
+  margin-left: 4px;
+}

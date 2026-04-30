@@ -103,20 +103,6 @@ export default function AnalyticsPage() {
         {/* ═══ TAB 3: Prediction & Forecasting ══════════════════════════════ */}
         {activeTab === 'prediction' && (
           <div className="an-tab-content" key="prediction">
-            {/* Forecast chart — per-resource stacked bar (shown when a resource is selected) */}
-            {resource && (
-              <div className="an-card an-card--full">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">bar_chart</span>
-                    <span className="an-card-title">Drift Frequency Chart</span>
-                  </div>
-                </div>
-                <div className="an-card-body">
-                  <DriftForecastChart subscriptionId={activeSubscriptionId} resourceId={resource} />
-                </div>
-              </div>
-            )}
 
             {/* RG-level bubble matrix + heatmap + AI prediction cards */}
             {resourceGroup && (
@@ -137,25 +123,6 @@ export default function AnalyticsPage() {
               </div>
             )}
 
-            {/* Per-resource prediction cards + AI recommendations */}
-            <div className="an-card an-card--full">
-              <div className="an-card-header">
-                <div className="an-card-title-row">
-                  <span className="material-symbols-outlined an-card-icon">psychology</span>
-                  <span className="an-card-title">Drift Prediction & Forecasting</span>
-                  <span className="an-card-badge an-card-badge--ai">
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
-                    Azure OpenAI GPT-4o
-                  </span>
-                </div>
-              </div>
-              <div className="an-card-body">
-                <ResourceDriftPrediction
-                  subscriptionId={activeSubscriptionId}
-                  resourceGroup={resourceGroup}
-                />
-              </div>
-            </div>
           </div>
         )}
 
