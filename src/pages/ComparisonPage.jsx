@@ -18,9 +18,31 @@ import { diff as deepDiff } from 'deep-diff'
 import JsonTree from '../components/JsonTree'
 import NavBar from '../components/NavBar'
 import ScheduleRemediationModal from '../components/ScheduleRemediationModal'
-import { fetchBaseline, runCompare, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation } from '../services/api'
-import { useDashboard } from '../context/DashboardContext'
+import { fetchBaseline, runCompare, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation, fetchResourceConfiguration, fetchComplianceImpact, fetchSuppressionRules, fetchCostEstimate } from '../services/api'
 import { getControlsForPath } from '../utils/complianceMap'
+
+// Shows monthly cost delta badge for SKU/tier/encryption drift rows
+function CostDeltaBadge({ resourceType, location, fieldPath, oldValue, newValue }) {
+  const [delta, setDelta] = React.useState(null)
+  React.useEffect(() => {
+    if (!oldValue || !newValue || String(oldValue) === String(newValue)) return
+    fetchCostEstimate(resourceType, fieldPath, oldValue, newValue, location)
+      .then(r => { if (r?.deltaPerMonth != null) setDelta(r) })
+      .catch(() => {})
+  }, [resourceType, location, fieldPath, oldValue, newValue])
+  if (!delta?.deltaPerMonth) return null
+  const positive = delta.deltaPerMonth > 0
+  const color    = positive ? '#ef4444' : '#10b981'
+  const sign     = positive ? '+' : ''
+  return (
+    <span title={delta.note || `Estimated monthly cost impact (${delta.referenceGB || 1024}GB reference)`}
+      style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, marginLeft: 6,
+        background: `${color}18`, color, border: `1px solid ${color}30`, whiteSpace: 'nowrap', cursor: 'help' }}>
+      {sign}${Math.abs(delta.deltaPerMonth).toFixed(2)}/mo
+    </span>
+  )
+}
+import { useDashboard } from '../context/DashboardContext'
 import './ComparisonPage.css'
 
 const CRITICAL_PATHS = ['properties.networkAcls','properties.accessPolicies','properties.securityRules','sku','location','identity','properties.encryption']
@@ -447,6 +469,15 @@ export default function ComparisonPage() {
                     <div className="cp-change-header">
                       <span className={`cp-change-badge cp-change-badge--${diffItem.type}`}>{diffItem.label}</span>
                       <code className="cp-change-path">{diffItem.path}</code>
+                      {/sku|tier|accesstier|replication|capacity|keysource|encryption/i.test(diffItem.path) && diffItem.oldValue !== undefined && diffItem.newValue !== undefined && (
+                        <CostDeltaBadge
+                          resourceType={currentLive?.type || ''}
+                          location={currentLive?.location || 'westus2'}
+                          fieldPath={diffItem.path}
+                          oldValue={diffItem.oldValue}
+                          newValue={diffItem.newValue}
+                        />
+                      )}
                       {controls.length > 0 && (
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginLeft: 'auto' }}>
                           {controls.map((c, ci) => (
