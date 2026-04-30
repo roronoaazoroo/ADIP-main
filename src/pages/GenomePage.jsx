@@ -26,7 +26,8 @@ import './GenomePage.css'
 function stripForCompare(obj) {
   if (!obj) return {}
   const SKIP = ['etag','provisioningState','changedTime','createdTime','lastModifiedAt',
-    'vmId','timeCreated','instanceView','resourceGuid','adminUsername','disablePasswordAuthentication','ssh']
+    'vmId','timeCreated','instanceView','resourceGuid','adminUsername','disablePasswordAuthentication','ssh',
+    '_childConfig']  // child resources change independently, not part of resource config
   const strip = (o, parent = '') => {
     if (Array.isArray(o)) return o.map(i => strip(i, parent))
     if (o && typeof o === 'object') return Object.fromEntries(
