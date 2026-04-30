@@ -263,33 +263,39 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
                     <span className={`rgp-likelihood rgp-likelihood--${p.likelihood}`}>{p.likelihood}</span>
                   </div>
                   <p className="rgp-pred-reason">{p.reason}</p>
+
                   <div className="rgp-pred-meta">
+                    {/* Time label */}
                     <span className="rgp-pred-meta-item">
                       <span className="material-symbols-outlined">schedule</span>
                       Within {p.predictedDays} day{p.predictedDays !== 1 ? 's' : ''}
                     </span>
+
                     {stat && (
                       <>
-                        {/* Mini frequency bars: 24h / 7d / total */}
+                        {/* Full-width frequency bars: 24h / 7d / All */}
                         <div className="rgp-freq-bars">
                           {[
                             { label: '24h', value: stat.last24h, max: Math.max(stat.total, 1), color: '#ef4444' },
                             { label: '7d',  value: stat.last7d,  max: Math.max(stat.total, 1), color: '#f97316' },
-                            { label: 'All', value: stat.total,   max: Math.max(stat.total, 1), color: '#60a5fa' },
+                            { label: 'All', value: stat.total,   max: Math.max(stat.total, 1), color: '#3b82f6' },
                           ].map(({ label, value, max, color }) => (
                             <div key={label} className="rgp-freq-bar-item">
                               <span className="rgp-freq-bar-label">{label}</span>
                               <div className="rgp-freq-bar-track">
-                                <div className="rgp-freq-bar-fill" style={{ width: `${(value / max) * 100}%`, background: color }} />
+                                <div className="rgp-freq-bar-fill" style={{ width: `${Math.max((value / max) * 100, value > 0 ? 2 : 0)}%`, background: color }} />
                               </div>
                               <span className="rgp-freq-bar-val">{value}</span>
                             </div>
                           ))}
                         </div>
-                        <span className="rgp-pred-meta-item" style={{ color: '#ef4444' }}>
+
+                        {/* Severity summary */}
+                        <div className="rgp-sev-summary">
                           <span className="material-symbols-outlined">warning</span>
-                          {stat.severities.critical} critical · {stat.severities.high} high
-                        </span>
+                          <span>{stat.severities.critical} critical</span>
+                          <span className="rgp-sev-high">· {stat.severities.high} high</span>
+                        </div>
                       </>
                     )}
                   </div>
