@@ -58,7 +58,7 @@ function buildSessionRowKey(subscriptionId, resourceGroupId, resourceId) {
 
 // ── runDriftCheck START ──────────────────────────────────────────────────────
 // Full drift check pipeline: fetches live + baseline, diffs, classifies, runs AI, saves record, alerts
-async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller = '') {
+async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller = '', persist = false) {
   console.log('[runDriftCheck] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupId, 'resourceId:', resourceId)
   if (!subscriptionId || !resourceGroupId) throw new Error('runDriftCheck requires subscriptionId and resourceGroupId')
   const [currentLiveConfig, storedBaseline] = await Promise.all([
@@ -88,8 +88,11 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller
     // Run AI explanation only (severity stays rule-based, no AI escalation)
     const aiExplanationResult = await explainDrift(driftRecord).catch(() => null)
     if (aiExplanationResult) driftRecord.aiExplanation = aiExplanationResult
-    await saveDriftRecord(driftRecord)
-    broadcastDriftEvent(driftRecord)
+    // Only persist to driftIndex when called from a real event (not manual compare/live refresh)
+    if (persist) {
+      await saveDriftRecord(driftRecord)
+      broadcastDriftEvent(driftRecord)
+    }
   }
   console.log('[runDriftCheck] ends — severity:', driftRecord.severity, 'changes:', detectedChanges.length)
   return driftRecord

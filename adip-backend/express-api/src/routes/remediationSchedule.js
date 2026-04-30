@@ -25,7 +25,8 @@ async function sendScheduleApprovalEmail(schedule) {
   const cancelUrl = `${process.env.EXPRESS_PUBLIC_URL || process.env.EXPRESS_API_URL || 'http://localhost:3001'}/api/remediation-schedule/${encodeURIComponent(schedule.rowKey)}/cancel?subscriptionId=${encodeURIComponent(schedule.partitionKey)}`
 
   const client = new EmailClient(connStr)
-  const poller = await client.beginSend({
+  // Fire-and-forget — don't await pollUntilDone() to avoid blocking the API response
+  client.beginSend({
     senderAddress: sender,
     recipients:    { to: [{ address: recipient }] },
     content: {
@@ -44,9 +45,9 @@ async function sendScheduleApprovalEmail(schedule) {
       `,
       plainText: `Scheduled remediation for ${resourceName} at ${scheduledTime}. Auto-approves after ${schedule.autoApprovalHours || 24}h.`,
     },
-  })
-  await poller.pollUntilDone()
-  console.log('[sendScheduleApprovalEmail] sent for rowKey:', schedule.rowKey)
+  }).then(poller => poller.pollUntilDone())
+    .then(() => console.log('[sendScheduleApprovalEmail] sent for rowKey:', schedule.rowKey))
+    .catch(err => console.log('[sendScheduleApprovalEmail] failed:', err.message))
 }
 
 // POST /api/remediation-schedule
@@ -66,9 +67,9 @@ router.post('/remediation-schedule', async (req, res) => {
 
     // Send approval email for high/critical severity schedules
     if (HIGH_SEVERITY.includes((severity || '').toLowerCase())) {
-      sendScheduleApprovalEmail({ ...schedule, partitionKey: subscriptionId }).catch(emailErr => {
-        console.log('[POST /remediation-schedule] approval email failed (non-fatal):', emailErr.message)
-      })
+      sendScheduleApprovalEmail({ ...schedule, partitionKey: subscriptionId })
+        .then(() => console.log('[POST /remediation-schedule] approval email sent'))
+        .catch(emailErr => console.log('[POST /remediation-schedule] approval email FAILED:', emailErr.message, emailErr.stack?.split('\n')[1]))
     }
 
     res.status(201).json(schedule)

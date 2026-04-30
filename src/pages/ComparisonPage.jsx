@@ -175,6 +175,7 @@ export default function ComparisonPage() {
   // Refs to the JsonTree components so we can call expandAll/collapseAll imperatively
   const baselineTreeRef = useRef(null)
   const liveTreeRef = useRef(null)
+  const aiExplainedRef = useRef(false)  // prevents AI re-fetch on every 5s live refresh
 
   // On mount: call POST /api/compare (server-side diff with suppression rules applied)
   // Suppression rules stored in Azure Table Storage are applied before returning diffs
@@ -195,7 +196,8 @@ export default function ComparisonPage() {
         setFieldDifferences(diffs)
         setDriftSeverity(classifySeverity(diffs))
 
-        if (diffs.length > 0) {
+        if (diffs.length > 0 && !aiExplainedRef.current) {
+          aiExplainedRef.current = true
           setIsAiLoading(true)
           fetchAiExplanation({
             resourceId, resourceGroup: resourceGroupId, subscriptionId,
