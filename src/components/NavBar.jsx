@@ -17,6 +17,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useDashboard } from '../context/DashboardContext';
 import "./NavBar.css";
 
 const NAV_ITEMS = [
@@ -27,9 +28,11 @@ const NAV_ITEMS = [
   { path: '/analytics', label: 'Analytics', icon: 'analytics' },
 ];
 
-const NavBar = ({ user, subscription, resourceGroup, resource, configData }) => {
+const NavBar = ({ user, subscription, resourceGroup, resource, configData, scopes: scopesProp }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { scopes: ctxScopes } = useDashboard() || {};
+  const scopes = scopesProp || ctxScopes || null;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef(null);
 
@@ -55,11 +58,11 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData }) => 
   const handleNavClick = (path) => {
     if (path === '/comparison') {
       navigate(path, {
-        state: { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || null, liveState: configData }
+        state: { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || null, liveState: configData, scopes: scopes || null }
       });
     } else if (path === '/genome') {
       navigate(path, {
-        state: { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || resourceGroup }
+        state: { subscriptionId: subscription, resourceGroupId: resourceGroup, resourceId: resource || resourceGroup, scopes: scopes || null }
       });
     } else {
       navigate(path);

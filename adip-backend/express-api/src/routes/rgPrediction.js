@@ -8,7 +8,6 @@ const router = require('express').Router()
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')
 const { TableClient }              = require('@azure/data-tables')
-const { BlobServiceClient }        = require('@azure/storage-blob')
 const fetch                        = require('node-fetch')
 
 const ENDPOINT   = () => process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
@@ -39,26 +38,32 @@ router.get('/rg-prediction', async (req, res) => {
   }
 
   try {
-    // 1. All resources in the RG from ARM
+    // Run ARM list + Table index query in parallel — no blob reads
     const cred      = new DefaultAzureCredential()
     const armClient = new ResourceManagementClient(cred, subscriptionId)
-    const allResources = []
-    for await (const r of armClient.resources.listByResourceGroup(resourceGroup)) {
-      allResources.push({ id: r.id, name: r.name, type: r.type, location: r.location })
-    }
+    const tc        = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
 
-    // 2. All drift records for this subscription from Table index
-    const blobSvc  = BlobServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-    const driftCtr = blobSvc.getContainerClient('drift-records')
-    const tc       = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
-
-    const driftRecords = []
-    const filter = `PartitionKey eq '${subscriptionId}'`
-    for await (const entity of tc.listEntities({ queryOptions: { filter } })) {
-      const doc = await driftCtr.getBlobClient(entity.blobKey)
-        .downloadToBuffer().then(b => JSON.parse(b)).catch(() => null)
-      if (doc) driftRecords.push(doc)
-    }
+    const [allResources, indexRows] = await Promise.all([
+      // 1. All resources in the RG from ARM
+      (async () => {
+        const list = []
+        for await (const r of armClient.resources.listByResourceGroup(resourceGroup)) {
+          list.push({ id: r.id, name: r.name, type: r.type, location: r.location })
+        }
+        return list
+      })(),
+      // 2. All drift index rows for this subscription — index fields only, zero blob reads
+      (async () => {
+        const rows = []
+        const filter = `PartitionKey eq '${subscriptionId}'`
+        for await (const e of tc.listEntities({
+          queryOptions: { filter, select: ['resourceId','resourceGroup','severity','detectedAt','changeCount','blobKey'] }
+        })) {
+          rows.push(e)
+        }
+        return rows
+      })(),
+    ])
 
     // 3. Build per-resource frequency stats
     const now = Date.now()
@@ -76,8 +81,8 @@ router.get('/rg-prediction', async (req, res) => {
       }
     })
 
-    // Accumulate drift records (may include resources from other RGs)
-    driftRecords.forEach(r => {
+    // Accumulate index rows — no blob reads, topFields not available (trade-off for speed)
+    indexRows.forEach(r => {
       const name = r.resourceId?.split('/').pop()
       if (!name) return
       if (!statsMap[name]) {
@@ -88,7 +93,7 @@ router.get('/rg-prediction', async (req, res) => {
           topFields: {}, lastDriftAt: null, driftDates: [],
         }
       }
-      const s   = statsMap[name]
+      const s    = statsMap[name]
       const ageH = (now - new Date(r.detectedAt)) / 3600000
       s.total++
       if (ageH <= 24)  s.last24h++
@@ -96,10 +101,6 @@ router.get('/rg-prediction', async (req, res) => {
       if (r.severity && s.severities[r.severity] !== undefined) s.severities[r.severity]++
       if (!s.lastDriftAt || r.detectedAt > s.lastDriftAt) s.lastDriftAt = r.detectedAt
       s.driftDates.push(r.detectedAt?.slice(0, 10))
-      ;(r.differences || r.changes || []).forEach(d => {
-        const field = (d.path || '').split(' → ')[0] || 'unknown'
-        s.topFields[field] = (s.topFields[field] || 0) + 1
-      })
     })
 
     // Convert topFields map to sorted array
@@ -137,8 +138,8 @@ Respond ONLY with valid JSON array (no markdown), max 5 items, sorted by driftPr
       ).catch(() => [])
     }
 
-    res.json({ resourceStats, aiPredictions, totalResources: allResources.length, totalDriftEvents: driftRecords.length })
-    console.log('[GET /rg-prediction] ends — resources:', allResources.length, 'drifts:', driftRecords.length)
+    res.json({ resourceStats, aiPredictions, totalResources: allResources.length, totalDriftEvents: indexRows.length })
+    console.log('[GET /rg-prediction] ends — resources:', allResources.length, 'drifts:', indexRows.length)
   } catch (err) {
     console.error('[GET /rg-prediction] error:', err.message)
     res.status(500).json({ error: err.message })

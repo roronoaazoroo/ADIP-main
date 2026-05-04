@@ -28,7 +28,7 @@ import { onResourceChange, subscribeScope, isConnected } from '../services/socke
 //   onConfigUpdate  — callback called with each event so DriftScanner can update the JSON tree
 //   externalEvents  — if provided, the hook writes events here instead of its own local state
 //   setExternalEvents — setter for externalEvents (used by DriftScanner via DashboardContext)
-export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null, externalEvents = null, setExternalEvents = null) {
+export function useDriftSocket(scopeOrScopes, isSubmitted = false, onConfigUpdate = null, externalEvents = null, setExternalEvents = null) {
   // Fall back to local state if no external state is provided
   const [localEventList, setLocalEventList] = useState([])
 
@@ -76,25 +76,32 @@ export function useDriftSocket(scope, isSubmitted = false, onConfigUpdate = null
  
   // Subscribe to global socket singleton — persists across navigation
   useEffect(() => {
-    if (!scope?.subscriptionId) return
-    // Join the scope room
-    subscribeScope({ subscriptionId: scope.subscriptionId, resourceGroup: scope.resourceGroup, resourceId: scope.resourceId })
+    // Normalise: accept single scope object or array of scopes
+    const scopes = Array.isArray(scopeOrScopes) ? scopeOrScopes : [scopeOrScopes]
+    const validScopes = scopes.filter(s => s?.subscriptionId)
+    if (!validScopes.length) return
+    // Subscribe to all scope rooms
+    validScopes.forEach(s => subscribeScope({ subscriptionId: s.subscriptionId, resourceGroup: s.resourceGroup || s.resourceGroupId, resourceId: s.resourceId || null }))
     setSocketConnected(isConnected())
 
-    // Register event listener on the singleton
+    // Register event listener — matches ANY of the selected scopes
     const unsubscribe = onResourceChange((incomingDriftEvent) => {
       if (!isSubmittedRef.current) return
-      const matchesSub = incomingDriftEvent.subscriptionId === scope.subscriptionId
-      const matchesRG  = !scope.resourceGroup || incomingDriftEvent.resourceGroup === scope.resourceGroup
-      const matchesRes = !scope.resourceId ||
-        incomingDriftEvent.resourceId?.toLowerCase() === scope.resourceId?.toLowerCase() ||
-        incomingDriftEvent.resourceId?.toLowerCase().endsWith(`/${scope.resourceId?.split('/').pop()?.toLowerCase()}`)
-      if (!matchesSub || !matchesRG || !matchesRes) return
+      const matchesAnyScope = validScopes.some(scope => {
+        const matchesSub = incomingDriftEvent.subscriptionId === scope.subscriptionId
+        const rg = scope.resourceGroup || scope.resourceGroupId
+        const matchesRG  = !rg || incomingDriftEvent.resourceGroup === rg
+        const matchesRes = !scope.resourceId ||
+          incomingDriftEvent.resourceId?.toLowerCase() === scope.resourceId?.toLowerCase() ||
+          incomingDriftEvent.resourceId?.toLowerCase().endsWith(`/${scope.resourceId?.split('/').pop()?.toLowerCase()}`)
+        return matchesSub && matchesRG && matchesRes
+      })
+      if (!matchesAnyScope) return
       addEvent(incomingDriftEvent)
       if (onConfigUpdate && incomingDriftEvent.resourceId) onConfigUpdate(incomingDriftEvent)
     })
     return unsubscribe
-  }, [scope?.subscriptionId, scope?.resourceGroup, scope?.resourceId, addEvent, onConfigUpdate])
+  }, [JSON.stringify(scopeOrScopes), addEvent, onConfigUpdate])
  
   // ── clearChangeEvents START ──────────────────────────────────────────────
   // Resets the drift event feed to empty

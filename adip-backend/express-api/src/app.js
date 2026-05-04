@@ -166,5 +166,9 @@ server.listen(PORT, () => {
   console.log(`ADIP API running on port ${PORT}`)
   startQueuePoller()
 
+// Schedule poller — processes due remediation schedules every 60 seconds
+const { processDueSchedules } = require('./services/remediationScheduleService')
+setInterval(() => processDueSchedules().catch(err => console.log('[schedulePoller] error:', err.message)), 60000)
+
 })
 

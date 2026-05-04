@@ -6,12 +6,9 @@
 //   2. Drift Impact Analysis            — impact scores, risk matrix, most impacted groups
 //   3. Drift Prediction & Forecasting   — AI predictions, forecast chart, risk projections
 
-import React, { useState, useMemo, useEffect } from 'react'
-import DriftForecastChart from '../components/DriftForecastChart'
+import React, { useState } from 'react'
 import RgDriftPrediction from '../components/RgDriftPrediction'
-import ResourceDriftPrediction from '../components/ResourceDriftPrediction'
-import { fetchDriftPrediction, fetchDriftRecommendations, fetchRgRecommendations } from '../services/driftPredictionApi'
-import { useNavigate } from 'react-router-dom'
+import DriftForecastChart from '../components/DriftForecastChart'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
 import ReportsDashboard from '../components/ReportsDashboard'
@@ -19,23 +16,6 @@ import DriftImpactDashboard from '../components/DriftImpactDashboard'
 import TopChangers from '../components/TopChangers'
 import CostImpactDashboard from '../components/CostImpactDashboard'
 import './AnalyticsPage.css'
-
-// ── Mock data generators ──────────────────────────────────────────────────────
-function generateTrendData(days) {
-  const data = []
-  const now = Date.now()
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now - i * 86400000)
-    data.push({
-      label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      critical: Math.floor(Math.random() * 4),
-      high: Math.floor(Math.random() * 8) + 1,
-      medium: Math.floor(Math.random() * 15) + 3,
-      low: Math.floor(Math.random() * 20) + 5,
-    })
-  }
-  return data
-}
 
 // MAIN PAGE COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -47,7 +27,6 @@ const TABS = [
 ]
 
 export default function AnalyticsPage() {
-  const navigate = useNavigate()
   const { subscription, resourceGroup, resource, configData } = useDashboard()
   const activeSubscriptionId = subscription || (import.meta.env.VITE_AZURE_SUBSCRIPTION_ID || '')
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
@@ -103,20 +82,6 @@ export default function AnalyticsPage() {
         {/* ═══ TAB 3: Prediction & Forecasting ══════════════════════════════ */}
         {activeTab === 'prediction' && (
           <div className="an-tab-content" key="prediction">
-            {/* Forecast chart — per-resource stacked bar (shown when a resource is selected) */}
-            {resource && (
-              <div className="an-card an-card--full">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">bar_chart</span>
-                    <span className="an-card-title">Drift Frequency Chart</span>
-                  </div>
-                </div>
-                <div className="an-card-body">
-                  <DriftForecastChart subscriptionId={activeSubscriptionId} resourceId={resource} />
-                </div>
-              </div>
-            )}
 
             {/* RG-level bubble matrix + heatmap + AI prediction cards */}
             {resourceGroup && (
@@ -137,25 +102,6 @@ export default function AnalyticsPage() {
               </div>
             )}
 
-            {/* Per-resource prediction cards + AI recommendations */}
-            <div className="an-card an-card--full">
-              <div className="an-card-header">
-                <div className="an-card-title-row">
-                  <span className="material-symbols-outlined an-card-icon">psychology</span>
-                  <span className="an-card-title">Drift Prediction & Forecasting</span>
-                  <span className="an-card-badge an-card-badge--ai">
-                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
-                    Azure OpenAI GPT-4o
-                  </span>
-                </div>
-              </div>
-              <div className="an-card-body">
-                <ResourceDriftPrediction
-                  subscriptionId={activeSubscriptionId}
-                  resourceGroup={resourceGroup}
-                />
-              </div>
-            </div>
           </div>
         )}
 

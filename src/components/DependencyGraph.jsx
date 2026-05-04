@@ -11,25 +11,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import { fetchDependencyGraph } from '../services/api'
 
-// Azure service icons — using official Azure icon set (SVG, publicly accessible)
-const ICON_BASE = 'https://raw.githubusercontent.com/benc-uk/icon-collection/master/azure-docs'
-const ICON_MAP = {
-  'microsoft.storage/storageaccounts':          `${ICON_BASE}/storage-accounts.svg`,
-  'microsoft.compute/virtualmachines':          `${ICON_BASE}/virtual-machine.svg`,
-  'microsoft.compute/disks':                    `${ICON_BASE}/disks.svg`,
-  'microsoft.network/virtualnetworks':          `${ICON_BASE}/virtual-networks.svg`,
-  'microsoft.network/networksecuritygroups':    `${ICON_BASE}/network-security-groups.svg`,
-  'microsoft.network/networkinterfaces':        `${ICON_BASE}/network-interfaces.svg`,
-  'microsoft.network/publicipaddresses':        `${ICON_BASE}/public-ip-addresses.svg`,
-  'microsoft.web/sites':                        `${ICON_BASE}/app-services.svg`,
-  'microsoft.web/serverfarms':                  `${ICON_BASE}/app-service-plans.svg`,
-  'microsoft.logic/workflows':                  `${ICON_BASE}/logic-apps.svg`,
-  'microsoft.eventgrid/topics':                 `${ICON_BASE}/event-grid-topics.svg`,
-  'microsoft.insights/components':              `${ICON_BASE}/application-insights.svg`,
-  'microsoft.keyvault/vaults':                  `${ICON_BASE}/key-vaults.svg`,
-  'microsoft.cognitiveservices/accounts':       `${ICON_BASE}/cognitive-services.svg`,
-  'microsoft.communication/communicationservices': `${ICON_BASE}/communication-services.svg`,
-}
+// Azure service icons — colored dots used as fallback
+const ICON_MAP = {}
+
 
 // Fallback color per type family (used when icon fails to load)
 const TYPE_COLOR = {

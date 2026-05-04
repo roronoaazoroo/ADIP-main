@@ -26,5 +26,14 @@
   "properties.encryption": {
     "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/6fac406b-40ca-413b-bf8e-0bf964659c25",
     "displayName": "Storage account encryption should use customer-managed key"
+  },
+  "tags": {
+    "policyDefinitionId": "/providers/Microsoft.Authorization/policyDefinitions/871b6d14-10aa-478d-b590-94f262ecfa99",
+    "displayName": "Require a tag on resources",
+    "parameters": {
+      "tagName": {
+        "value": "environment"
+      }
+    }
   }
 }

@@ -96,6 +96,7 @@ async function enforcePolicesForDrift(subscriptionId, resourceGroupId, changes) 
         displayName:        `[ADIP] ${policy.displayName}`,
         description:        `Auto-assigned by ADIP after drift remediation on ${new Date().toISOString()}`,
         enforcementMode:    'Default',
+        ...(policy.parameters ? { parameters: policy.parameters } : {}),
       })
 
       await tc.upsertEntity({
