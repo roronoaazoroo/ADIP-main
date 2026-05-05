@@ -433,7 +433,7 @@ export default function DriftScanner() {
 
             {/* Dependency Graph Tab (Feature 7) */}
             {activeTab === 'graph' && (
-              <div className="ds-graph-inner" style={{ height: '700px', width: '100%', position: 'relative', overflow: 'hidden', background: 'var(--panel-bg)', borderRadius: '0 0 12px 12px' }}>
+              <div className="ds-graph-inner" style={{ height: '700px', width: '100%', position: 'relative', overflow: 'hidden', background: '#f9f9fc', borderRadius: '0 0 24px 24px' }}>
                 {/* Scope selector for graph — shown when multiple scopes */}
                 {isMultiScope && isSubmitted && (
                   <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: 250 }}>
