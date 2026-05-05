@@ -122,7 +122,7 @@ export default function ResourceDriftPrediction({ subscriptionId, resourceGroup 
             return (
               <g key={v}>
                 <line x1={PL} y1={y} x2={VW + PL - PR} y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                <text x={PL - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#cbd5e1">{v}</text>
+                <text x={PL - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#64748b">{v}</text>
               </g>
             )
           })}
@@ -130,7 +130,7 @@ export default function ResourceDriftPrediction({ subscriptionId, resourceGroup 
           {/* X-axis labels */}
           {dates.map((d, i) => i % labelEvery === 0 && (
             <text key={i} x={xPos(i, dates.length)} y={PT + VH + 16}
-              textAnchor="middle" fontSize="9" fill="#cbd5e1">
+              textAnchor="middle" fontSize="9" fill="#64748b">
               {new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </text>
           ))}
@@ -192,7 +192,7 @@ export default function ResourceDriftPrediction({ subscriptionId, resourceGroup 
             return (
               <text key={`label-${s.name}`}
                 x={cx} y={PT + VH + 36}
-                textAnchor="middle" fontSize="9" fill={dimmed ? '#cbd5e1' : color}
+                textAnchor="middle" fontSize="9" fill={dimmed ? '#94a3b8' : color}
                 fontWeight="600" style={{ pointerEvents: 'none' }}>
                 {s.name.length > 14 ? s.name.slice(0, 13) + '…' : s.name}
               </text>

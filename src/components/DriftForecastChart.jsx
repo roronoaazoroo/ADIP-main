@@ -135,7 +135,7 @@ export default function DriftForecastChart({ subscriptionId, resourceId }) {
               const val = Math.round(pct * maxTotal)
               return (
                 <g key={i}>
-                  <line x1={PAD_L} y1={y} x2={W} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                  <line x1={PAD_L} y1={y} x2={W} y2={y} stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
                   <text x={PAD_L - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#475569">{val}</text>
                 </g>
               )
@@ -187,7 +187,7 @@ export default function DriftForecastChart({ subscriptionId, resourceId }) {
             })}
 
             {/* X-axis line */}
-            <line x1={PAD_L} y1={PAD_T + H} x2={W} y2={PAD_T + H} stroke="#2d3748" strokeWidth="1" />
+            <line x1={PAD_L} y1={PAD_T + H} x2={W} y2={PAD_T + H} stroke="#e2e8f0" strokeWidth="1" />
           </svg>
 
           {/* Tooltip — positioned absolutely relative to chart area */}

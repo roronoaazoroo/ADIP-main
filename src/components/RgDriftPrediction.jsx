@@ -38,8 +38,8 @@ function BubbleMatrix({ stats, selected, onSelect }) {
         {/* Grid */}
         {[0, 0.5, 1].map((p, i) => (
           <g key={i}>
-            <line x1={PAD} y1={PAD + p * H} x2={PAD + W} y2={PAD + p * H} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-            <line x1={PAD + p * W} y1={PAD} x2={PAD + p * W} y2={PAD + H} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <line x1={PAD} y1={PAD + p * H} x2={PAD + W} y2={PAD + p * H} stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
+            <line x1={PAD + p * W} y1={PAD} x2={PAD + p * W} y2={PAD + H} stroke="rgba(0,0,0,0.05)" strokeWidth="1" />
           </g>
         ))}
 

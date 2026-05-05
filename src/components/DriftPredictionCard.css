@@ -1,8 +1,8 @@
 /* FILE: src/components/DriftPredictionCard.css */
 
 .dpc-wrap {
-  background: #1a1f2e;
-  border: 1px solid #2d3748;
+  background: #fff;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 20px;
   margin-top: 16px;
@@ -42,7 +42,7 @@
 
 .dpc-fields { display: flex; flex-wrap: wrap; gap: 6px; }
 .dpc-field-tag {
-  background: #0f1623; border: 1px solid #2d3748; border-radius: 5px;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 5px;
   padding: 2px 8px; font-size: 11px; color: #60a5fa; font-family: monospace;
 }
 
@@ -53,7 +53,7 @@
 /* ── Chart section ── */
 .dpc-chart-section {
   margin-top: 20px;
-  border-top: 1px solid #2d3748;
+  border-top: 1px solid #e2e8f0;
   padding-top: 16px;
 }
 
@@ -85,7 +85,7 @@
 .dpc-grid-lines { position: absolute; inset: 0 0 24px 0; pointer-events: none; }
 .dpc-grid-line {
   position: absolute; left: 0; right: 0; height: 1px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(0,0,0,0.04);
 }
 
 /* Bars row */
@@ -144,8 +144,8 @@
   top: -8px;
   left: 50%;
   transform: translateX(-50%);
-  background: #0f1623;
-  border: 1px solid #2d3748;
+  background: #fff;
+  border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 6px 10px;
   font-size: 11px;
@@ -167,7 +167,7 @@
 /* ── Loading / Error ── */
 .dpc-loading { display: flex; align-items: center; gap: 10px; color: #64748b; font-size: 13px; padding: 8px 0; }
 .dpc-spinner {
-  width: 16px; height: 16px; border: 2px solid #2d3748;
+  width: 16px; height: 16px; border: 2px solid #e2e8f0;
   border-top-color: #1995ff; border-radius: 50%;
   animation: dpc-spin 0.7s linear infinite; flex-shrink: 0;
 }

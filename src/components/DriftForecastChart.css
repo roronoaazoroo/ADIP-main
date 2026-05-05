@@ -14,8 +14,8 @@
 }
 
 .dfc-range-btn {
-  background: #0f1623;
-  border: 1px solid #2d3748;
+  background: #fff;
+  border: 1px solid #e2e8f0;
   color: #64748b;
   border-radius: 6px;
   padding: 5px 14px;
@@ -24,7 +24,7 @@
   transition: all 0.15s;
 }
 .dfc-range-btn:hover { border-color: #0060a9; color: #003359; }
-.dfc-range-btn--active { background: #1e3a5f; border-color: #1995ff; color: #60a5fa; font-weight: 600; }
+.dfc-range-btn--active { background: #003359; border-color: #003359; color: #fff; font-weight: 600; }
 
 .dfc-sev-filter {
   display: flex;
@@ -61,8 +61,8 @@
 /* Tooltip */
 .dfc-tooltip {
   position: absolute;
-  background: #0f1623;
-  border: 1px solid #334155;
+  background: #fff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 12px;
@@ -70,13 +70,13 @@
   pointer-events: none;
   z-index: 20;
   min-width: 140px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
   transform: translateX(-50%);
 }
 .dfc-tooltip-date { font-weight: 600; margin-bottom: 6px; color: #94a3b8; font-size: 11px; }
 .dfc-tooltip-row { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; }
 .dfc-tooltip-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 5px; }
-.dfc-tooltip-total { border-top: 1px solid #2d3748; margin-top: 6px; padding-top: 6px; font-weight: 600; }
+.dfc-tooltip-total { border-top: 1px solid #e2e8f0; margin-top: 6px; padding-top: 6px; font-weight: 600; }
 
 /* Legend */
 .dfc-legend {
@@ -96,8 +96,8 @@
   flex-wrap: wrap;
 }
 .dfc-stat {
-  background: #0f1623;
-  border: 1px solid #2d3748;
+  background: #f9f9fc;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 10px 16px;
   flex: 1;
@@ -109,7 +109,7 @@
 .dfc-empty { color: #64748b; font-size: 13px; text-align: center; padding: 32px 0; }
 .dfc-loading { display: flex; align-items: center; gap: 10px; color: #64748b; font-size: 13px; padding: 24px 0; }
 .dfc-spinner {
-  width: 16px; height: 16px; border: 2px solid #2d3748;
+  width: 16px; height: 16px; border: 2px solid #e2e8f0;
   border-top-color: #1995ff; border-radius: 50%;
   animation: dfc-spin 0.7s linear infinite; flex-shrink: 0;
 }
