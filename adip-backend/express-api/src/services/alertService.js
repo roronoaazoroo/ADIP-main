@@ -1,13 +1,12 @@
-// ============================================================
 // FILE: services/alertService.js
 // ROLE: Single source of truth for sending drift alert emails
-//
+
 // sendDriftAlertEmail(payload):
 //   - If severity is 'critical' or 'high' → calls driftAlertRouter Function
 //     which calls sendAlert Function → ACS email with Approve/Reject links
 //   - If severity is 'low' or 'medium' → does nothing, returns immediately
 //   - Fire-and-forget (non-blocking) — caller does not need to await
-// ============================================================
+
 'use strict'
 const fetch = require('node-fetch')
 

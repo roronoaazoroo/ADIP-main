@@ -71,6 +71,7 @@ export function DashboardProvider({ children }) {
   // Dropdown lists — persisted so they don't need to be re-fetched on back-navigation
   const [resourceGroups, setResourceGroups] = usePersisted('adip.rgs', [])
   const [resources,      setResources]      = usePersisted('adip.resources', [])
+  const [scopes,         setScopes]         = usePersisted('adip.scopes', [])
 
   // Activity feed entries — persisted so the log survives navigation
   const [liveEvents,     setLiveEvents]     = usePersisted('adip.liveEvents', [])
@@ -114,6 +115,7 @@ export function DashboardProvider({ children }) {
       resource,       setResource,
       resourceGroups, setResourceGroups,
       resources,      setResources,
+      scopes,         setScopes,
       isScanning,     setIsScanning,
       isMonitoring,   setIsMonitoring,
       isSubmitted,    setIsSubmitted,

@@ -16,6 +16,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { diff as deepDiff } from 'deep-diff'
 import JsonTree from '../components/JsonTree'
+import MultiSelectDropdown from '../components/MultiSelectDropdown'
 import NavBar from '../components/NavBar'
 import ScheduleRemediationModal from '../components/ScheduleRemediationModal'
 import { fetchBaseline, runCompare, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation, fetchResourceConfiguration, fetchComplianceImpact, fetchSuppressionRules, fetchCostEstimate } from '../services/api'
@@ -103,9 +104,20 @@ export default function ComparisonPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const state = location.state ?? {}
-  const { subscriptionId, resourceGroupId, resourceId, resourceName, liveState: passedLive } = state
+  const { subscriptionId: initSubId, resourceGroupId: initRgId, resourceId: initResId, resourceName, liveState: passedLive, scopes: stateScopes } = state
+  const passedScopes = stateScopes || (ctxScopes?.length ? ctxScopes : null)
+
+  // Active scope — user can switch via dropdown when multiple scopes passed
+  const [activeScopeIdx, setActiveScopeIdx] = useState(0)
+  const multiScopes = passedScopes?.filter(s => s.resourceGroupId) || null
+  const activeScope = multiScopes ? (multiScopes[activeScopeIdx] || multiScopes[0]) : null
+
+  const subscriptionId  = activeScope?.subscriptionId  || initSubId
+  const resourceGroupId = activeScope?.resourceGroupId || initRgId
+  const resourceId      = activeScope?.resourceId      || initResId || null
+  const isRgOnly = !!(multiScopes && activeScope && !activeScope.resourceId)
   const effectiveId = resourceId || resourceGroupId
-  const { subscription, resourceGroup, resource, configData } = useDashboard()
+  const { subscription, resourceGroup, resource, configData, scopes: ctxScopes } = useDashboard()
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
   // Live config — starts from navigation state, refreshed every 5 seconds
@@ -113,7 +125,7 @@ export default function ComparisonPage() {
 
   // Poll live ARM config every 5 seconds — updates diff silently without loading screen
   useEffect(() => {
-    if (!subscriptionId || !resourceGroupId || !resourceId) return
+    if (!subscriptionId || !resourceGroupId || !resourceId || isRgOnly) return
     const id = setInterval(async () => {
       try {
         const fresh = await fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
@@ -177,11 +189,17 @@ export default function ComparisonPage() {
   const liveTreeRef = useRef(null)
   const aiExplainedRef = useRef(false)  // prevents AI re-fetch on every 5s live refresh
 
+
   // On mount: call POST /api/compare (server-side diff with suppression rules applied)
   // Suppression rules stored in Azure Table Storage are applied before returning diffs
   useEffect(() => {
-    if (!subscriptionId || !resourceGroupId) return
-    if (!baselineConfig) setIsLoadingBaseline(true)
+    // Reset on scope change
+    setBaselineConfig(null); setFieldDifferences([]); setBaselineNotFound(false)
+    setCurrentLive(null); aiExplainedRef.current = false; setAiDriftExplanation(null)
+    setIsRemediating(false); setRemediationSucceeded(false); setRemediationError(null)
+    setRemediationDiffSummary(null); setIsPolicyCreated(false); setShowScheduleModal(false)
+    if (!subscriptionId || !resourceGroupId || isRgOnly) { setIsLoadingBaseline(false); return }
+    setIsLoadingBaseline(true)
 
     runCompare(subscriptionId, resourceGroupId, resourceId || null)
       .then(result => {
@@ -210,7 +228,15 @@ export default function ComparisonPage() {
       })
       .catch(() => setBaselineNotFound(true))
       .finally(() => setIsLoadingBaseline(false))
-  }, [subscriptionId, resourceId, currentLive])
+  }, [subscriptionId, resourceId, resourceGroupId, activeScopeIdx])
+
+  // Recalculate diff client-side when live config updates (5s poll)
+  useEffect(() => {
+    if (!baselineConfig || !currentLive) return
+    const diffs = formatDifferences(deepDiff(baselineConfig, normaliseState(currentLive)) || [])
+    setFieldDifferences(diffs)
+    setDriftSeverity(classifySeverity(diffs))
+  }, [currentLive, baselineConfig])
 
   // handleRemediate — called when the user clicks 'Apply Fix Now' or 'Request Approval'
   // Low severity: immediately calls ARM PUT via /api/remediate to revert to baseline
@@ -330,7 +356,7 @@ export default function ComparisonPage() {
   const collapseAll = useCallback(() => { baselineTreeRef.current?.collapseAll(); liveTreeRef.current?.collapseAll() }, [])
   const displayName = resourceName ?? resourceId?.split('/').pop() ?? resourceGroupId
 
-  if (!subscriptionId || !currentLive) {
+  if (!subscriptionId) {
     return (
       <div className="cp-root">
         <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
@@ -349,6 +375,31 @@ export default function ComparisonPage() {
 
       <main className="cp-main" id="main-content" role="main">
         {/* Page header */}
+        {/* Multi-scope dropdown */}
+        {multiScopes && multiScopes.length > 1 && (
+          <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <MultiSelectDropdown
+              options={multiScopes.map((s, i) => ({
+                value: i,
+                label: s.resourceId ? s.resourceId.split('/').pop() : `${s.resourceGroupId} (all resources)`
+              }))}
+              selected={activeScopeIdx !== null ? [activeScopeIdx] : []}
+              onChange={val => {
+                if(val.length) {
+                  setActiveScopeIdx(Number(val[0]))
+                  aiExplainedRef.current = false
+                }
+              }}
+              placeholder="Select a scope..."
+              singleSelect={true}
+            />
+            {!activeScope?.resourceId && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(245,158,11,0.1)', borderRadius: 6, fontSize: 13, color: '#f59e0b' }}>
+                Comparison for entire resource groups is under development. Select a specific resource above.
+              </div>
+            )}
+          </div>
+        )}
         <header className="cp-header">
           <div>
             <h1 className="cp-headline">Baseline Comparison</h1>

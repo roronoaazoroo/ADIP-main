@@ -16,6 +16,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import JsonTree from '../components/JsonTree'
+import MultiSelectDropdown from '../components/MultiSelectDropdown'
 import NavBar from '../components/NavBar'
 import GenomeHistory from '../components/GenomeHistory'
 import { useDashboard } from '../context/DashboardContext'
@@ -50,13 +51,23 @@ function configsMatch(a, b) {
 export default function GenomePage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { subscriptionId, resourceGroupId, resourceId, resourceName } = location.state ?? {}
-  const { subscription, resourceGroup, resource, configData } = useDashboard()
+  const { subscriptionId: initSubId, resourceGroupId: initRgId, resourceId: initResId, resourceName, scopes: stateScopes } = location.state ?? {}
+  const passedScopes = stateScopes || (ctxScopes?.length ? ctxScopes : null)
+
+  const [activeScopeIdx, setActiveScopeIdx] = useState(0)
+  const multiScopes = passedScopes?.filter(s => s.resourceGroupId) || null
+  const activeScope = multiScopes ? (multiScopes[activeScopeIdx] || multiScopes[0]) : null
+
+  const subscriptionId  = activeScope?.subscriptionId  || initSubId
+  const resourceGroupId = activeScope?.resourceGroupId || initRgId
+  const resourceId      = activeScope?.resourceId      || initResId || null
+  const isRgOnly = !!(multiScopes && activeScope && !activeScope.resourceId)
+  const { subscription, resourceGroup, resource, configData, scopes: ctxScopes } = useDashboard()
   const [liveConfig, setLiveConfig] = React.useState(configData)
 
   // Fetch fresh live config on mount (in case configData is stale or null)
   useEffect(() => {
-    if (!subscriptionId || !resourceId) return
+    if (!subscriptionId || !resourceId || isRgOnly) return
     fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
       .then(fresh => { if (fresh) setLiveConfig(fresh) })
       .catch(() => {})
@@ -93,7 +104,7 @@ export default function GenomePage() {
   // Fetches all snapshots for this resource from GET /api/genome
   // Called on mount and after every save/rollback/delete action
   const loadSnapshots = useCallback(async () => {
-    if (!subscriptionId) return
+    if (!subscriptionId || isRgOnly) return
     setIsLoadingSnapshots(true)
     try {
       const fetchedSnapshots = await fetchGenomeSnapshots(subscriptionId, resourceId)
@@ -218,6 +229,22 @@ export default function GenomePage() {
             <p className="gp-subline">Versioned snapshot history for <strong>{resourceDisplayName}</strong></p>
           </div>
           <div className="gp-save-row">
+            {multiScopes && multiScopes.length > 1 && (
+              <div style={{ minWidth: 200, zIndex: 10 }}>
+                <MultiSelectDropdown
+                  options={multiScopes.map((s, i) => ({
+                    value: i,
+                    label: s.resourceId ? s.resourceId.split("/").pop() : `${s.resourceGroupId} (all resources)`
+                  }))}
+                  selected={activeScopeIdx !== null ? [activeScopeIdx] : []}
+                  onChange={val => {
+                    if(val.length) setActiveScopeIdx(Number(val[0]))
+                  }}
+                  placeholder="Select a scope..."
+                  singleSelect={true}
+                />
+              </div>
+            )}
             <input className="gp-label-input" value={snapshotLabelInput} onChange={e => setSnapshotLabelInput(e.target.value)}
               placeholder="Snapshot label (optional)" aria-label="Snapshot label" />
             <button className="gp-btn gp-btn--primary" onClick={handleSave} disabled={isSavingSnapshot}>
@@ -227,6 +254,13 @@ export default function GenomePage() {
             </button>
           </div>
         </header>
+
+        {/* RG-only warning */}
+        {isRgOnly && (
+          <div style={{ margin: "8px 0", padding: "8px 12px", background: "rgba(245,158,11,0.1)", borderRadius: 6, fontSize: 13, color: "#f59e0b" }}>
+            Genome history for entire resource groups is under development. Select a specific resource from the dropdown.
+          </div>
+        )}
 
         {/* Alert */}
         {actionFeedbackMessage && (
