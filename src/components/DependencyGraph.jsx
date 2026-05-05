@@ -151,7 +151,7 @@ export default function DependencyGraph({ subscriptionId, resourceGroupId, onNod
     ctx.font        = `${fontSize}px Inter, sans-serif`
     ctx.textAlign   = 'center'
     ctx.textBaseline = 'top'
-    ctx.fillStyle   = sev ? sev.color : '#e2e8f0'
+    ctx.fillStyle   = sev ? sev.color : '#000000'
     ctx.fillText(label.length > 18 ? label.slice(0, 16) + '…' : label, x, y + r + 3)
   }
 
@@ -192,7 +192,7 @@ export default function DependencyGraph({ subscriptionId, resourceGroupId, onNod
         nodeCanvasObjectMode={() => 'replace'}
         nodeRelSize={18}
         linkLabel={link => link.label || ''}
-        linkColor={() => 'rgba(100,116,139,0.5)'}
+        linkColor={() => 'rgba(19, 20, 21, 0.5)'}
         linkDirectionalArrowLength={4}
         linkDirectionalArrowRelPos={1}
         linkCurvature={0.1}

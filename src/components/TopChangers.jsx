@@ -1,13 +1,11 @@
-// ============================================================
 // FILE: src/components/TopChangers.jsx
 // ROLE: Shows the user with the highest change-to-drift ratio
-//       as a widget on DashboardHome.
-//
+
 // "Change-to-drift ratio" = driftCount / totalChanges
 // Higher ratio = more of their changes caused drift = higher risk
-//
+
 // Props: subscriptionId
-// ============================================================
+
 import React, { useState, useEffect } from 'react'
 import { fetchChangeAttribution } from '../services/api'
 

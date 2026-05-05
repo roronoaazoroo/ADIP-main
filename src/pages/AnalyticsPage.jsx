@@ -83,24 +83,35 @@ export default function AnalyticsPage() {
         {activeTab === 'prediction' && (
           <div className="an-tab-content" key="prediction">
 
-            {/* RG-level bubble matrix + heatmap + AI prediction cards */}
-            {resourceGroup && (
-              <div className="an-card an-card--full">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">hub</span>
-                    <span className="an-card-title">Resource Group Drift Analysis</span>
-                    <span className="an-card-badge an-card-badge--ai">
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
-                      AI Powered
-                    </span>
-                  </div>
-                </div>
-                <div className="an-card-body">
-                  <RgDriftPrediction subscriptionId={activeSubscriptionId} resourceGroup={resourceGroup} />
+            {/* RG-level drift prediction */}
+            <div className="an-card an-card--full">
+              <div className="an-card-header">
+                <div className="an-card-title-row">
+                  <span className="material-symbols-outlined an-card-icon">hub</span>
+                  <span className="an-card-title">Resource Group Drift Analysis</span>
+                  <span className="an-card-badge an-card-badge--ai">
+                    <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
+                    AI Powered
+                  </span>
                 </div>
               </div>
-            )}
+              <div className="an-card-body">
+                <RgDriftPrediction subscriptionId={activeSubscriptionId} resourceGroup={resourceGroup} />
+              </div>
+            </div>
+
+            {/* Drift Forecast Chart */}
+            <div className="an-card an-card--full" style={{ marginTop: 16 }}>
+              <div className="an-card-header">
+                <div className="an-card-title-row">
+                  <span className="material-symbols-outlined an-card-icon">show_chart</span>
+                  <span className="an-card-title">Drift Forecast</span>
+                </div>
+              </div>
+              <div className="an-card-body">
+                <DriftForecastChart subscriptionId={activeSubscriptionId} />
+              </div>
+            </div>
 
           </div>
         )}

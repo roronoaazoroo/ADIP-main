@@ -97,30 +97,37 @@ export default function DriftScanner() {
   const handleLiveConfigUpdate = useCallback((incomingEvent) => {
     if (!incomingEvent.resourceId && !incomingEvent.resourceGroup) return
     if (resource && incomingEvent.liveState) {
-      // Event includes the new config — update the JSON tree immediately
       setConfigData(incomingEvent.liveState)
-    } else {
-      // Re-fetch from ARM to get the latest config
+    } else if (!fetchingRef.current) {
+      fetchingRef.current = true
       fetchResourceConfiguration(subscription, resourceGroup, resource || null)
-        .then(freshConfig => { if (freshConfig) setConfigData(freshConfig) }).catch(() => {})
+        .then(freshConfig => { if (freshConfig) setConfigData(freshConfig) })
+        .catch(() => {})
+        .finally(() => { fetchingRef.current = false })
     }
   }, [subscription, resourceGroup, resource, setConfigData])
 
   // Connect to Socket.IO — receives real-time ARM change events for the selected scope
   // socketConnected: true when the WebSocket connection is active
   // clearDriftEvents: resets the live activity feed (called on Stop)
+  const fetchingRef = useRef(false) // prevents duplicate ARM calls from poll + socket overlap
   const { socketConnected, clearDriftEvents } = useDriftSocket(socketScope, isSubmitted, handleLiveConfigUpdate, driftEvents, setDriftEvents)
 
   useEffect(() => () => { if (scanInterval.current) clearInterval(scanInterval.current) }, [])
 
   useEffect(() => {
-    if (!isSubmitted || !subscription || !resourceGroup) return
+    const s = scopes[0]
+    if (!isSubmitted || !s?.subscriptionId || !s?.resourceGroupId) return
     const id = setInterval(() => {
-      fetchResourceConfiguration(subscription, resourceGroup, resource || null)
-        .then(cfg => { if (cfg) setConfigData(cfg) }).catch(() => {})
+      if (fetchingRef.current) return
+      fetchingRef.current = true
+      fetchResourceConfiguration(s.subscriptionId, s.resourceGroupId, s.resourceId || null)
+        .then(cfg => { if (cfg) setConfigData(cfg) })
+        .catch(() => {})
+        .finally(() => { fetchingRef.current = false })
     }, 5000)
     return () => clearInterval(id)
-  }, [isSubmitted, subscription, resourceGroup, resource])
+  }, [isSubmitted, scopes])
 
   // Returns hardcoded demo config when the backend is unreachable (isDemoMode = true)
   // Looks up the selected resource group in RESOURCE_CONFIGS, then finds the specific resource if one is selected
@@ -451,14 +458,7 @@ export default function DriftScanner() {
                 <DependencyGraph
                   subscriptionId={activeScope?.subscriptionId || subscription}
                   resourceGroupId={activeScope?.resourceGroupId || resourceGroup}
-                  onNodeClick={node => navigate('/comparison', {
-                    state: {
-                      subscriptionId:  subscription,
-                      resourceGroupId: resourceGroup,
-                      resourceId:      node.id,
-                      resourceName:    node.name,
-                    }
-                  })}
+                  onNodeClick={() => {}}
                 />
               </div>
             )}
