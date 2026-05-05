@@ -21,6 +21,8 @@ import {fetchResourceConfiguration, stopMonitoring, cacheState } from '../servic
 import './DriftScanner.css'
 import { useDashboard } from '../context/DashboardContext'
 import LiveActivityFeed from '../components/LiveActivityFeed'
+import ScopeSelector from '../components/ScopeSelector'
+import MultiSelectDropdown from '../components/MultiSelectDropdown'
 import NavBar from "../components/NavBar";
 
 const RESOURCE_CONFIGS = {
@@ -44,6 +46,7 @@ const LIVE_EVENTS_TEMPLATE = [
 export default function DriftScanner() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('config')
+  // Multi-scope: array of { id, subscriptionId, resourceGroupId, resourceId }
 
   // Feat 2: Drift Prediction
   const [driftPrediction, setDriftPrediction] = useState(null)
@@ -65,7 +68,16 @@ export default function DriftScanner() {
     driftEvents, setDriftEvents,
     scanProgress, setScanProgress,
     scanInterval, monitorScope, jsonTreeRef,
+    scopes: ctxScopes, setScopes: setCtxScopes,
   } = useDashboard()
+  // Multi-scope: array of { id, subscriptionId, resourceGroupId, resourceId }
+  // Use context scopes if available, otherwise initialize from single-scope context values
+  const scopes = ctxScopes && ctxScopes.length > 0 ? ctxScopes : [{ id: 1, subscriptionId: subscription || '', resourceGroupId: resourceGroup || '', resourceId: resource || '' }]
+  const setScopes = setCtxScopes
+  const isMultiScope = scopes.length > 1
+  // Which scope is selected in the config/graph tab dropdown
+  const [selectedScopeId, setSelectedScopeId] = React.useState(null)
+  const activeScope = scopes.find(s => (s.resourceId || s.resourceGroupId) === selectedScopeId) || scopes[0]
 
   const { subscriptions, loading: scopeLoading, isDemoMode, fetchRGs, fetchResources } = useAzureScope({
     resourceGroups, setResourceGroups, resources, setResources,
@@ -75,8 +87,8 @@ export default function DriftScanner() {
   // scope: the currently selected subscription/RG/resource — passed to useDriftSocket
   // Socket.IO uses this to join the correct room and filter incoming events
   const socketScope = useMemo(
-    () => ({ subscriptionId: subscription, resourceGroup, resourceId: resource || null }),
-    [subscription, resourceGroup, resource]
+    () => scopes.map(s => ({ subscriptionId: s.subscriptionId, resourceGroup: s.resourceGroupId, resourceId: s.resourceId || null })),
+    [scopes]
   )
 
   // Called by useDriftSocket whenever a live resourceChange event arrives
@@ -128,6 +140,11 @@ export default function DriftScanner() {
   // 3. On success: sets isSubmitted=true (unblocks Socket.IO), seeds the diff cache,
   //    starts monitoring session
   const handleSubmit = () => {
+    // Sync first scope to context for backward compatibility with other pages
+    const primary = scopes[0]
+    if (primary?.subscriptionId) setSubscription(primary.subscriptionId)
+    if (primary?.resourceGroupId) setResourceGroup(primary.resourceGroupId)
+    if (primary?.resourceId !== undefined) setResource(primary.resourceId)
     if (!subscription || !resourceGroup || isScanning) return
 
     // Reset all state before starting a new scan
@@ -253,6 +270,7 @@ export default function DriftScanner() {
         resourceGroup={resourceGroup}
         resource={resource}
         configData={configData}
+        scopes={scopes}
         navigateToDriftScanner={() => {}}
       />
       {/* ── Main ── */}
@@ -279,50 +297,22 @@ export default function DriftScanner() {
 
           {/* Filter Section */}
           <section className="ds-filter-section" aria-label="Resource selection">
-            <div className="ds-filter-grid">
-              <div className="ds-filter-field">
-                <label className="ds-filter-label" htmlFor="filter-subscription">Subscription</label>
-                <select className="ds-filter-select" value={subscription}
-                  onChange={e => { const selectedSubId = e.target.value; setSubscription(selectedSubId); setResourceGroup(''); setResource(''); setConfigData(null); fetchRGs(selectedSubId) }}
-                  disabled={scopeLoading && !subscriptions.length} id="filter-subscription"
-                  aria-required="true">
-                  <option value="">Select subscription...</option>
-                  {subscriptions.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
-                </select>
-              </div>
-
-              <div className="ds-filter-field">
-                <label className="ds-filter-label" htmlFor="filter-resource-group">Resource Group</label>
-                <select className="ds-filter-select" value={resourceGroup}
-                  onChange={e => { const selectedRgId = e.target.value; setResourceGroup(selectedRgId); setResource(''); setConfigData(null); fetchResources(subscription, selectedRgId) }}
-                  disabled={!subscription || scopeLoading} id="filter-resource-group"
-                  aria-required="true">
-                  <option value="">Select resource group...</option>
-                  {resourceGroups.map(resourceGroup => <option key={resourceGroup.id} value={resourceGroup.id}>{resourceGroup.name}</option>)}
-                </select>
-              </div>
-
-              <div className="ds-filter-field">
-                <label className="ds-filter-label" htmlFor="filter-resource">Resource</label>
-                <select className="ds-filter-select" value={resource}
-                  onChange={e => setResource(e.target.value)}
-                  disabled={!resourceGroup || scopeLoading} id="filter-resource">
-                  <option value="">All resources</option>
-                  {resources.map(res => <option key={res.id} value={res.id}>{res.name} ({res.type})</option>)}
-                </select>
-              </div>
-
-              <div className="ds-filter-actions">
-                <button className="ds-submit-btn" onClick={handleSubmit}
-                  disabled={!subscription || !resourceGroup || isScanning || scopeLoading} id="btn-submit">
-                  {isScanning ? <><div className="ds-btn-spinner" /> Fetching...</> : 'Submit Scan'}
-                </button>
-                <button className="ds-stop-btn" onClick={handleStop}
-                  disabled={!isScanning && !isMonitoring} id="btn-stop">
-                  <span className="material-symbols-outlined">stop_circle</span>
-                </button>
-              </div>
+            <ScopeSelector
+              scopes={scopes}
+              subscriptions={subscriptions}
+              onChange={setScopes}
+            >
+            <div className="ds-filter-actions">
+              <button className="ds-submit-btn" onClick={handleSubmit}
+                disabled={!scopes.some(s => s.subscriptionId && s.resourceGroupId) || isScanning || scopeLoading} id="btn-submit">
+                {isScanning ? <><div className="ds-btn-spinner" /> Fetching...</> : 'Submit Scan'}
+              </button>
+              <button className="ds-stop-btn" onClick={handleStop}
+                disabled={!isScanning && !isMonitoring} id="btn-stop">
+                <span className="material-symbols-outlined">stop_circle</span>
+              </button>
             </div>
+            </ScopeSelector>
 
             {/* Stats */}
             {configData && !isScanning && (
@@ -386,6 +376,27 @@ export default function DriftScanner() {
             {/* Config Tab */}
             {activeTab === 'config' && (
               <div className="ds-code-viewer">
+                {/* Scope selector — shown when multiple scopes selected */}
+                {isMultiScope && isSubmitted && (
+                  <div style={{ margin: '8px 12px', width: 'calc(100% - 24px)', zIndex: 10 }}>
+                    <MultiSelectDropdown
+                      options={scopes.filter(s => s.resourceGroupId).map(s => ({
+                        value: s.resourceId || s.resourceGroupId,
+                        label: s.resourceId ? s.resourceId.split('/').pop() : s.resourceGroupId
+                      }))}
+                      selected={selectedScopeId ? [selectedScopeId] : []}
+                      onChange={val => {
+                        const newId = val[0] || ''
+                        setSelectedScopeId(newId)
+                        const s = scopes.find(sc => (sc.resourceId || sc.resourceGroupId) === newId)
+                        if (s) fetchResourceConfiguration(s.subscriptionId, s.resourceGroupId, s.resourceId || null)
+                          .then(cfg => { if (cfg) setConfigData(cfg) }).catch(() => {})
+                      }}
+                      placeholder="Select a scope..."
+                      singleSelect={true}
+                    />
+                  </div>
+                )}
                 <span className="ds-code-readonly">Read Only Mode</span>
                 <div className="ds-code-inner">
                   {!configData && !isScanning && (
@@ -423,9 +434,23 @@ export default function DriftScanner() {
             {/* Dependency Graph Tab (Feature 7) */}
             {activeTab === 'graph' && (
               <div className="ds-graph-inner" style={{ height: '700px', width: '100%', position: 'relative', overflow: 'hidden', background: 'var(--panel-bg)', borderRadius: '0 0 12px 12px' }}>
+                {/* Scope selector for graph — shown when multiple scopes */}
+                {isMultiScope && isSubmitted && (
+                  <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 20, width: 250 }}>
+                    <MultiSelectDropdown
+                      options={[...new Set(scopes.filter(s => s.resourceGroupId).map(s => s.resourceGroupId))].map(rg => ({
+                        value: rg, label: rg
+                      }))}
+                      selected={selectedScopeId ? [selectedScopeId] : []}
+                      onChange={val => setSelectedScopeId(val[0] || '')}
+                      placeholder="Select Resource Group"
+                      singleSelect={true}
+                    />
+                  </div>
+                )}
                 <DependencyGraph
-                  subscriptionId={subscription}
-                  resourceGroupId={resourceGroup}
+                  subscriptionId={activeScope?.subscriptionId || subscription}
+                  resourceGroupId={activeScope?.resourceGroupId || resourceGroup}
                   onNodeClick={node => navigate('/comparison', {
                     state: {
                       subscriptionId:  subscription,

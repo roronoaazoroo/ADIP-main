@@ -11,7 +11,6 @@
 //     (data from GET /api/stats/chart → changesIndex Table, self-fetching component)
 //   - Recent Events table: shows last 100 ARM events from 'all-changes' blob
 //     via GET /api/changes/recent. Clicking a non-deleted row navigates to
-//     ComparisonPage with the resource pre-loaded (navigateToComparison)
 //   - FilterDropdown: two-stage filter (pendingFilters → appliedFilters on Apply click)
 //     so the table only re-fetches when the user explicitly applies filters
 
@@ -19,7 +18,6 @@
 //   drift (drift-records). This is intentional — it is an infrastructure audit log.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useDashboard } from '../context/DashboardContext'
 import NavBar from '../components/NavBar'
 import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
@@ -178,7 +176,6 @@ function BarChart({ subscriptionId }) {
 }
 
 export default function DashboardHome() {
-  const navigate = useNavigate()
   const { subscription: ctxSub, resourceGroup, resource, configData } = useDashboard()
 
   // List of Azure subscriptions the user has access to (fetched from /api/subscriptions)
@@ -368,31 +365,8 @@ export default function DashboardHome() {
 
     return filteredEvents
   }
-
   // The final list of events shown in the table after all filters are applied
   const filteredChangeEvents = applyClientSideFilters(recentChangeEvents)
-
-  // Called when a table row is clicked — fetches fresh live ARM config and navigates to ComparisonPage
-  // Passes the resource IDs and live config as React Router navigation state
-  const navigateToComparison = async (changeEvent) => {
-    let currentLiveState = changeEvent.liveState  // use stored state as fallback
-    if (changeEvent.resourceId && changeEvent.subscriptionId && changeEvent.resourceGroup) {
-      try {
-        // Try to fetch the freshest live config from ARM
-        currentLiveState = await fetchResourceConfiguration(changeEvent.subscriptionId, changeEvent.resourceGroup, changeEvent.resourceId)
-      } catch { /* fall back to stored liveState if ARM fetch fails */ }
-    }
-    navigate('/comparison', {
-      state: {
-        subscriptionId: changeEvent.subscriptionId,
-        resourceGroupId: changeEvent.resourceGroup,
-        resourceId:     changeEvent.resourceId,
-        resourceName:   changeEvent.resourceId?.split('/').pop(),
-        liveState:      currentLiveState,
-      }
-    })
-  }
-
   // Derived values for KPI cards — prefer stats from API, fall back to counting loaded events
   const kpiTotalChangesAllTime  = todayStats?.totalChanges ?? recentChangeEvents.length
   const kpiResourcesChangedToday = todayStats?.totalDrifted ?? new Set(recentChangeEvents.map(e => e.resourceId)).size
@@ -494,7 +468,6 @@ export default function DashboardHome() {
                           className="dh-tr"
                           role={!isDeleteEvent ? 'link' : undefined}
                           tabIndex={!isDeleteEvent ? 0 : undefined}
-                          onKeyDown={(e) => { if (!isDeleteEvent && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigateToComparison(changeEvent); } }}
                           aria-label={!isDeleteEvent ? `Compare ${resourceShortName} against baseline` : undefined}
                         >
                           <td className="dh-td-time">
