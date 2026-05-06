@@ -1,11 +1,11 @@
 // FILE: src/pages/SettingsPage.jsx
-// ROLE: Platform settings page — profile, notifications, monitoring, appearance, and about
+// ROLE: Platform settings page   profile, notifications, monitoring, appearance, and about
 
 // What this page does:
 //   - Profile section: displays user info from sessionStorage, allows editing display name & email
 //   - Notifications section: toggle switches for email alerts, drift severity thresholds, digest frequency
 //   - Monitoring section: polling interval, auto-remediation toggle, data retention settings
-//   - Appearance section: theme toggle (light/dark — wired to data-theme attribute)
+//   - Appearance section: theme toggle (light/dark   wired to data-theme attribute)
 //   - About section: platform version, build info, links
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -16,7 +16,7 @@ import SuppressionRules from '../components/SuppressionRules'
 import { fetchUserPreferences, saveUserPreferences } from '../services/api'
 import './SettingsPage.css'
 
-// ── Toggle Switch ────────────────────────────────────────────────────────────
+// Toggle Switch  
 function ToggleSwitch({ id, checked, onChange, disabled = false }) {
   return (
     <label className="sp-toggle" htmlFor={id}>
@@ -35,7 +35,7 @@ function ToggleSwitch({ id, checked, onChange, disabled = false }) {
   )
 }
 
-// ── Setting Row ──────────────────────────────────────────────────────────────
+// Setting Row   
 function SettingRow({ icon, label, description, children }) {
   return (
     <div className="sp-setting-row">
@@ -53,7 +53,7 @@ function SettingRow({ icon, label, description, children }) {
   )
 }
 
-// ── Section Card ─────────────────────────────────────────────────────────────
+// Section Card   
 function SectionCard({ icon, title, badge, children }) {
   return (
     <div className="sp-card">
@@ -71,7 +71,7 @@ function SectionCard({ icon, title, badge, children }) {
   )
 }
 
-// ── Nav Item for left sidebar ────────────────────────────────────────────────
+// Nav Item for left sidebar                         
 function SettingsNavItem({ icon, label, active, onClick }) {
   return (
     <button
@@ -102,12 +102,12 @@ export default function SettingsPage() {
   // Active section in the settings sidebar
   const [activeSection, setActiveSection] = useState('profile')
 
-  // ── Profile state ────────────────────────────────────────────────────────
+  // Profile state                             
   const [displayName, setDisplayName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || user?.username || '')
   const [profileSaved, setProfileSaved] = useState(false)
 
-  // ── Notification preferences ─────────────────────────────────────────────
+  // Notification preferences                        
   const [emailAlerts,     setEmailAlerts]     = useState(true)
   const [criticalAlerts,  setCriticalAlerts]  = useState(true)
   const [highAlerts,      setHighAlerts]      = useState(true)
@@ -115,21 +115,21 @@ export default function SettingsPage() {
   const [lowAlerts,       setLowAlerts]       = useState(false)
   const [digestFrequency, setDigestFrequency] = useState('daily')
 
-  // ── Monitoring preferences ───────────────────────────────────────────────
+  // Monitoring preferences                         
   const [pollingInterval, setPollingInterval] = useState('30')
   const [autoRemediate,   setAutoRemediate]   = useState(false)
   const [retentionDays,   setRetentionDays]   = useState('90')
 
-  // ── Appearance ───────────────────────────────────────────────────────────
+  // Appearance                               
   const [theme, setTheme] = useState(
     () => document.documentElement.getAttribute('data-theme') || 'light'
   )
 
-  // ── Feedback ─────────────────────────────────────────────────────────────
+  // Feedback   
   const [savedMessage, setSavedMessage] = useState(null)
   const [isDirty,      setIsDirty]      = useState(false)
 
-  // Track changes to any setting — mark as dirty
+  // Track changes to any setting   mark as dirty
   useEffect(() => { setIsDirty(true) }, [
     displayName, email, emailAlerts, criticalAlerts, highAlerts, mediumAlerts,
     lowAlerts, digestFrequency, pollingInterval, autoRemediate, retentionDays, theme,
@@ -155,12 +155,12 @@ export default function SettingsPage() {
         setTheme(prefs.theme)
         document.documentElement.setAttribute('data-theme', prefs.theme)
       }
-      // Reset dirty after loading — changes from load are not "user edits"
+      // Reset dirty after loading   changes from load are not "user edits"
       setTimeout(() => setIsDirty(false), 0)
     }).catch(() => {})
   }, [username])
 
-  // Toggle dark/light theme — applies immediately, saved on Save Changes
+  // Toggle dark/light theme   applies immediately, saved on Save Changes
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme)
     document.documentElement.setAttribute('data-theme', newTheme)
@@ -261,7 +261,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* ── Profile Section ────────────────────────────────────────────── */}
+          {/* Profile Section*/}
           <div id="sp-section-profile">
             <SectionCard icon="person" title="Profile" badge="Account">
               <div className="sp-profile-header">
@@ -305,7 +305,7 @@ export default function SettingsPage() {
             </SectionCard>
           </div>
 
-          {/* ── Notifications Section ───────────────────────────────────────── */}
+          {/* Notifications Section*/}
           <div id="sp-section-notifications">
             <SectionCard icon="notifications" title="Notifications" badge="Alerts">
               <SettingRow
@@ -357,7 +357,7 @@ export default function SettingsPage() {
             </SectionCard>
           </div>
 
-          {/* ── Monitoring Section ──────────────────────────────────────────── */}
+          {/* Monitoring Section*/}
           <div id="sp-section-monitoring">
             <SectionCard icon="monitoring" title="Monitoring" badge="Scan">
               <SettingRow icon="update" label="Polling Interval" description="How frequently to check resources for drift">
@@ -408,7 +408,7 @@ export default function SettingsPage() {
             </SectionCard>
           </div>
 
-          {/* ── Appearance Section ──────────────────────────────────────────── */}
+          {/* Appearance Section*/}
           <div id="sp-section-appearance">
             <SectionCard icon="palette" title="Appearance" badge="Theme">
               <div className="sp-theme-grid">
@@ -453,14 +453,14 @@ export default function SettingsPage() {
             </SectionCard>
           </div>
 
-          {/* ── Suppression Rules Section (Feature 12) ────────────────────── */}
+          {/* Suppression Rules Section (Feature 12)*/}
           <div id="sp-section-suppression">
             <SectionCard icon="rule_folder" title="Drift Suppression Rules" badge="Rules">
               <SuppressionRules subscriptionId={subscription} />
             </SectionCard>
           </div>
 
-          {/* ── About Section ───────────────────────────────────────────────── */}
+          {/* About Section*/}
           <div id="sp-section-about">
             <SectionCard icon="info" title="About" badge="System">
               <div className="sp-about-grid">
@@ -492,7 +492,7 @@ export default function SettingsPage() {
 
               <div className="sp-about-footer">
                 <span className="sp-about-credit">
-                  Built by <strong>CloudThat</strong> — Enterprise Cloud Governance
+                  Built by <strong>CloudThat</strong>   Enterprise Cloud Governance
                 </span>
               </div>
             </SectionCard>

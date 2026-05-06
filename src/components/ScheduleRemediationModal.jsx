@@ -1,13 +1,11 @@
-// ============================================================
 // FILE: src/components/ScheduleRemediationModal.jsx
 // ROLE: Modal for scheduling a remediation with maintenance window
 //       and auto-approval timeout. Used in ComparisonPage.
-//
+
 // Props:
 //   subscriptionId, resourceGroupId, resourceId, severity
 //   onClose()     — called on cancel or after successful schedule
 //   onScheduled() — called with the created schedule object
-// ============================================================
 import React, { useState } from 'react'
 import { scheduleRemediation } from '../services/api'
 import './ScheduleRemediationModal.css'

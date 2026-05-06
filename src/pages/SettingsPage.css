@@ -1,8 +1,8 @@
-/* ===========================
+/*
    SettingsPage — Light Enterprise (matches DashboardHome / DriftScanner)
-   =========================== */
+*/
 
-/* ── Root ────────────────────────────────────────────────────────────────── */
+/*Root*/
 .sp-root {
   min-height: 100vh;
   background: #f9f9fc;
@@ -19,7 +19,7 @@
   align-items: flex-start;
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/*   Sidebar*/
 .sp-sidebar {
   width: 240px;
   flex-shrink: 0;
@@ -108,7 +108,7 @@
   box-shadow: 0 6px 20px rgba(0,51,89,0.2);
 }
 
-/* ── Content area ────────────────────────────────────────────────────────── */
+/*   Content area*/
 .sp-content {
   flex: 1;
   display: flex;
@@ -117,7 +117,7 @@
   min-width: 0;
 }
 
-/* ── Alert banner ────────────────────────────────────────────────────────── */
+/*   Alert banner*/
 .sp-alert {
   display: flex;
   align-items: center;
@@ -138,7 +138,7 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Card ────────────────────────────────────────────────────────────────── */
+/*   Card   */
 .sp-card {
   background: #fff;
   border-radius: 20px;
@@ -184,7 +184,7 @@
   padding: 24px 28px 28px;
 }
 
-/* ── Profile section ─────────────────────────────────────────────────────── */
+/*   Profile section*/
 .sp-profile-header {
   display: flex;
   align-items: center;
@@ -275,7 +275,7 @@
   animation: sp-fade-in 0.3s ease;
 }
 
-/* ── Select dropdown ─────────────────────────────────────────────────────── */
+/*   Select dropdown*/
 .sp-select {
   height: 40px;
   padding: 0 36px 0 14px;
@@ -303,7 +303,7 @@
   cursor: not-allowed;
 }
 
-/* ── Setting Row ─────────────────────────────────────────────────────────── */
+/*   Setting Row*/
 .sp-setting-row {
   display: flex;
   align-items: center;
@@ -362,7 +362,7 @@
   padding: 12px 0 4px;
 }
 
-/* ── Toggle Switch ───────────────────────────────────────────────────────── */
+/*   Toggle Switch */
 .sp-toggle {
   position: relative;
   display: inline-flex;
@@ -410,7 +410,7 @@
   transform: translateX(20px);
 }
 
-/* ── Warning banner ──────────────────────────────────────────────────────── */
+/*   Warning banner */
 .sp-warning-banner {
   display: flex;
   align-items: flex-start;
@@ -430,7 +430,7 @@
   flex-shrink: 0;
 }
 
-/* ── Theme cards ─────────────────────────────────────────────────────────── */
+/*   Theme cards*/
 .sp-theme-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -529,7 +529,7 @@
   color: #374151;
 }
 
-/* ── About section ───────────────────────────────────────────────────────── */
+/*   About section */
 .sp-about-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -575,7 +575,7 @@
   font-weight: 700;
 }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/*   Responsive */
 @media (max-width: 900px) {
   .sp-main {
     flex-direction: column;

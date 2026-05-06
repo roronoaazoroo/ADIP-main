@@ -23,7 +23,7 @@ import NavBar from '../components/NavBar'
 import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
 import './DashboardHome.css'
 
-// ── Filter dropdown component ─────────────────────────────────────────────────
+//  Filter dropdown component 
 function FilterDropdown({ filterKey, config, selected, onToggle, isOpen, onOpenToggle }) {
   const ref = useRef(null)
   useEffect(() => {

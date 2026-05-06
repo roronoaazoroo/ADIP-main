@@ -1,6 +1,6 @@
 /* LiveActivityFeed — Light enterprise design matching DashboardHome */
 
-/* ── Panel container ────────────────────────────────────────────────────── */
+/*  Panel container  */
 .panel-live {
   display: flex;
   flex-direction: column;
@@ -13,7 +13,7 @@
   padding: 16px 0;
 }
 
-/* ── Feed controls ──────────────────────────────────────────────────────── */
+/*  Feed controls  */
 .feed-controls {
   display: flex;
   align-items: center;
@@ -80,7 +80,7 @@
   background: rgba(0,51,89,0.03);
 }
 
-/* ── Empty state ────────────────────────────────────────────────────────── */
+/*  Empty state  */
 .panel-empty {
   display: flex;
   flex-direction: column;
@@ -102,7 +102,7 @@
   max-width: 280px;
 }
 
-/* ── Log entries (scan events) ──────────────────────────────────────────── */
+/*  Log entries (scan events)  */
 .log-entry {
   display: flex;
   align-items: flex-start;
@@ -144,7 +144,7 @@
   to   { opacity: 1; transform: translateX(0); }
 }
 
-/* ── Drift divider ──────────────────────────────────────────────────────── */
+/*  Drift divider  */
 .drift-feed-divider {
   display: flex;
   align-items: center;
@@ -170,7 +170,7 @@
   white-space: nowrap;
 }
 
-/* ── Drift event rows ───────────────────────────────────────────────────── */
+/*  Drift event rows  */
 .drift-event-row {
   padding: 12px 14px;
   border-radius: 12px;
@@ -270,7 +270,7 @@
   margin-left: auto;
 }
 
-/* ── Change detail rows ─────────────────────────────────────────────────── */
+/*  Change detail rows  */
 .drift-changes {
   padding: 8px 0 4px 20px;
   display: flex;
@@ -353,7 +353,7 @@
   padding: 2px 10px;
 }
 
-/* ── Operation detail (no changes) ──────────────────────────────────────── */
+/*  Operation detail (no changes)  */
 .drift-operation-detail {
   padding: 6px 20px;
   font-size: 11px;

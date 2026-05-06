@@ -20,7 +20,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 
-// ── apiRequest ───────────────────────────────────────────────────────────────
+//   apiRequest  
 // Generic fetch wrapper used by every function below
 // Builds the full URL, sets Content-Type header, checks for HTTP errors, parses JSON
 async function apiRequest(endpoint, options = {}) {
@@ -38,7 +38,7 @@ async function apiRequest(endpoint, options = {}) {
 }
 
 
-// ── Azure Scope ───────────────────────────────────────────────────────────────
+//   Azure Scope  
 
 // Returns all Azure subscriptions the logged-in credential has access to
 // Calls GET /api/subscriptions → uses SubscriptionClient from @azure/arm-subscriptions
@@ -68,7 +68,7 @@ export async function fetchResourceConfiguration(subscriptionId, resourceGroupId
 }
 
 
-// ── Baselines ─────────────────────────────────────────────────────────────────
+//   Baselines   
 
 // Fetches the golden baseline blob for a resource from 'baselines' container
 // Returns { subscriptionId, resourceId, resourceState, promotedAt } or null if not found
@@ -98,7 +98,7 @@ export async function uploadBaseline(subscriptionId, resourceGroupId, resourceId
 }
 
 
-// ── Drift & Stats ─────────────────────────────────────────────────────────────
+//   Drift & Stats                               
 
 // Returns severity-classified drift records from 'drift-records' blob + driftIndex Table
 // These are only created when detectDrift Function finds a deviation from baseline
@@ -139,7 +139,7 @@ export async function fetchChartStats(subscriptionId, mode = '24h') {
 }
 
 
-// ── Remediation ───────────────────────────────────────────────────────────────
+//   Remediation  
 
 // Immediately reverts a resource to its golden baseline via ARM PUT (low severity only)
 // Calls POST /api/remediate → reads baseline blob → calls armClient.beginCreateOrUpdateAndWait()
@@ -158,7 +158,7 @@ export async function requestRemediation(payload) {
 }
 
 
-// ── Monitoring ────────────────────────────────────────────────────────────────
+//   Monitoring  
 
 // Seeds the diff cache with the current resource state
 // Called after Submit so the first Socket.IO event has a previous state to diff against
@@ -181,7 +181,7 @@ export async function stopMonitoring(subscriptionId, resourceGroupId, resourceId
 }
 
 
-// ── Policy ────────────────────────────────────────────────────────────────────
+//   Policy    
 
 // Returns Azure Policy compliance state for a resource or resource group
 // Returns { total, nonCompliant, compliant, violations[] }
@@ -193,7 +193,7 @@ export async function fetchPolicyCompliance(subscriptionId, resourceGroupId, res
 }
 
 
-// ── AI Features ───────────────────────────────────────────────────────────────
+//   AI Features  
 
 // Requests a plain-English explanation of the drift from Azure OpenAI
 // Returns { explanation: string }
@@ -217,7 +217,7 @@ export async function fetchAiRecommendation(driftRecord) {
 // }
 
 
-// ── Configuration Genome ──────────────────────────────────────────────────────
+//   Configuration Genome                            
 
 // Returns all versioned snapshots for a resource, sorted newest-first
 // Each snapshot: { _blobKey, savedAt, label, resourceState, rolledBackAt }
@@ -283,7 +283,7 @@ export default {
 }
 
 
-// ── Reports ──────────────────────────────────────────────────────────────────
+//   Reports   
 
 // Generates a drift analysis report and saves it to blob storage
 export async function generateDriftReport(subscriptionId, periodDays = 7, sendEmail = false, recipientEmail = '') {
@@ -309,20 +309,20 @@ export async function deleteReport(blobKey) {
   return apiRequest(`/reports?blobKey=${encodeURIComponent(blobKey)}`, { method: 'DELETE' })
 }
 
-// ── Change Attribution ───────────────────────────────────────────────────────
+//   Change Attribution                            
 
 // Returns per-caller change and drift counts for a subscription
 export async function fetchChangeAttribution(subscriptionId, days = 30) {
   return apiRequest(`/attribution?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
 }
 
-// ── Dependency Graph ─────────────────────────────────────────────────────────
+//   Dependency Graph                             
 
 export async function fetchDependencyGraph(subscriptionId, resourceGroupId) {
   return apiRequest(`/dependency-graph?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceGroupId=${encodeURIComponent(resourceGroupId)}`)
 }
 
-// ── Suppression Rules ────────────────────────────────────────────────────────
+//   Suppression Rules                             
 
 export async function fetchSuppressionRules(subscriptionId) {
   return apiRequest(`/suppression-rules?subscriptionId=${encodeURIComponent(subscriptionId)}`)
@@ -339,7 +339,7 @@ export async function deleteSuppressionRule(subscriptionId, rowKey) {
   return apiRequest(`/suppression-rules/${encodeURIComponent(rowKey)}?subscriptionId=${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' })
 }
 
-// ── Remediation Schedule ─────────────────────────────────────────────────────
+//   Remediation Schedule                           
 
 export async function scheduleRemediation({ subscriptionId, resourceGroupId, resourceId, severity, scheduledAt, autoApprovalHours }) {
   return apiRequest('/remediation-schedule', {
@@ -356,7 +356,7 @@ export async function cancelRemediationSchedule(subscriptionId, rowKey) {
   return apiRequest(`/remediation-schedule/${encodeURIComponent(rowKey)}?subscriptionId=${encodeURIComponent(subscriptionId)}`, { method: 'DELETE' })
 }
 
-// ── Drift Impact ─────────────────────────────────────────────────────────────
+//   Drift Impact                               
 
 export async function fetchDriftImpact(subscriptionId, days = 30) {
   return apiRequest(`/drift-impact?subscriptionId=${encodeURIComponent(subscriptionId)}&days=${days}`)
@@ -366,7 +366,7 @@ export async function fetchResourceDriftEvents(subscriptionId, resourceId, limit
   return apiRequest(`/drift-impact/resource?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceId=${encodeURIComponent(resourceId)}&limit=${limit}`)
 }
 
-// ── Compliance Impact ────────────────────────────────────────────────────────
+//   Compliance Impact                             
 
 export async function fetchComplianceImpact(differences) {
   return apiRequest('/compliance-impact', {
@@ -375,7 +375,7 @@ export async function fetchComplianceImpact(differences) {
   })
 }
 
-// ── User Preferences ─────────────────────────────────────────────────────────
+//   User Preferences                             
 
 export async function fetchUserPreferences(username) {
   return apiRequest(`/user-preferences?username=${encodeURIComponent(username)}`)
@@ -388,13 +388,13 @@ export async function saveUserPreferences(username, preferences) {
   })
 }
 
-// ── Policy Assignments ───────────────────────────────────────────────────────
+//   Policy Assignments                            
 
 export async function fetchPolicyAssignments(subscriptionId, resourceGroupId) {
   return apiRequest(`/policy/assignments?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceGroupId=${encodeURIComponent(resourceGroupId)}`)
 }
 
-// ── Cost Estimate ────────────────────────────────────────────────────────────
+//   Cost Estimate                               
 
 export async function fetchCostEstimate(resourceType, fieldPath, oldValue, newValue, location) {
   const p = new URLSearchParams({

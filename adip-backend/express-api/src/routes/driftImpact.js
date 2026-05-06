@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/routes/driftImpact.js
 // ROLE: Aggregates drift data for the Impact Analysis page
-//
+
 // GET /api/drift-impact?subscriptionId=&days=30
 //   Returns:
 //     - dailyVolume[]     — drift count per day for the period
@@ -9,9 +8,9 @@
 //     - topResources[]    — most frequently drifted resources
 //     - resourceGroupRisk[] — drift count + severity per RG
 //     - remediationRate   — % of drift events that were remediated
-//
+
 // Uses driftIndex Table (Timestamp filter) — no blob reads
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const { getDriftIndexTableClient, readBlob } = require('../services/blobService')

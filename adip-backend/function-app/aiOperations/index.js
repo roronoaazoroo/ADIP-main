@@ -20,7 +20,7 @@ const API_KEY    = () => process.env.AZURE_OPENAI_KEY
 const DEPLOYMENT = () => process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
 const API_VER    = '2024-10-21'
 
-// ── chat START ────────────────────────────────────────────────────────────────
+//  chat START 
 async function chat(systemPrompt, userContent, maxTokens = 400) {
   console.log('[chat] starts')
   if (!ENDPOINT() || !API_KEY()) {
@@ -46,10 +46,10 @@ async function chat(systemPrompt, userContent, maxTokens = 400) {
   console.log('[chat] ends')
   return result
 }
-// ── chat END ──────────────────────────────────────────────────────────────────
+//  chat END 
 
 
-// ── explainDrift START ────────────────────────────────────────────────────────
+//  explainDrift START 
 async function explainDrift(record) {
   console.log('[explainDrift] starts')
   const changes = (record.differences || record.changes || [])
@@ -61,10 +61,10 @@ async function explainDrift(record) {
   console.log('[explainDrift] ends')
   return result
 }
-// ── explainDrift END ──────────────────────────────────────────────────────────
+//  explainDrift END 
 
 
-// ── reclassifySeverity START ──────────────────────────────────────────────────
+//  reclassifySeverity START 
 async function reclassifySeverity(record) {
   console.log('[reclassifySeverity] starts')
   const changes = (record.differences || record.changes || [])
@@ -79,10 +79,10 @@ async function reclassifySeverity(record) {
   console.log('[reclassifySeverity] ends')
   return parsed
 }
-// ── reclassifySeverity END ────────────────────────────────────────────────────
+//  reclassifySeverity END 
 
 
-// ── getRemediationRecommendation START ────────────────────────────────────────
+//  getRemediationRecommendation START 
 async function getRemediationRecommendation(record) {
   console.log('[getRemediationRecommendation] starts')
   const changes = (record.differences || record.changes || [])
@@ -94,10 +94,10 @@ async function getRemediationRecommendation(record) {
   console.log('[getRemediationRecommendation] ends')
   return result
 }
-// ── getRemediationRecommendation END ─────────────────────────────────────────
+//  getRemediationRecommendation END 
 
 
-// ── detectAnomalies START ─────────────────────────────────────────────────────
+//  detectAnomalies START 
 async function detectAnomalies(driftRecords) {
   console.log('[detectAnomalies] starts')
   if (!driftRecords?.length) {
@@ -122,9 +122,9 @@ async function detectAnomalies(driftRecords) {
   console.log('[detectAnomalies] ends — anomalies found:', result.length)
   return result
 }
-// ── detectAnomalies END ───────────────────────────────────────────────────────
+//  detectAnomalies END 
 
-// ── predictDrift START ────────────────────────────────────────────────────────
+//  predictDrift START 
 // Analyses historical drift records for a resource and predicts future drift risk.
 // Returns: likelihood (HIGH/MEDIUM/LOW), predictedDays, fieldsAtRisk[], reasoning, basedOn
 async function predictDrift(subscriptionId, resourceId) {
@@ -200,11 +200,11 @@ Recent history: ${JSON.stringify(summary)}`,
   console.log('[predictDrift] ends — probability:', parsed.driftProbability, 'likelihood:', parsed.likelihood)
   return parsed
 }
-// ── predictDrift END ──────────────────────────────────────────────────────────
+//  predictDrift END 
 
 
 
-// ── getRecommendations START ─────────────────────────────────────────────────
+//  getRecommendations START 
 // Returns 3 specific, actionable AI recommendations based on a resource's drift history
 async function getRecommendations(subscriptionId, resourceId) {
   console.log('[getRecommendations] starts — resourceId:', resourceId)
@@ -247,10 +247,10 @@ ${JSON.stringify(summary)}`,
   console.log('[getRecommendations] ends — count:', parsed.length)
   return Array.isArray(parsed) ? parsed : []
 }
-// ── getRecommendations END ────────────────────────────────────────────────────
+//  getRecommendations END 
 
 
-// ── getDriftRecordsForAnomaly START ───────────────────────────────────────────
+//  getDriftRecordsForAnomaly START 
 async function getDriftRecordsForAnomaly(subscriptionId) {
   console.log('[getDriftRecordsForAnomaly] starts — subscriptionId:', subscriptionId)
   const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
@@ -268,10 +268,10 @@ async function getDriftRecordsForAnomaly(subscriptionId) {
   console.log('[getDriftRecordsForAnomaly] ends — records fetched:', sorted.length)
   return sorted
 }
-// ── getDriftRecordsForAnomaly END ─────────────────────────────────────────────
+//  getDriftRecordsForAnomaly END 
 
 
-// ── getRgRecommendations START ───────────────────────────────────────────────
+//  getRgRecommendations START 
 // Returns AI recommendations scoped to ALL drifted resources in a resource group
 async function getRgRecommendations(subscriptionId, resourceGroup) {
   console.log('[getRgRecommendations] starts — rg:', resourceGroup)
@@ -326,10 +326,10 @@ ${JSON.stringify(summary)}`,
   console.log('[getRgRecommendations] ends — count:', parsed.length)
   return Array.isArray(parsed) ? parsed : []
 }
-// ── getRgRecommendations END ──────────────────────────────────────────────────
+//  getRgRecommendations END 
 
 
-// ── Main handler START ────────────────────────────────────────────────────────
+//  Main handler START 
 module.exports = async function (context, req) {
   console.log('[mainHandler] starts — operation:', context.bindingData.operation)
   const operation = context.bindingData.operation?.toLowerCase()
@@ -437,4 +437,4 @@ module.exports = async function (context, req) {
     context.res = { status: 500, body: { error: err.message } }
   }
 }
-// ── Main handler END ──────────────────────────────────────────────────────────
+//  Main handler END 

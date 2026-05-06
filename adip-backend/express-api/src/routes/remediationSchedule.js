@@ -1,11 +1,10 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/routes/remediationSchedule.js
 // ROLE: HTTP endpoints for scheduled remediation
-//
+
 // POST   /api/remediation-schedule          — create a schedule
 // GET    /api/remediation-schedule?subscriptionId= — list schedules
 // DELETE /api/remediation-schedule/:rowKey?subscriptionId= — cancel
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const { createSchedule, listSchedules, cancelSchedule } = require('../services/remediationScheduleService')

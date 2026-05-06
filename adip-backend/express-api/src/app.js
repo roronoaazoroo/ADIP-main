@@ -1,18 +1,16 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/app.js
 // ROLE: Express server entry point — starts the API, Socket.IO, and queue poller
-//
+
 // What this file owns:
-//   - Creates the HTTP server and attaches Socket.IO to it
-//   - Stores the Socket.IO instance as global.io so all route files can emit events
-//   - Registers all /api route files (subscriptions, drift, genome, ai, etc.)
-//   - Handles POST /internal/drift-event (called by the detectDrift Azure Function)
-//     to push drift events to connected browser clients via Socket.IO
-//   - Starts the queue poller (reads Azure Storage Queue every 5s)
-//   - Starts the after-hours alert check (fires at 19:00 if critical drift exists)
-//
+//Creates the HTTP server and attaches Socket.IO to it
+//Stores the Socket.IO instance as global.io so all route files can emit events
+//Registers all /api route files (subscriptions, drift, genome, ai, etc.)
+//Handles POST /internal/drift-event (called by the detectDrift Azure Function)
+//to push drift events to connected browser clients via Socket.IO
+//Starts the queue poller (reads Azure Storage Queue every 5s)
+//Starts the after-hours alert check (fires at 19:00 if critical drift exists)
+
 // Called by: `node src/app.js` or `npm start` in adip-backend/express-api
-// ============================================================
 'use strict'
 // Application Insights — must be initialised before any other require
 if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
@@ -90,7 +88,6 @@ app.use('/api', require('./routes/baseline'))
 app.use('/api', require('./routes/baselineUpload'))
 app.use('/api', require('./routes/compare'))
 app.use('/api', require('./routes/remediate'))
-app.use('/api', require('./routes/seed'))
 app.use('/api', require('./routes/remediateDecision'))
 app.use('/api', require('./routes/remediateRequest'))
 app.use('/api', require('./routes/ai'))

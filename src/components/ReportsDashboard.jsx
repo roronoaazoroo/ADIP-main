@@ -1,16 +1,15 @@
-// ============================================================
 // FILE: src/components/ReportsDashboard.jsx
 // ROLE: Drift Analysis & Trend Reports tab on AnalyticsPage
-//
+
 // Allows users to:
 //   - Generate a new drift report for a configurable period
 //   - View a list of previously generated reports
 //   - Open any report inline in an iframe
 //   - Optionally email the report via ACS
-//
+
 // Props:
 //   subscriptionId — Azure subscription ID
-// ============================================================
+
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { generateDriftReport, fetchSavedReports, getReportViewUrl, deleteReport } from '../services/api'
 

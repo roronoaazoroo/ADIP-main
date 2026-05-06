@@ -1,12 +1,12 @@
  
-'use strict'
 // FILE: routes/configuration.js
 // ROLE: GET /api/configuration — fetches full live ARM config for a resource or resource group
 
+'use strict'
 const router_configuration = require('express').Router()
 const { getResourceConfig } = require('../services/azureResourceService')
  
-// ── GET /api/configuration START ─────────────────────────────────────────────
+//  GET /api/configuration START 
 // Fetches the live ARM configuration for a resource or all resources in a resource group
 router_configuration.get('/configuration', async (req, res) => {
   console.log('[GET /configuration] starts')
@@ -28,7 +28,7 @@ router_configuration.get('/configuration', async (req, res) => {
     res.status(500).json({ error: fetchError.message })
   }
 })
-// ── GET /api/configuration END ───────────────────────────────────────────────
+//  GET /api/configuration END 
  
 module.exports = router_configuration
  

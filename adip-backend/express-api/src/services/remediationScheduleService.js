@@ -1,7 +1,6 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/remediationScheduleService.js
 // ROLE: Business logic for scheduled remediation
-//
+
 // Responsibilities:
 //   - createSchedule()    — persist a scheduled remediation to Table Storage
 //   - listSchedules()     — list all schedules for a subscription
@@ -9,7 +8,7 @@
 //       • Executes remediation for schedules whose scheduledAt has passed
 //       • Auto-approves schedules where autoApprovalHours has elapsed since creation
 //       • Escalates medium-severity drift to high after 48h unresolved
-// ============================================================
+
 'use strict'
 const { TableClient }       = require('@azure/data-tables')
 const { sendDriftAlertEmail } = require('./alertService')

@@ -9,7 +9,7 @@ const i = name => `${BASE}/${name}.svg`
 
 // Keyed by lowercase ARM resource type for case-insensitive lookup
 const TYPE_MAP = {
-  // ── Compute ──────────────────────────────────────────────────────────────
+  // Compute  
   'microsoft.compute/virtualmachines':                    i('Virtual-Machine'),
   'microsoft.compute/virtualmachinescalesets':            i('VM-Scale-Sets'),
   'microsoft.compute/availabilitysets':                   i('Availability-Sets'),
@@ -17,17 +17,17 @@ const TYPE_MAP = {
   'microsoft.compute/images':                             i('Images'),
   'microsoft.compute/snapshots':                          i('Disks-Snapshots'),
 
-  // ── Web / App Service ─────────────────────────────────────────────────────
+  //Web / App Service 
   'microsoft.web/sites':                                  i('App-Services'),       // App Service & Function App share this type
   'microsoft.web/serverfarms':                            i('App-Service-Plans'),
   'microsoft.web/staticsites':                            i('Static-Apps'),
   'microsoft.web/certificates':                           i('App-Service-Certificates'),
 
-  // ── Storage ───────────────────────────────────────────────────────────────
+  // Storage
   'microsoft.storage/storageaccounts':                    i('Storage-Accounts'),
   'microsoft.storage/storagesyncservices':                i('Storage-Sync-Services'),
 
-  // ── Networking ────────────────────────────────────────────────────────────
+  // Networking
   'microsoft.network/virtualnetworks':                    i('Virtual-Networks'),
   'microsoft.network/networksecuritygroups':              i('Network-Security-Groups'),
   'microsoft.network/publicipaddresses':                  i('Public-IP-Addresses'),
@@ -43,12 +43,12 @@ const TYPE_MAP = {
   'microsoft.network/ddosprotectionplans':                i('DDoS-Protection-Plans'),
   'microsoft.network/bastionhosts':                       i('Azure-Firewall-Manager'),
 
-  // ── Security ──────────────────────────────────────────────────────────────
+  // Security  
   'microsoft.keyvault/vaults':                            i('Key-Vaults'),
   'microsoft.keyvault/managedhsms':                       i('Key-Vaults'),
   'microsoft.security/automations':                       i('Security-Center'),
 
-  // ── Databases ─────────────────────────────────────────────────────────────
+  // Databases
   'microsoft.sql/servers':                                i('SQL-Server'),
   'microsoft.sql/servers/databases':                      i('SQL-Database'),
   'microsoft.sql/managedinstances':                       i('SQL-Managed-Instance'),
@@ -61,7 +61,7 @@ const TYPE_MAP = {
   'microsoft.cache/redis':                                i('Cache-Redis'),
   'microsoft.synapse/workspaces':                         i('Azure-Synapse-Analytics'),
 
-  // ── Monitoring & Management ───────────────────────────────────────────────
+  // Monitoring & Management
   'microsoft.insights/components':                        i('Application-Insights'),
   'microsoft.insights/actiongroups':                      i('Alerts'),
   'microsoft.insights/activitylogalerts':                 i('Alerts'),
@@ -74,7 +74,7 @@ const TYPE_MAP = {
   'microsoft.operationsmanagement/solutions':             i('Monitor'),
   'microsoft.monitor/accounts':                           i('Monitor'),
 
-  // ── Integration & Messaging ───────────────────────────────────────────────
+  // Integration & Messaging
   'microsoft.eventgrid/topics':                           i('Event-Grid-Topics'),
   'microsoft.eventgrid/domains':                          i('Event-Grid-Domains'),
   'microsoft.eventgrid/eventsubscriptions':               i('Event-Grid-Subscriptions'),
@@ -87,34 +87,34 @@ const TYPE_MAP = {
   'microsoft.notificationhubs/namespaces/notificationhubs': i('Notification-Hubs'),
   'microsoft.relay/namespaces':                           i('Relays'),
 
-  // ── AI & Cognitive ────────────────────────────────────────────────────────
+  // AI & Cognitive
   'microsoft.cognitiveservices/accounts':                 i('Cognitive-Services'),
   'microsoft.machinelearningservices/workspaces':         i('Machine-Learning'),
 
-  // ── Communication ─────────────────────────────────────────────────────────
-  // No dedicated icon in collection — omit (return null)
+  // Communication
+  // No dedicated icon in collection omit (return null)
   'microsoft.communication/communicationservices':        null,
   'microsoft.communication/emailservices':                null,
   'microsoft.communication/emailservices/domains':        null,
 
-  // ── Containers & Kubernetes ───────────────────────────────────────────────
+  // Containers & Kubernetes
   'microsoft.containerservice/managedclusters':           i('Kubernetes-Services'),
   'microsoft.containerregistry/registries':               i('Container-Registries'),
   'microsoft.containerinstance/containergroups':          i('Container-Instances'),
 
-  // ── Identity ──────────────────────────────────────────────────────────────
+  // Identity  
   'microsoft.aad/domainservices':                         i('Azure-AD-Domain-Services'),
   'microsoft.managedidentity/userassignedidentities':     i('Managed-Applications-Center'),
 
-  // ── Automation & DevOps ───────────────────────────────────────────────────
+  // Automation & DevOps
   'microsoft.automation/automationaccounts':              i('Automation-Accounts'),
   'microsoft.devtestlab/labs':                            i('DevTest-Labs'),
 
-  // ── Serverless / Functions ────────────────────────────────────────────────
+  // Serverless / Functions
   // Microsoft.Web/sites covers both App Service and Function Apps.
   // Use Function-Apps icon when the resource name contains 'func' (handled in getAzureIconUrl)
 
-  // ── Scope-level ───────────────────────────────────────────────────────────
+  // Scope-level ──────
   'resourcegroup':                                        i('Resource-Groups'),
   'subscription':                                         i('Subscriptions'),
   'managementgroup':                                      i('Management-Groups'),

@@ -1,6 +1,6 @@
 /* AzureChatbot — Light enterprise design matching DashboardHome */
 
-/* ── Container ──────────────────────────────────────────────────────────── */
+/*  Container  */
 .chatbot-container {
   position: fixed;
   bottom: 24px;
@@ -12,7 +12,7 @@
   gap: 8px;
 }
 
-/* ── Chat window ────────────────────────────────────────────────────────── */
+/*  Chat window  */
 .chatbot-window {
   width: 400px;
   height: 540px;
@@ -31,7 +31,7 @@
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
+/*  Header  */
 .chatbot-header {
   padding: 14px 18px;
   background: linear-gradient(135deg, #003359, #004a7d);
@@ -97,7 +97,7 @@
   background: rgba(255,255,255,0.1);
 }
 
-/* ── Messages area ──────────────────────────────────────────────────────── */
+/*  Messages area  */
 .chatbot-messages {
   flex: 1;
   overflow-y: auto;
@@ -195,7 +195,7 @@
   50% { opacity: 1; transform: scale(1); }
 }
 
-/* ── Suggested prompts ─────────────────────────────────────────────────── */
+/*  Suggested prompts  */
 .chatbot-suggestions {
   display: flex;
   flex-wrap: wrap;
@@ -224,7 +224,7 @@
   transform: translateY(-1px);
 }
 
-/* ── Input area ─────────────────────────────────────────────────────────── */
+/*  Input area  */
 .chatbot-input-area {
   padding: 12px 14px;
   border-top: 1px solid #f1f5f9;
@@ -286,7 +286,7 @@
   transform: none;
 }
 
-/* ── Toggle FAB ─────────────────────────────────────────────────────────── */
+/*  Toggle FAB  */
 .chatbot-fab {
   width: 52px;
   height: 52px;
@@ -317,7 +317,7 @@
   box-shadow: 0 8px 28px rgba(239,68,68,0.35);
 }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/*  Responsive  */
 @media (max-width: 520px) {
   .chatbot-window {
     width: calc(100vw - 32px);

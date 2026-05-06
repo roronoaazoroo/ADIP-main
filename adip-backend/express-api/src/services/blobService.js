@@ -44,7 +44,7 @@ function container(name) {
   return containers[name]
 }
 
-// ── Table index clients ───────────────────────────────────────────────────────
+//  Table index clients 
 const _tables = {}
 function tableClient(name) {
   if (!_tables[name]) {
@@ -61,20 +61,20 @@ function tableClient(name) {
 // Safe row key — base64url of arbitrary string, truncated to 512 chars (Table Storage limit)
 function rowKey(str) { return Buffer.from(str).toString('base64url').slice(0, 512) }
 
-// ── blobKey START ─────────────────────────────────────────────────────────────
+//  blobKey START 
 function blobKey(resourceId) {
   return Buffer.from(resourceId).toString('base64url') + '.json'
 }
-// ── blobKey END ───────────────────────────────────────────────────────────────
+//  blobKey END 
 
-// ── driftKey START ────────────────────────────────────────────────────────────
+//  driftKey START 
 function driftKey(resourceId, ts) {
   const stamp = (ts || new Date().toISOString()).replace(/[:.]/g, '-')
   return `${stamp}_${Buffer.from(resourceId).toString('base64url')}.json`
 }
-// ── driftKey END ──────────────────────────────────────────────────────────────
+//  driftKey END 
 
-// ── readBlob START ────────────────────────────────────────────────────────────
+//  readBlob START 
 async function readBlob(containerName, blobName) {
   try {
     const buf = await container(containerName).getBlobClient(blobName).downloadToBuffer()
@@ -84,19 +84,19 @@ async function readBlob(containerName, blobName) {
     throw e
   }
 }
-// ── readBlob END ──────────────────────────────────────────────────────────────
+//  readBlob END 
 
-// ── writeBlob START ───────────────────────────────────────────────────────────
+//  writeBlob START 
 async function writeBlob(containerName, blobName, data) {
   const body = JSON.stringify(data)
   await container(containerName)
     .getBlockBlobClient(blobName)
     .upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: 'application/json' } })
 }
-// ── writeBlob END ─────────────────────────────────────────────────────────────
+//  writeBlob END 
 
 
-// ── Baselines ─────────────────────────────────────────────────────────────────
+//  Baselines 
 
 async function getBaseline(subscriptionId, resourceId) {
   if (!resourceId) return null
@@ -119,9 +119,9 @@ async function saveBaseline(subscriptionId, resourceGroupId, resourceId, resourc
 // upsertBaseline removed — use saveBaseline directly (YAGNI: identical function)
 
 
-// ── Drift Records ─────────────────────────────────────────────────────────────
+//  Drift Records 
 
-// ── saveDriftRecord START ─────────────────────────────────────────────────────
+//  saveDriftRecord START 
 // Writes blob + upserts a lightweight index entity into Table Storage
 async function saveDriftRecord(record) {
   const key = driftKey(record.resourceId || 'unknown', record.detectedAt)
@@ -140,10 +140,10 @@ async function saveDriftRecord(record) {
     changeCount:  record.changeCount  || 0,
   }, 'Replace').catch(() => {})
 }
-// ── saveDriftRecord END ───────────────────────────────────────────────────────
+//  saveDriftRecord END 
 
 
-// ── getDriftRecords START ─────────────────────────────────────────────────────
+//  getDriftRecords START 
 // Queries Table index first, then fetches only matching blobs — O(matches) not O(all)
 async function getDriftRecords({ subscriptionId, resourceGroup, severity, limit = 50 }) {
   const tc = tableClient('driftIndex')
@@ -161,10 +161,10 @@ async function getDriftRecords({ subscriptionId, resourceGroup, severity, limit 
   }
   return results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
 }
-// ── getDriftRecords END ───────────────────────────────────────────────────────
+//  getDriftRecords END 
 
 
-// ── getDriftHistory START ─────────────────────────────────────────────────────
+//  getDriftHistory START 
 // Queries Table index with optional date/resource filters, fetches only matching blobs
 async function getDriftHistory({ subscriptionId, startDate, endDate, resourceId, resourceGroup, limit = 100 }) {
   const tc = tableClient('driftIndex')
@@ -184,12 +184,12 @@ async function getDriftHistory({ subscriptionId, startDate, endDate, resourceId,
   }
   return results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
 }
-// ── getDriftHistory END ───────────────────────────────────────────────────────
+//  getDriftHistory END 
 
 
-// ── Configuration Genome ──────────────────────────────────────────────────────
+//  Configuration Genome 
 
-// ── saveGenomeSnapshot START ──────────────────────────────────────────────────
+//  saveGenomeSnapshot START 
 // Writes blob + upserts index entity into genomeIndex table
 async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, label = '') {
   const ts  = new Date().toISOString()
@@ -208,10 +208,10 @@ async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, lab
 
   return { ...doc, _blobKey: key }
 }
-// ── saveGenomeSnapshot END ────────────────────────────────────────────────────
+//  saveGenomeSnapshot END 
 
 
-// ── listGenomeSnapshots START ─────────────────────────────────────────────────
+//  listGenomeSnapshots START 
 // Queries genomeIndex table, fetches only matching blobs
 async function listGenomeSnapshots(subscriptionId, resourceId, limit = 50) {
   const tc = tableClient('genomeIndex')
@@ -235,7 +235,7 @@ async function listGenomeSnapshots(subscriptionId, resourceId, limit = 50) {
   )
   return docs.filter(Boolean).sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))
 }
-// ── listGenomeSnapshots END ───────────────────────────────────────────────────
+//  listGenomeSnapshots END 
 
 
 async function getGenomeSnapshot(key) {
@@ -243,7 +243,7 @@ async function getGenomeSnapshot(key) {
 }
 
 
-// ── Fallback blob-scan functions (used if Table Storage unavailable) ───────────
+//  Fallback blob-scan functions (used if Table Storage unavailable) 
 async function _scanDriftRecords({ subscriptionId, resourceGroup, severity, limit }) {
   const results = []
   for await (const blob of container('drift-records').listBlobsFlat()) {
@@ -295,7 +295,7 @@ async function deleteGenomeSnapshot(subscriptionId, blobName) {
   } catch {}
 }
 
-// ── saveChangeRecord START ────────────────────────────────────────────────────
+//  saveChangeRecord START 
 // Permanently records every ARM change event to all-changes blob + changesIndex Table
 // Called by queue poller, detectDrift Function, and scanSubscription Function
 async function saveChangeRecord(record) {
@@ -322,9 +322,9 @@ async function saveChangeRecord(record) {
     changeCount:   record.changeCount   || record.differences?.length || 0,
   }, 'Replace').catch(() => {})
 }
-// ── saveChangeRecord END ──────────────────────────────────────────────────────
+//  saveChangeRecord END 
 
-// ── getRecentChanges START ────────────────────────────────────────────────────
+//  getRecentChanges START 
 // Queries changesIndex Table for last N hours and returns index fields directly.
 // Results are cached in-memory for 10 seconds to avoid hammering Table Storage
 // on every dashboard auto-refresh cycle.
@@ -378,7 +378,7 @@ async function getRecentChanges({ subscriptionId, resourceGroup, caller, changeT
 
   return sortedResults
 }
-// ── getRecentChanges END ──────────────────────────────────────────────────────
+//  getRecentChanges END 
 
 
 // Returns total permanent change count for a subscription (all time)
@@ -391,7 +391,7 @@ async function getTotalChangesCount(subscriptionId) {
   }
   return count
 }
-// ── getTotalChangesCount END ──────────────────────────────────────────────────
+//  getTotalChangesCount END 
 
 // Exported table client accessors — routes use these instead of instantiating TableClient directly
 function getMonitorSessionsTableClient() { return tableClient('monitorSessions') }

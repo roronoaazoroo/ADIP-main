@@ -20,7 +20,7 @@ import { onResourceChange, subscribeScope, isConnected } from '../services/socke
  
  
  
-// ── useDriftSocket START ─────────────────────────────────────────────────────
+//  useDriftSocket START 
 // React hook that manages the Socket.IO connection and real-time drift event feed
 // Parameters:
 //   scope           — { subscriptionId, resourceGroup, resourceId } — the selected scope
@@ -51,7 +51,7 @@ export function useDriftSocket(scopeOrScopes, isSubmitted = false, onConfigUpdat
  
   useEffect(() => { isSubmittedRef.current = isSubmitted }, [isSubmitted])
  
-  // ── addEvent START ───────────────────────────────────────────────────────
+  //  addEvent START 
   // Appends a new drift event to the feed, capping the list at 200 entries
   // addEvent — appends a new drift event to the live feed
   // Deduplicates using eventId (or resourceId+eventTime as fallback)
@@ -72,7 +72,7 @@ export function useDriftSocket(scopeOrScopes, isSubmitted = false, onConfigUpdat
       }].slice(-200)  // keep only the last 200 events
     })
   }, [setLiveEventList])
-  // ── addEvent END ─────────────────────────────────────────────────────────
+  //  addEvent END 
  
   // Subscribe to global socket singleton — persists across navigation
   useEffect(() => {
@@ -103,15 +103,15 @@ export function useDriftSocket(scopeOrScopes, isSubmitted = false, onConfigUpdat
     return unsubscribe
   }, [JSON.stringify(scopeOrScopes), addEvent, onConfigUpdate])
  
-  // ── clearChangeEvents START ──────────────────────────────────────────────
+  //  clearChangeEvents START 
   // Resets the drift event feed to empty
   // clearDriftEvents — resets the live event feed to empty
   // Called by DriftScanner when the user clicks Stop
   const clearChangeEvents = useCallback(() => {
     setLiveEventList([])
   }, [setLiveEventList])
-  // ── clearChangeEvents END ────────────────────────────────────────────────
+  //  clearChangeEvents END 
  
   return { driftEvents: liveEventList, socketConnected, socketError, clearDriftEvents: clearChangeEvents }
 }
-// ── useDriftSocket END ───────────────────────────────────────────────────────
+//  useDriftSocket END 

@@ -1,190 +1,46 @@
 // FILE: src/components/RgDriftPrediction.jsx
 // ROLE: Resource-group level drift prediction panel.
-//   - Bubble chart: X=drift frequency (7d), Y=severity score, size=total drifts
-//   - Per-resource 14-day heatmap (one row per resource)
-//   - AI prediction cards sorted by risk
-//   All visuals are interactive: hover tooltips, click to highlight.
+//   - Summary KPI row
+//   - Resource risk table with severity bars
+//   - 14-day drift heatmap
+//   - AI prediction cards
 
 import { useEffect, useState, useCallback } from 'react'
 import { fetchRgPrediction } from '../services/rgPredictionApi'
-import { getAzureIconUrl, RESOURCE_GROUP_ICON_URL } from '../utils/azureIcons'
+import { getAzureIconUrl } from '../utils/azureIcons'
 import './RgDriftPrediction.css'
 
-const SEV_COLOR  = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#10b981' }
-const SEV_SCORE  = { critical: 4, high: 3, medium: 2, low: 1 }
+const SEV_COLOR = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#10b981' }
+const SEV_SCORE = { critical: 4, high: 3, medium: 2, low: 1 }
 const LIKELIHOOD_COLOR = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#10b981' }
 
-// ── Bubble Risk Matrix ────────────────────────────────────────────────────────
-// X = drift frequency last 7 days, Y = severity score, bubble size = total drifts
-function BubbleMatrix({ stats, selected, onSelect }) {
-  const [tooltip, setTooltip] = useState(null)
-
-  const drifted = stats.filter(s => s.total > 0)
-  if (!drifted.length) return null
-
-  const W = 560, H = 200, PAD = 40
-  const maxX = Math.max(...drifted.map(s => s.last7d), 1)
-  const maxY = Math.max(...drifted.map(s =>
-    Object.entries(s.severities).reduce((acc, [sev, cnt]) => acc + (SEV_SCORE[sev] || 0) * cnt, 0)
-  ), 1)
-  const maxR = Math.max(...drifted.map(s => s.total), 1)
-
+//  Severity mini-bar 
+function SeverityBar({ severities }) {
+  const total = Object.values(severities).reduce((s, v) => s + v, 0)
+  if (!total) return <span className="rgp-no-drift">—</span>
   return (
-    <div style={{ position: 'relative' }}>
-      <div className="rgp-section-title">Risk Matrix — Frequency vs Severity</div>
-      <svg viewBox={`0 0 ${W + PAD * 2} ${H + PAD * 2}`} className="rgp-matrix-svg"
-        onMouseLeave={() => setTooltip(null)}>
-
-        {/* Grid */}
-        {[0, 0.5, 1].map((p, i) => (
-          <g key={i}>
-            <line x1={PAD} y1={PAD + p * H} x2={PAD + W} y2={PAD + p * H} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-            <line x1={PAD + p * W} y1={PAD} x2={PAD + p * W} y2={PAD + H} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-          </g>
-        ))}
-
-        {/* Axis labels */}
-        <text x={PAD + W / 2} y={PAD * 2 + H} textAnchor="middle" fontSize="10" fill="#475569">Drift Frequency (7d)</text>
-        <text x={12} y={PAD + H / 2} textAnchor="middle" fontSize="10" fill="#475569"
-          transform={`rotate(-90, 12, ${PAD + H / 2})`}>Severity Score</text>
-
-        {/* Bubbles */}
-        {drifted.map(s => {
-          const sevScore = Object.entries(s.severities).reduce((acc, [sev, cnt]) => acc + (SEV_SCORE[sev] || 0) * cnt, 0)
-          const cx = PAD + (s.last7d / maxX) * W
-          const cy = PAD + H - (sevScore / maxY) * H
-          const r  = 8 + (s.total / maxR) * 18
-          const worstSev = ['critical','high','medium','low'].find(sv => s.severities[sv] > 0) || 'low'
-          const isSelected = selected === s.name
-
-          return (
-            <g key={s.name}
-              onMouseEnter={() => setTooltip({ s, cx, cy })}
-              onMouseLeave={() => setTooltip(null)}
-              onClick={() => onSelect(isSelected ? null : s.name)}
-            >
-              {/* Bubble ring coloured by severity */}
-              <circle cx={cx} cy={cy} r={r}
-                fill={SEV_COLOR[worstSev]} fillOpacity={isSelected ? 0.18 : 0.10}
-                stroke={SEV_COLOR[worstSev]} strokeWidth={isSelected ? 2 : 1}
-                className={`rgp-bubble${isSelected ? ' rgp-bubble--selected' : ''}`}
-              />
-              {/* Azure service icon centered in bubble */}
-              {getAzureIconUrl(s.type, s.name) && (
-                <image href={getAzureIconUrl(s.type, s.name)}
-                  x={cx - 12} y={cy - 12} width="24" height="24"
-                  style={{ pointerEvents: 'none' }}
-                />
-              )}
-              <text x={cx} y={cy + r + 11} textAnchor="middle" fontSize="9" fill="#6b7280"
-                style={{ pointerEvents: 'none' }}>
-                {s.name.length > 12 ? s.name.slice(0, 11) + '…' : s.name}
-              </text>
-            </g>
-          )
-        })}
-
-        {/* Tooltip */}
-        {tooltip && (
-          <foreignObject x={Math.min(tooltip.cx + 10, W)} y={Math.max(tooltip.cy - 60, PAD)} width="180" height="120">
-            <div className="rgp-tooltip">
-              <div className="rgp-tooltip-title">{tooltip.s.name}</div>
-              <div className="rgp-tooltip-row"><span>Total drifts</span><strong>{tooltip.s.total}</strong></div>
-              <div className="rgp-tooltip-row"><span>Last 24h</span><strong>{tooltip.s.last24h}</strong></div>
-              <div className="rgp-tooltip-row"><span>Last 7d</span><strong>{tooltip.s.last7d}</strong></div>
-              <div className="rgp-tooltip-row"><span>Critical</span><strong style={{ color: '#ef4444' }}>{tooltip.s.severities.critical}</strong></div>
-            </div>
-          </foreignObject>
-        )}
-      </svg>
-
-      {/* Legend */}
-      <div className="rgp-legend">
-        {['critical','high','medium','low'].map(sev => (
-          <span key={sev} className="rgp-legend-item">
-            <span className="rgp-legend-dot" style={{ background: SEV_COLOR[sev] }} />{sev}
-          </span>
-        ))}
-        <span style={{ fontSize: 11, color: '#475569', marginLeft: 'auto' }}>Ring size = drift count</span>
-      </div>
+    <div className="rgp-sev-bar">
+      {['critical', 'high', 'medium', 'low'].map(sev => {
+        const pct = (severities[sev] / total) * 100
+        if (!pct) return null
+        return <div key={sev} className="rgp-sev-bar-seg" style={{ width: `${pct}%`, background: SEV_COLOR[sev] }} title={`${sev}: ${severities[sev]}`} />
+      })}
     </div>
   )
 }
 
-// ── 14-day Heatmap (one row per drifted resource) ─────────────────────────────
-function DriftHeatmap({ stats, selected, onSelect }) {
-  const [tooltip, setTooltip] = useState(null)
-
-  const drifted = stats.filter(s => s.total > 0)
-  if (!drifted.length) return null
-
-  // Build 14-day date keys
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(Date.now() - (13 - i) * 86400000)
-    return { key: d.toISOString().slice(0, 10), label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
-  })
-
-  // Count drifts per resource per day
-  const heatData = drifted.map(s => {
-    const counts = {}
-    s.driftDates.forEach(d => { counts[d] = (counts[d] || 0) + 1 })
-    return { ...s, counts }
-  })
-
-  const maxCount = Math.max(...heatData.flatMap(s => Object.values(s.counts)), 1)
-
-  return (
-    <div>
-      <div className="rgp-section-title">14-Day Drift Heatmap — Per Resource</div>
-      <div className="rgp-heatmap">
-        {heatData.map(s => (
-          <div key={s.name} className="rgp-heatmap-row"
-            onClick={() => onSelect(selected === s.name ? null : s.name)}
-            style={{ opacity: selected && selected !== s.name ? 0.4 : 1, cursor: 'pointer' }}>
-            <span className="rgp-heatmap-label" title={s.name} style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-              {getAzureIconUrl(s.type, s.name) && <img src={getAzureIconUrl(s.type, s.name)} alt="" width="14" height="14" style={{ flexShrink: 0 }} />}
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-            </span>
-            <div className="rgp-heatmap-cells">
-              {days.map(({ key, label }) => {
-                const count = s.counts[key] || 0
-                const intensity = count === 0 ? 0.06 : 0.2 + (count / maxCount) * 0.8
-                const worstSev = ['critical','high','medium','low'].find(sv => s.severities[sv] > 0) || 'low'
-                return (
-                  <div key={key} className="rgp-heatmap-cell"
-                    style={{ background: SEV_COLOR[worstSev], opacity: intensity }}
-                    title={`${s.name} on ${label}: ${count} drift event${count !== 1 ? 's' : ''}`}
-                    onMouseEnter={e => setTooltip({ s, date: label, count, rect: e.currentTarget.getBoundingClientRect() })}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
-                )
-              })}
-            </div>
-          </div>
-        ))}
-
-        {/* Day labels — show every 3rd */}
-        <div className="rgp-heatmap-day-labels">
-          {days.map(({ label }, i) => (
-            <span key={i} className="rgp-heatmap-day-label">{i % 3 === 0 ? label : ''}</span>
-          ))}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="rgp-legend" style={{ marginTop: 10 }}>
-        <span style={{ fontSize: 11, color: '#475569' }}>Colour = worst severity · Intensity = frequency · Click row to highlight</span>
-      </div>
-    </div>
-  )
+//  Risk score for a resource 
+function riskScore(stat) {
+  return Object.entries(stat.severities).reduce((acc, [sev, cnt]) => acc + (SEV_SCORE[sev] || 0) * cnt, 0)
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+//  Main Component 
 export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
-  const [data,     setData]     = useState(null)
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState(null)
-  const [selected, setSelected] = useState(null)   // selected resource name
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [selected, setSelected] = useState(null)
+  const [heatmapExpanded, setHeatmapExpanded] = useState(false)
 
   useEffect(() => {
     if (!subscriptionId || !resourceGroup) return
@@ -197,124 +53,233 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
       .finally(() => setLoading(false))
   }, [subscriptionId, resourceGroup])
 
-
-  const handleSelect = useCallback(name => setSelected(name), [])
+  const handleSelect = useCallback(name => setSelected(prev => prev === name ? null : name), [])
 
   if (!subscriptionId || !resourceGroup) {
     return <div className="rgp-empty">Select a subscription and resource group on the Drift Scanner first.</div>
   }
 
   if (loading) return (
-    <div className="rgp-loading"><div className="rgp-spinner" />Analysing resource group drift patterns…</div>
+    <div className="rgp-loading"><div className="rgp-spinner" />Loading predictions…</div>
   )
-
-  if (error) return <div className="rgp-empty" style={{ color: '#f87171' }}>⚠ {error}</div>
-  if (!data)  return null
+  if (error) return <div className="rgp-empty" style={{ color: '#ef4444' }}>⚠ {error}</div>
+  if (!data) return null
 
   const { resourceStats = [], aiPredictions = [], totalResources, totalDriftEvents } = data
-  const driftedCount = resourceStats.filter(r => r.total > 0).length
+  const driftedResources = resourceStats.filter(r => r.total > 0).sort((a, b) => riskScore(b) - riskScore(a))
+  const driftedCount = driftedResources.length
+  const criticalCount = resourceStats.reduce((s, r) => s + (r.severities?.critical || 0), 0)
+  const activeIn24h = resourceStats.filter(r => r.last24h > 0).length
+
+  // 14-day heatmap data
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(Date.now() - (13 - i) * 86400000)
+    return { key: d.toISOString().slice(0, 10), label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
+  })
+
+  const heatRows = driftedResources.map(s => {
+    const counts = {}
+    ;(s.driftDates || []).forEach(d => { counts[d] = (counts[d] || 0) + 1 })
+    return { ...s, counts }
+  })
+  const maxHeatCount = Math.max(...heatRows.flatMap(s => Object.values(s.counts)), 1)
+  const visibleHeatRows = heatmapExpanded ? heatRows : heatRows.slice(0, 6)
 
   return (
-    <div className="rgp-wrap">
-      {/* Summary stats */}
-      <div className="rgp-stats">
-        <div className="rgp-stat">
-          <div className="rgp-stat-value">{totalResources}</div>
-          <div className="rgp-stat-label">Total Resources</div>
+    <div className="rgp-root">
+
+      {/*  KPI Summary  */}
+      <div className="rgp-kpis">
+        <div className="rgp-kpi">
+          <div className="rgp-kpi-val">{totalResources}</div>
+          <div className="rgp-kpi-label">Resources</div>
         </div>
-        <div className="rgp-stat">
-          <div className="rgp-stat-value" style={{ color: '#f97316' }}>{driftedCount}</div>
-          <div className="rgp-stat-label">Resources Drifted</div>
+        <div className="rgp-kpi">
+          <div className="rgp-kpi-val" style={{ color: driftedCount > 0 ? '#f97316' : undefined }}>{driftedCount}</div>
+          <div className="rgp-kpi-label">Drifted</div>
         </div>
-        <div className="rgp-stat">
-          <div className="rgp-stat-value" style={{ color: '#ef4444' }}>{totalDriftEvents}</div>
-          <div className="rgp-stat-label">Total Drift Events</div>
+        <div className="rgp-kpi">
+          <div className="rgp-kpi-val" style={{ color: totalDriftEvents > 0 ? '#ef4444' : undefined }}>{totalDriftEvents}</div>
+          <div className="rgp-kpi-label">Total Events</div>
         </div>
-        <div className="rgp-stat">
-          <div className="rgp-stat-value" style={{ color: '#f59e0b' }}>
-            {resourceStats.filter(r => r.last24h > 0).length}
-          </div>
-          <div className="rgp-stat-label">Active in Last 24h</div>
+        <div className="rgp-kpi">
+          <div className="rgp-kpi-val" style={{ color: criticalCount > 0 ? '#ef4444' : undefined }}>{criticalCount}</div>
+          <div className="rgp-kpi-label">Critical</div>
+        </div>
+        <div className="rgp-kpi">
+          <div className="rgp-kpi-val">{activeIn24h}</div>
+          <div className="rgp-kpi-label">Active 24h</div>
         </div>
       </div>
 
-      {/* Bubble risk matrix */}
-      <BubbleMatrix stats={resourceStats} selected={selected} onSelect={handleSelect} />
+      {/*  Two-column layout  */}
+      <div className="rgp-columns">
 
-      {/* 14-day heatmap */}
-      <DriftHeatmap stats={resourceStats} selected={selected} onSelect={handleSelect} />
+        {/* Left — Resource Risk Table */}
+        <div className="rgp-panel">
+          <div className="rgp-panel-head">
+            <h3 className="rgp-panel-title">Resource Risk</h3>
+            <span className="rgp-panel-count">{driftedCount} of {totalResources}</span>
+          </div>
 
-      {/* AI Predictions */}
-      {aiPredictions.length > 0 && (
-        <div>
-          <div className="rgp-section-title">AI Predictions — Next 7 Days</div>
-          <div className="rgp-predictions">
-            {aiPredictions.map((p, i) => {
-              const stat = resourceStats.find(s => s.name === p.resourceName)
-              return (
-                <div key={i}
-                  className={`rgp-pred-card rgp-pred-card--${p.likelihood}${selected === p.resourceName ? ' rgp-pred-card--selected' : ''}`}
-                  onClick={() => handleSelect(selected === p.resourceName ? null : p.resourceName)}
-                >
-                  <div className="rgp-pred-top">
-                    {stat?.type && getAzureIconUrl(stat.type, stat.name) && <img src={getAzureIconUrl(stat.type, stat.name)} alt="" width="18" height="18" style={{ flexShrink: 0 }} />}
-                    <span className="rgp-pred-name">{p.resourceName}</span>
-                    <span className="rgp-pred-type">{stat?.type?.split('/').pop()}</span>
-                    <span className={`rgp-likelihood rgp-likelihood--${p.likelihood}`}>{p.likelihood}</span>
+          {driftedCount === 0 ? (
+            <div className="rgp-panel-empty">No drifted resources found.</div>
+          ) : (
+            <div className="rgp-risk-table">
+              <div className="rgp-risk-header">
+                <span className="rgp-risk-th rgp-risk-th--name">Resource</span>
+                <span className="rgp-risk-th rgp-risk-th--count">Events</span>
+                <span className="rgp-risk-th rgp-risk-th--sev">Severity</span>
+                <span className="rgp-risk-th rgp-risk-th--recent">24h</span>
+              </div>
+              {driftedResources.map(s => {
+                const isActive = selected === s.name
+                const iconUrl = getAzureIconUrl(s.type, s.name)
+                return (
+                  <div key={s.name}
+                    className={`rgp-risk-row${isActive ? ' rgp-risk-row--active' : ''}`}
+                    onClick={() => handleSelect(s.name)}
+                  >
+                    <div className="rgp-risk-cell rgp-risk-cell--name">
+                      {iconUrl && <img src={iconUrl} alt="" width="16" height="16" className="rgp-risk-icon" />}
+                      <span className="rgp-risk-name" title={s.name}>
+                        {s.name.length > 24 ? s.name.slice(0, 22) + '…' : s.name}
+                      </span>
+                      <span className="rgp-risk-type">{(s.type || '').split('/').pop()}</span>
+                    </div>
+                    <div className="rgp-risk-cell rgp-risk-cell--count">
+                      <span className="rgp-risk-count">{s.total}</span>
+                    </div>
+                    <div className="rgp-risk-cell rgp-risk-cell--sev">
+                      <SeverityBar severities={s.severities} />
+                    </div>
+                    <div className="rgp-risk-cell rgp-risk-cell--recent">
+                      {s.last24h > 0 ? (
+                        <span className="rgp-risk-recent-dot" />
+                      ) : (
+                        <span style={{ color: '#cbd5e1' }}>—</span>
+                      )}
+                    </div>
                   </div>
-                  <p className="rgp-pred-reason">{p.reason}</p>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
-                  <div className="rgp-pred-meta">
-                    {/* Time label */}
-                    <span className="rgp-pred-meta-item">
-                      <span className="material-symbols-outlined">schedule</span>
-                      Within {p.predictedDays} day{p.predictedDays !== 1 ? 's' : ''}
-                    </span>
+        {/* Right — AI Predictions */}
+        <div className="rgp-panel">
+          <div className="rgp-panel-head">
+            <h3 className="rgp-panel-title">Predictions</h3>
+            <span className="rgp-panel-tag">Next 7 days</span>
+          </div>
 
-                    {stat && (
-                      <>
-                        {/* Full-width frequency bars: 24h / 7d / All */}
-                        <div className="rgp-freq-bars">
-                          {[
-                            { label: '24h', value: stat.last24h, max: Math.max(stat.total, 1), color: '#ef4444' },
-                            { label: '7d',  value: stat.last7d,  max: Math.max(stat.total, 1), color: '#f97316' },
-                            { label: 'All', value: stat.total,   max: Math.max(stat.total, 1), color: '#3b82f6' },
-                          ].map(({ label, value, max, color }) => (
-                            <div key={label} className="rgp-freq-bar-item">
-                              <span className="rgp-freq-bar-label">{label}</span>
-                              <div className="rgp-freq-bar-track">
-                                <div className="rgp-freq-bar-fill" style={{ width: `${Math.max((value / max) * 100, value > 0 ? 2 : 0)}%`, background: color }} />
-                              </div>
-                              <span className="rgp-freq-bar-val">{value}</span>
-                            </div>
-                          ))}
-                        </div>
+          {aiPredictions.length === 0 ? (
+            <div className="rgp-panel-empty">
+              {driftedCount === 0
+                ? 'No drift history — predictions will appear once drift is detected.'
+                : 'No high-risk predictions for the next 7 days.'
+              }
+            </div>
+          ) : (
+            <div className="rgp-preds">
+              {aiPredictions.map((p, i) => {
+                const stat = resourceStats.find(s => s.name === p.resourceName)
+                const iconUrl = stat?.type ? getAzureIconUrl(stat.type, stat.name) : null
+                const isActive = selected === p.resourceName
+                return (
+                  <div key={i}
+                    className={`rgp-pred${isActive ? ' rgp-pred--active' : ''}`}
+                    onClick={() => handleSelect(p.resourceName)}
+                  >
+                    <div className="rgp-pred-head">
+                      <div className="rgp-pred-resource">
+                        {iconUrl && <img src={iconUrl} alt="" width="16" height="16" />}
+                        <span className="rgp-pred-name">{p.resourceName}</span>
+                      </div>
+                      <span className={`rgp-pred-badge rgp-pred-badge--${(p.likelihood || '').toLowerCase()}`}>
+                        {p.likelihood}
+                      </span>
+                    </div>
 
-                        {/* Severity summary */}
-                        <div className="rgp-sev-summary">
-                          <span className="material-symbols-outlined">warning</span>
-                          <span>{stat.severities.critical} critical</span>
-                          <span className="rgp-sev-high">· {stat.severities.high} high</span>
-                        </div>
-                      </>
+                    <p className="rgp-pred-reason">{p.reason}</p>
+
+                    <div className="rgp-pred-foot">
+                      <span className="rgp-pred-time">
+                        <span className="material-symbols-outlined">schedule</span>
+                        {p.predictedDays}d
+                      </span>
+                      {stat && (
+                        <span className="rgp-pred-stat">
+                          {stat.total} events · {stat.severities?.critical || 0} crit
+                        </span>
+                      )}
+                    </div>
+
+                    {p.fieldsAtRisk?.length > 0 && (
+                      <div className="rgp-pred-fields">
+                        {p.fieldsAtRisk.slice(0, 4).map((f, j) => (
+                          <span key={j} className="rgp-pred-field">{f}</span>
+                        ))}
+                        {p.fieldsAtRisk.length > 4 && (
+                          <span className="rgp-pred-field rgp-pred-field--more">+{p.fieldsAtRisk.length - 4}</span>
+                        )}
+                      </div>
                     )}
                   </div>
-                  {p.fieldsAtRisk?.length > 0 && (
-                    <div className="rgp-fields">
-                      {p.fieldsAtRisk.map((f, j) => <span key={j} className="rgp-field-tag">{f}</span>)}
-                    </div>
-                  )}
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/*  Heatmap  */}
+      {driftedCount > 0 && (
+        <div className="rgp-panel rgp-panel--full">
+          <div className="rgp-panel-head">
+            <h3 className="rgp-panel-title">14-Day Activity</h3>
+            {heatRows.length > 6 && (
+              <button className="rgp-expand-btn" onClick={() => setHeatmapExpanded(p => !p)}>
+                {heatmapExpanded ? 'Collapse' : `Show all ${heatRows.length}`}
+              </button>
+            )}
+          </div>
+          <div className="rgp-heatmap">
+            {visibleHeatRows.map(s => {
+              const isActive = selected === s.name
+              const worstSev = ['critical', 'high', 'medium', 'low'].find(sv => s.severities[sv] > 0) || 'low'
+              return (
+                <div key={s.name}
+                  className={`rgp-heat-row${isActive ? ' rgp-heat-row--active' : ''}${selected && !isActive ? ' rgp-heat-row--dim' : ''}`}
+                  onClick={() => handleSelect(s.name)}
+                >
+                  <span className="rgp-heat-label" title={s.name}>{s.name.length > 14 ? s.name.slice(0, 12) + '…' : s.name}</span>
+                  <div className="rgp-heat-cells">
+                    {days.map(({ key }) => {
+                      const count = s.counts[key] || 0
+                      const opacity = count === 0 ? 0.07 : 0.25 + (count / maxHeatCount) * 0.75
+                      return (
+                        <div key={key} className="rgp-heat-cell"
+                          style={{ background: SEV_COLOR[worstSev], opacity }}
+                          title={`${count} event${count !== 1 ? 's' : ''}`}
+                        />
+                      )
+                    })}
+                  </div>
+                  <span className="rgp-heat-total">{s.total}</span>
                 </div>
               )
             })}
+            {/* Date labels */}
+            <div className="rgp-heat-dates">
+              {days.map(({ label }, i) => (
+                <span key={i} className="rgp-heat-date">{i % 3 === 0 ? label : ''}</span>
+              ))}
+            </div>
           </div>
         </div>
       )}
-
-      {aiPredictions.length === 0 && driftedCount === 0 && (
-        <div className="rgp-empty">No drift history found for resources in <strong>{resourceGroup}</strong>.</div>
-      )}
-
     </div>
   )
 }

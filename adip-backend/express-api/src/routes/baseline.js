@@ -5,7 +5,7 @@
 const router_baseline = require('express').Router()
 const { getBaseline, saveBaseline } = require('../services/blobService')
  
-// ── GET /api/baselines START ─────────────────────────────────────────────────
+//  GET /api/baselines START 
 // Returns the active golden baseline for a given resource
 router_baseline.get('/baselines', async (req, res) => {
   console.log('[GET /baselines] starts')
@@ -23,9 +23,9 @@ router_baseline.get('/baselines', async (req, res) => {
     res.status(500).json({ error: fetchError.message })
   }
 })
-// ── GET /api/baselines END ───────────────────────────────────────────────────
+//  GET /api/baselines END 
  
-// ── POST /api/baselines START ────────────────────────────────────────────────
+//  POST /api/baselines START 
 // Saves a new golden baseline for a resource
 router_baseline.post('/baselines', async (req, res) => {
   console.log('[POST /baselines] starts')
@@ -43,7 +43,7 @@ router_baseline.post('/baselines', async (req, res) => {
     res.status(500).json({ error: saveError.message })
   }
 })
-// ── POST /api/baselines END ──────────────────────────────────────────────────
+//  POST /api/baselines END 
  
 module.exports = router_baseline
  

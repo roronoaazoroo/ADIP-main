@@ -1,13 +1,13 @@
-// ============================================================
+
 // FILE: adip-backend/express-api/src/routes/userPreferences.js
 // ROLE: Per-user settings persistence
-//
+
 // GET  /api/user-preferences?username=
 // POST /api/user-preferences  — Body: { username, preferences: {...} }
-//
+
 // Stored in Azure Table Storage (userPreferences table).
 // PartitionKey = username, RowKey = 'settings'
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const { TableClient } = require('@azure/data-tables')

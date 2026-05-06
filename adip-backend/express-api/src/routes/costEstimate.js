@@ -1,17 +1,16 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/routes/costEstimate.js
 // ROLE: Estimates monthly cost delta between two resource configs
 //       using Azure Retail Prices public API (no auth required).
-//
+
 // GET /api/cost-estimate?resourceType=&location=&fieldPath=&oldValue=&newValue=
-//
+
 // Handles storage account cost dimensions:
 //   sku.name       — replication tier (LRS/GRS/ZRS/RA-GRS)
 //   accessTier     — Hot/Cool/Cold/Archive
 //   encryption     — Microsoft vs Customer-managed key
-//
+
 // Results cached 1 hour per query key.
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const fetch  = require('node-fetch')
@@ -77,7 +76,7 @@ router.get('/cost-estimate', async (req, res) => {
   const pathLower = fieldPath.toLowerCase()
 
   try {
-    // ── Storage Account ───────────────────────────────────────────────────
+    //  Storage Account 
     if (type === 'microsoft.storage/storageaccounts') {
 
       // SKU change (replication tier)
@@ -134,7 +133,7 @@ router.get('/cost-estimate', async (req, res) => {
 })
 
 
-// ── Savings tracking (Feature B) ─────────────────────────────────────────────
+//  Savings tracking (Feature B) 
 const { TableClient } = require('@azure/data-tables')
 
 function savingsTable() {

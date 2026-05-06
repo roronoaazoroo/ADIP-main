@@ -1,9 +1,9 @@
-'use strict'
 // FILE: routes/rgPrediction.js
 // ROLE: GET /api/rg-prediction — analyses all resources in a RG, counts drift frequency
 //       per resource (24h / 7d / all-time), and calls Azure OpenAI to predict which
 //       resources are most likely to drift next.
 
+'use strict'
 const router = require('express').Router()
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { DefaultAzureCredential }   = require('@azure/identity')
@@ -29,7 +29,7 @@ async function chatJson(system, user, maxTokens = 800) {
   return JSON.parse(d.choices[0].message.content.replace(/```json|```/g, '').trim())
 }
 
-// ── GET /api/rg-prediction ────────────────────────────────────────────────────
+//  GET /api/rg-prediction 
 router.get('/rg-prediction', async (req, res) => {
   console.log('[GET /rg-prediction] starts')
   const { subscriptionId, resourceGroup } = req.query

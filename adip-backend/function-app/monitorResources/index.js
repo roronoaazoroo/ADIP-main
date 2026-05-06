@@ -34,7 +34,7 @@ function getDriftIndexTable() {
   return client
 }
 
-// ── runDriftCheck START ───────────────────────────────────────────────────────
+//  runDriftCheck START 
 // Fetches live ARM config, diffs against baseline, saves drift record, notifies Express
 async function runDriftCheck(context, session) {
   console.log('[runDriftCheck] starts — subscriptionId:', session.subscriptionId, 'resourceId:', session.resourceId || session.resourceGroupId)
@@ -44,7 +44,7 @@ async function runDriftCheck(context, session) {
     const credential = new DefaultAzureCredential()
     const armClient  = new ResourceManagementClient(credential, subscriptionId)
 
-    // ── Live config fetch START ─────────────────────────────────────────────
+    //  Live config fetch START 
     console.log('[runDriftCheck liveConfigFetch] starts — resourceId:', resourceId || 'RG-level:' + resourceGroupId)
     let liveRaw
     if (resourceId && resourceId.startsWith('/subscriptions/')) {
@@ -78,23 +78,23 @@ async function runDriftCheck(context, session) {
       console.log('[runDriftCheck liveConfigFetch] RG-level fetch complete — resources found:', resources.length)
     }
     console.log('[runDriftCheck liveConfigFetch] ends')
-    // ── Live config fetch END ───────────────────────────────────────────────
+    //  Live config fetch END 
 
     const live = strip(liveRaw)
 
-    // ── Baseline read START ─────────────────────────────────────────────────
+    //  Baseline read START 
     console.log('[runDriftCheck baselineRead] starts — blobKey:', blobKey(resourceId || resourceGroupId))
     const baselineDocument       = await readBlob(baselinesContainer, blobKey(resourceId || resourceGroupId))
     const baselineConfigStripped = baselineDocument ? strip(baselineDocument.resourceState) : null
     console.log('[runDriftCheck baselineRead] ends — baseline found:', !!baselineDocument)
-    // ── Baseline read END ───────────────────────────────────────────────────
+    //  Baseline read END 
 
-    // ── Diff computation START ──────────────────────────────────────────────
+    //  Diff computation START 
     console.log('[runDriftCheck diffComputation] starts')
     const detectedChanges = baselineConfigStripped ? diffObjects(baselineConfigStripped, live) : []
     const driftSeverity   = classifySeverity(detectedChanges)
     console.log('[runDriftCheck diffComputation] ends — changes:', detectedChanges.length, 'severity:', driftSeverity)
-    // ── Diff computation END ────────────────────────────────────────────────
+    //  Diff computation END 
 
     if (detectedChanges.length === 0) {
       console.log('[runDriftCheck] ends — no drift detected for:', resourceId || resourceGroupId)
@@ -118,13 +118,13 @@ async function runDriftCheck(context, session) {
       source:        'monitorResources-timer',  // identifies this came from the 1-min timer function
     }
 
-    // ── Drift record write START ────────────────────────────────────────────
+    //  Drift record write START 
     console.log('[runDriftCheck driftRecordWrite] starts — driftKey:', driftKey(driftRecord.resourceId, detectedAt))
     await writeBlob(driftRecordsContainer, driftKey(driftRecord.resourceId, detectedAt), driftRecord)
     console.log('[runDriftCheck driftRecordWrite] ends — drift blob saved')
-    // ── Drift record write END ──────────────────────────────────────────────
+    //  Drift record write END 
 
-    // ── driftIndex Table write START ────────────────────────────────────────
+    //  driftIndex Table write START 
     console.log('[runDriftCheck driftIndexWrite] starts')
     try {
       const driftIndexTable = getDriftIndexTable()
@@ -145,9 +145,9 @@ async function runDriftCheck(context, session) {
       console.log('[runDriftCheck driftIndexWrite] ends — driftIndex write failed:', e.message)
       context.log.warn('[monitorResources] driftIndex write failed:', e.message)
     }
-    // ── driftIndex Table write END ──────────────────────────────────────────
+    //  driftIndex Table write END 
 
-    // ── Socket.IO notification START ────────────────────────────────────────
+    //  Socket.IO notification START 
     console.log('[runDriftCheck socketNotification] starts — expressApiUrl:', process.env.EXPRESS_API_URL)
     const expressApiUrl = process.env.EXPRESS_API_URL
     if (expressApiUrl) {
@@ -162,7 +162,7 @@ async function runDriftCheck(context, session) {
     } else {
       console.log('[runDriftCheck socketNotification] ends — skipped, EXPRESS_API_URL not configured')
     }
-    // ── Socket.IO notification END ──────────────────────────────────────────
+    //  Socket.IO notification END 
 
     context.log(`[monitorResources] drift detected — ${driftSeverity} — ${detectedChanges.length} change(s) on ${driftRecord.resourceId}`)
     console.log('[runDriftCheck] ends — drift recorded, severity:', driftSeverity, 'changes:', detectedChanges.length)
@@ -171,10 +171,10 @@ async function runDriftCheck(context, session) {
     context.log.error(`[monitorResources] error for ${resourceId || resourceGroupId}:`, err.message)
   }
 }
-// ── runDriftCheck END ─────────────────────────────────────────────────────────
+//  runDriftCheck END 
 
 
-// ── Timer handler START ───────────────────────────────────────────────────────
+//  Timer handler START 
 // Runs every minute, reads all active monitor sessions from Table Storage, checks each one
 module.exports = async function (context, timer) {
   console.log('[monitorResources timerHandler] starts')
@@ -186,7 +186,7 @@ module.exports = async function (context, timer) {
   const monitorSessionsTable = getMonitorSessionsTable()
   const activeSessions = []
 
-  // ── Session fetch START ───────────────────────────────────────────────────
+  //  Session fetch START 
   console.log('[monitorResources sessionFetch] starts')
   try {
     for await (const sessionEntity of monitorSessionsTable.listEntities({ queryOptions: { filter: 'active eq true' } })) {
@@ -205,7 +205,7 @@ module.exports = async function (context, timer) {
     console.log('[monitorResources timerHandler] ends — aborted due to session fetch error')
     return
   }
-  // ── Session fetch END ─────────────────────────────────────────────────────
+  //  Session fetch END 
 
   if (activeSessions.length === 0) {
     console.log('[monitorResources timerHandler] ends — no active sessions found')
@@ -215,7 +215,7 @@ module.exports = async function (context, timer) {
 
   context.log(`[monitorResources] checking ${activeSessions.length} session(s)`)
 
-  // ── Due session filter START ──────────────────────────────────────────────
+  //  Due session filter START 
   // Only run drift checks for sessions whose check interval has elapsed
   // e.g. if intervalMs = 300000 (5 min), skip sessions checked less than 5 min ago
   console.log('[monitorResources dueSessionFilter] starts')
@@ -226,17 +226,17 @@ module.exports = async function (context, timer) {
     return timeSinceLastCheck >= (session.intervalMs || 60000)
   })
   console.log('[monitorResources dueSessionFilter] ends — sessions due:', sessionsDue.length, 'of', activeSessions.length)
-  // ── Due session filter END ────────────────────────────────────────────────
+  //  Due session filter END 
 
   context.log(`[monitorResources] ${sessionsDue.length} of ${activeSessions.length} session(s) due`)
 
-  // ── Drift checks START ────────────────────────────────────────────────────
+  //  Drift checks START 
   console.log('[monitorResources driftChecks] starts — running', sessionsDue.length, 'checks in parallel')
   await Promise.allSettled(sessionsDue.map(session => runDriftCheck(context, session)))
   console.log('[monitorResources driftChecks] ends — all checks settled')
-  // ── Drift checks END ──────────────────────────────────────────────────────
+  //  Drift checks END 
 
-  // ── lastCheckedAt update START ────────────────────────────────────────────
+  //  lastCheckedAt update START 
   // Update lastCheckedAt timestamp for all sessions so the interval logic works next run
   console.log('[monitorResources lastCheckedAtUpdate] starts — updating', activeSessions.length, 'session(s)')
   const currentTimestamp = new Date().toISOString()
@@ -256,8 +256,8 @@ module.exports = async function (context, timer) {
     })
   }))
   console.log('[monitorResources lastCheckedAtUpdate] ends — all session timestamps updated')
-  // ── lastCheckedAt update END ──────────────────────────────────────────────
+  //  lastCheckedAt update END 
 
   console.log('[monitorResources timerHandler] ends')
 }
-// ── Timer handler END ─────────────────────────────────────────────────────────
+//  Timer handler END 

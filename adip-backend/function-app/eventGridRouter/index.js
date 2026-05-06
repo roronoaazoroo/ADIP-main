@@ -42,7 +42,7 @@ module.exports = async function (context, req) {
   const eventArray = Array.isArray(requestBody) ? requestBody : [requestBody]
   const firstEvent = eventArray[0]
 
-  // ── Step 1: Handle Event Grid webhook validation handshake ────────────────
+  //  Step 1: Handle Event Grid webhook validation handshake 
   // When you first create an Event Grid subscription pointing to this Function,
   // Event Grid sends a SubscriptionValidationEvent to verify the endpoint is live.
   // We must respond with the validationCode to confirm ownership.
@@ -57,7 +57,7 @@ module.exports = async function (context, req) {
     return
   }
 
-  // ── Step 2: Apply noise filters ───────────────────────────────────────────
+  //  Step 2: Apply noise filters 
   // Skip events that should not trigger drift detection
   const eventData        = firstEvent?.data || {}
   const operationName    = (eventData.operationName || '').toLowerCase()
@@ -82,7 +82,7 @@ module.exports = async function (context, req) {
     return
   }
 
-  // ── Step 3: Call detectDrift Function ─────────────────────────────────────
+  //  Step 3: Call detectDrift Function 
   // Pass the resourceId and subscriptionId extracted from the Event Grid payload
   const resourceId     = eventData.resourceUri || firstEvent?.subject || ''
   const subscriptionId = eventData.subscriptionId || resourceId.split('/')?.[2] || ''

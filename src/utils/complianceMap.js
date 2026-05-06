@@ -1,13 +1,10 @@
-// ============================================================
 // FILE: src/utils/complianceMap.js
 // ROLE: Client-side compliance mapping — maps a diff path to
 //       violated compliance controls (CIS, NIST, ISO 27001).
-//
+
 // Mirrors the server-side shared/complianceMap.js but runs in
 // the browser so each diff row can show controls inline without
 // an API call.
-// ============================================================
-
 const RULES = [
   { fragment: 'networkaclsdefaultaction', controls: [
     { fw: 'CIS 3.7',    title: 'Storage network ACL default action' },

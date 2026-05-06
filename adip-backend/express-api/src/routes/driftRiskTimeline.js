@@ -11,7 +11,7 @@ const { TableClient }              = require('@azure/data-tables')
 
 const SEV_WEIGHT = { critical: 100, high: 70, medium: 40, low: 15 }
 
-// ── ARM resource name cache (5-minute TTL) ────────────────────────────────────
+//  ARM resource name cache (5-minute TTL) 
 const _armCache = new Map()  // key: `${subscriptionId}:${resourceGroup}` → { names: Set, expiresAt }
 
 async function getExistingNames(subscriptionId, resourceGroup) {
@@ -33,7 +33,7 @@ async function getExistingNames(subscriptionId, resourceGroup) {
   return names
 }
 
-// ── Read index rows only — no blob fetches ────────────────────────────────────
+//  Read index rows only — no blob fetches 
 async function getDriftIndexRows(subscriptionId, resourceGroup, since) {
   const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'driftIndex')
   let filter = `PartitionKey eq '${subscriptionId}'`

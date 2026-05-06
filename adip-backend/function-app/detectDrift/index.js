@@ -38,7 +38,7 @@ const baselinesContainer    = blobStorageClient.getContainerClient('baselines') 
 const driftRecordsContainer = blobStorageClient.getContainerClient('drift-records')  // detected drift blobs
 
 
-// ── Main handler START ────────────────────────────────────────────────────────
+//  Main handler START 
 module.exports = async function (context, req) {
   console.log('[detectDrift mainHandler] starts')
   const body = req.body
@@ -80,7 +80,7 @@ module.exports = async function (context, req) {
       return
     }
 
-    // ── API version resolution START ──────────────────────────────────────────
+    //  API version resolution START 
     // Look up the correct ARM API version for this resource type
     // First check our hardcoded map, then ask ARM dynamically if not found
     console.log('[detectDrift apiVersionResolution] starts — resourceTypeName:', resourceTypeName)
@@ -104,32 +104,32 @@ module.exports = async function (context, req) {
       console.log('[detectDrift apiVersionResolution] found in static map:', armApiVersion)
     }
     console.log('[detectDrift apiVersionResolution] ends — armApiVersion:', armApiVersion)
-    // ── API version resolution END ────────────────────────────────────────────
+    //  API version resolution END 
 
-    // ── Live config fetch START ───────────────────────────────────────────────
+    //  Live config fetch START 
     // Fetch the current live configuration of the resource from ARM
     console.log('[detectDrift liveConfigFetch] starts — resource:', resourceName)
     const liveConfigRaw      = await armClient.resources.get(resourceGroupName, providerNamespace, '', resourceTypeName, resourceName, armApiVersion)
     // Strip volatile fields (etag, provisioningState, etc.) before comparing
     const liveConfigStripped = strip(liveConfigRaw)
     console.log('[detectDrift liveConfigFetch] ends — live config fetched and stripped')
-    // ── Live config fetch END ─────────────────────────────────────────────────
+    //  Live config fetch END 
 
-    // ── Baseline read START ───────────────────────────────────────────────────
+    //  Baseline read START 
     // Read the stored golden baseline for this resource
     console.log('[detectDrift baselineRead] starts — blobKey:', blobKey(resourceId))
     const baselineDocument       = await readBlob(baselinesContainer, blobKey(resourceId))
     const baselineConfigStripped = baselineDocument ? strip(baselineDocument.resourceState) : null
     console.log('[detectDrift baselineRead] ends — baseline found:', !!baselineDocument)
-    // ── Baseline read END ─────────────────────────────────────────────────────
+    //  Baseline read END 
 
-    // ── Diff computation START ────────────────────────────────────────────────
+    //  Diff computation START 
     // Compare baseline vs live — returns array of {path, oldValue, newValue, type}
     console.log('[detectDrift diffComputation] starts')
     const detectedChanges = baselineConfigStripped ? diffObjects(baselineConfigStripped, liveConfigStripped) : []
     const driftSeverity   = classifySeverity(detectedChanges)  // Critical / High / Medium / Low
     console.log('[detectDrift diffComputation] ends — changes detected:', detectedChanges.length, 'severity:', driftSeverity)
-    // ── Diff computation END ──────────────────────────────────────────────────
+    //  Diff computation END 
 
     // No changes detected — resource matches baseline, nothing to record
     if (detectedChanges.length === 0) {
@@ -156,7 +156,7 @@ module.exports = async function (context, req) {
       detectedAt,
     }
 
-    // ── Drift record write START ──────────────────────────────────────────────
+    //  Drift record write START 
     // Save the drift record to blob storage (drift-records container)
     console.log('[detectDrift driftRecordWrite] starts — driftKey:', driftKey(resourceId, detectedAt))
     await writeBlob(driftRecordsContainer, driftKey(resourceId, detectedAt), driftRecord)
@@ -182,9 +182,9 @@ module.exports = async function (context, req) {
     } catch (indexError) {
       console.log('[detectDrift driftIndexWrite] non-fatal error:', indexError.message)
     }
-    // ── Drift record write END ────────────────────────────────────────────────
+    //  Drift record write END 
 
-    // ── Socket.IO notification START ──────────────────────────────────────────
+    //  Socket.IO notification START 
     // Notify the Express API so it can push the event to the browser via Socket.IO
     console.log('[detectDrift socketNotification] starts — expressApiUrl:', process.env.EXPRESS_API_URL)
     const expressApiUrl = process.env.EXPRESS_API_URL
@@ -200,7 +200,7 @@ module.exports = async function (context, req) {
     } else {
       console.log('[detectDrift socketNotification] ends — skipped, EXPRESS_API_URL not configured')
     }
-    // ── Socket.IO notification END ────────────────────────────────────────────
+    //  Socket.IO notification END 
 
     context.log(`detectDrift: ${driftSeverity} — ${detectedChanges.length} change(s) on ${resourceName}`)
     console.log('[detectDrift mainHandler] ends — drifted: true, severity:', driftSeverity, 'changes:', detectedChanges.length)
@@ -212,4 +212,4 @@ module.exports = async function (context, req) {
     context.res = { status: 500, body: { error: err.message } }
   }
 }
-// ── Main handler END ──────────────────────────────────────────────────────────
+//  Main handler END 

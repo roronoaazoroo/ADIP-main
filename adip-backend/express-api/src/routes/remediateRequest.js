@@ -1,10 +1,10 @@
-'use strict'
 // FILE: routes/remediateRequest.js
 
+'use strict'
 const router_remediateRequest = require('express').Router()
 const { sendDriftAlertEmail } = require('../services/alertService')
  
-// ── POST /api/remediate-request START ────────────────────────────────────────
+//  POST /api/remediate-request START 
 // Sends a drift approval email to admins without applying remediation; waits for email click
 router_remediateRequest.post('/remediate-request', async (req, res) => {
   console.log('[POST /remediate-request] starts')
@@ -30,7 +30,7 @@ router_remediateRequest.post('/remediate-request', async (req, res) => {
     res.status(500).json({ error: requestError.message })
   }
 })
-// ── POST /api/remediate-request END ──────────────────────────────────────────
+//  POST /api/remediate-request END 
  
 module.exports = router_remediateRequest
  

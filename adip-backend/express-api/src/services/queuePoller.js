@@ -30,7 +30,7 @@ function getBlobServiceModule() {
   return _blobService
 }
 
-// ── Queue client ──────────────────────────────────────────────────────────────
+//  Queue client 
 let _queueClient = null
 function getQueueClient() {
   if (!_queueClient) {
@@ -40,10 +40,10 @@ function getQueueClient() {
   }
   return _queueClient
 }
-// ── getQueueClient END ───────────────────────────────────────────────────────
+//  getQueueClient END 
 
 
-// ── Persistent state cache (Azure Table Storage + in-memory L1) ───────────────
+//  Persistent state cache (Azure Table Storage + in-memory L1) 
 const _mem = {}
 let _tableClient = null
 function getTableClient() {
@@ -85,7 +85,7 @@ const liveStateCache = new Proxy(_mem, {
   get(t, k)    { return t[k] },
 })
 
-// ── Message parser ────────────────────────────────────────────────────────────
+//  Message parser 
 function parseMessage(msg) {
   console.log('[parseMessage] starts')
   try {
@@ -134,10 +134,10 @@ function parseMessage(msg) {
     return null
   }
 }
-// ── parseMessage END ─────────────────────────────────────────────────────────
+//  parseMessage END 
 
 
-// ── Deduplication: same resource+operation within 0.1s = same event ────────────
+//  Deduplication: same resource+operation within 0.1s = same event 
 const _dedup = new Map()
 function isDuplicate(event) {
   const bucket = Math.floor(new Date(event.eventTime).getTime() / 100)
@@ -148,9 +148,9 @@ function isDuplicate(event) {
   for (const [k, ts] of _dedup) if (ts < cutoff) _dedup.delete(k)
   return false
 }
-// ── isDuplicate END ──────────────────────────────────────────────────────────
+//  isDuplicate END 
 
-// ── Enrich event with diff and resolved identity ──────────────────────────────
+//  Enrich event with diff and resolved identity 
 async function enrichWithDiff(event) {
   if (!event.resourceId || !event.subscriptionId || !event.resourceGroup) return event
 
@@ -182,7 +182,7 @@ async function enrichWithDiff(event) {
   }
 }
 
-// ── Poller ────────────────────────────────────────────────────────────────────
+//  Poller 
 function startQueuePoller() {
   console.log('[startQueuePoller] starts')
   const interval = parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '5000', 10)
@@ -257,6 +257,6 @@ function startQueuePoller() {
 
   console.log(`[ADIP] Queue poller started — interval ${interval}ms`)
 }
-// ── startQueuePoller END ─────────────────────────────────────────────────────
+//  startQueuePoller END 
 
 module.exports = { startQueuePoller, liveStateCache, cacheSet }

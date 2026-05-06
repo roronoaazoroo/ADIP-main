@@ -1,15 +1,14 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/reportService.js
 // ROLE: Business logic for generating drift analysis reports
-//
+
 // Queries changesIndex and driftIndex Tables to aggregate:
 //   - Total changes and drift events over a period
 //   - Severity breakdown
 //   - Top drifted resources
 //   - Remediation status
-//
+
 // Separate from infrastructure (routes/reports.js handles HTTP)
-// ============================================================
+
 'use strict'
 const { getDriftIndexTableClient, getChangesIndexTableClient } = require('./blobService')
 const { BlobServiceClient } = require('@azure/storage-blob')
@@ -54,6 +53,12 @@ async function aggregateReportData(subscriptionId, sinceISO) {
   const resourceDriftMap  = {}
   let totalDriftEvents    = 0
   let remediatedCount     = 0
+  try {
+    const { TableClient } = require('@azure/data-tables')
+    const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'remediationSavings')
+    const remFilter = `PartitionKey eq '${subscriptionId}' and Timestamp ge datetime'${sinceISO}'`
+    for await (const _ of tc.listEntities({ queryOptions: { filter: remFilter } })) { remediatedCount++ }
+  } catch { /* non-fatal */ }
 
   for await (const entity of getDriftIndexTableClient().listEntities({ queryOptions: { filter: driftFilter } })) {
     totalDriftEvents++
@@ -85,7 +90,7 @@ async function aggregateReportData(subscriptionId, sinceISO) {
     uniqueResourcesChanged: uniqueChangedResources.size,
     severityBreakdown:    severityCounts,
     topDriftedResources,
-    remediatedCount,      // placeholder — remediation log not yet implemented
+    remediatedCount,
   }
 }
 

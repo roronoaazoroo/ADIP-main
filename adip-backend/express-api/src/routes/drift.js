@@ -4,7 +4,7 @@ const { getDriftHistory: getDriftRecordsForRoute, getTotalChangesCount, getRecen
 
 // Table clients imported from blobService — infrastructure stays in the service layer
 
-// ── GET /api/drift-events ─────────────────────────────────────────────────────
+//  GET /api/drift-events 
 router_drift.get('/drift-events', async (req, res) => {
   const { subscriptionId, resourceGroup, severity, since, caller, limit = 50 } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
@@ -15,7 +15,7 @@ router_drift.get('/drift-events', async (req, res) => {
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
-// ── GET /api/changes/recent ───────────────────────────────────────────────────
+//  GET /api/changes/recent 
 // Returns all changes from all-changes blob in last 24h (or custom window)
 // Supports filters: subscriptionId, resourceGroup, caller, changeType, limit
 router_drift.get('/changes/recent', async (req, res) => {
@@ -28,7 +28,7 @@ router_drift.get('/changes/recent', async (req, res) => {
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
-// ── GET /api/changes/count ────────────────────────────────────────────────────
+//  GET /api/changes/count 
 // Returns total permanent change count (all time) from changesIndex Table
 router_drift.get('/changes/count', async (req, res) => {
   const { subscriptionId } = req.query
@@ -39,7 +39,7 @@ router_drift.get('/changes/count', async (req, res) => {
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
-// ── GET /api/stats/today ──────────────────────────────────────────────────────
+//  GET /api/stats/today 
 router_drift.get('/stats/today', async (req, res) => {
   const { subscriptionId } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
@@ -73,7 +73,7 @@ router_drift.get('/stats/today', async (req, res) => {
   } catch (statsError) { res.status(500).json({ error: statsError.message }) }
 })
 
-// ── GET /api/stats/chart ──────────────────────────────────────────────────────
+//  GET /api/stats/chart 
 // Returns bucketed change counts from changesIndex for bar chart
 // mode=24h  → 24 hourly buckets (last 24 hours)
 // mode=7d   → 7 daily buckets  (last 7 days)

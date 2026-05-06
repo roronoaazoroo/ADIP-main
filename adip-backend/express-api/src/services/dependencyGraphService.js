@@ -1,10 +1,9 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/dependencyGraphService.js
 // ROLE: Builds a dependency graph for all resources in a resource group.
-//
+
 // Uses Azure Resource Graph API (single KQL query) instead of N ARM GET calls.
 // Falls back to ARM SDK if Resource Graph is unavailable.
-// ============================================================
+
 'use strict'
 const { ResourceGraphClient }    = require('@azure/arm-resourcegraph')
 const { DefaultAzureCredential } = require('@azure/identity')

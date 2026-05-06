@@ -22,7 +22,7 @@ const DEMO_RESOURCES = {
 }
 
 
-// ── useAzureScope START ──────────────────────────────────────────────────────
+//  useAzureScope START 
 // Accepts persisted resourceGroups/resources + their setters from context
 // so dropdown options survive navigation and stop
 export function useAzureScope({ resourceGroups, setResourceGroups, resources, setResources, savedSubscription, savedResourceGroup }) {
@@ -109,4 +109,4 @@ export function useAzureScope({ resourceGroups, setResourceGroups, resources, se
 
   return { subscriptions, resourceGroups, resources, loading, scopeError, isDemoMode, fetchRGs, fetchResources }
 }
-// ── useAzureScope END ────────────────────────────────────────────────────────
+//  useAzureScope END 
