@@ -29,7 +29,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 async function ensureTables() {
   const { TableServiceClient } = require('@azure/data-tables')
   const svc = TableServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings']
+  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings','organizations','orgMembers','notifications','approvalTickets']
   for (const name of required) {
     await svc.createTable(name).catch(() => {})  // no-op if already exists
   }
@@ -55,7 +55,7 @@ const server = http.createServer(app)
 const io = new Server(server, { cors: { origin: '*' } })
 global.io = io
 
-// ── io.on connection START ───────────────────────────────────────────────────
+//  io.on connection START 
 // Handles new Socket.IO client connections and joins them to the appropriate subscription/RG room
 io.on('connection', (socket) => {
   console.log('[io.connection] starts — socketId:', socket.id)
@@ -71,7 +71,7 @@ io.on('connection', (socket) => {
   })
   console.log('[io.connection] ends')
 })
-// ── io.on connection END ─────────────────────────────────────────────────────
+//  io.on connection END 
 
 // CORS: restrict to known frontend origin in production via CORS_ORIGIN env var
 const corsOrigin = process.env.CORS_ORIGIN || '*'
@@ -79,6 +79,9 @@ if (corsOrigin === '*') console.warn('[app] WARNING: CORS_ORIGIN not set — all
 app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 
+app.use('/api', require('./routes/auth'))
+app.use('/api', require('./routes/orgManagement'))
+app.use('/api', require('./routes/approvalTickets'))
 app.use('/api', require('./routes/subscriptions'))
 app.use('/api', require('./routes/resourceGroups'))
 app.use('/api', require('./routes/resources'))
@@ -88,8 +91,6 @@ app.use('/api', require('./routes/baseline'))
 app.use('/api', require('./routes/baselineUpload'))
 app.use('/api', require('./routes/compare'))
 app.use('/api', require('./routes/remediate'))
-app.use('/api', require('./routes/remediateDecision'))
-app.use('/api', require('./routes/remediateRequest'))
 app.use('/api', require('./routes/ai'))
 app.use('/api', require('./routes/genome'))
 app.use('/api', require('./routes/reports'))
@@ -103,11 +104,13 @@ app.use('/api', require('./routes/costEstimate'))
 app.use('/api', require('./routes/chat'))
 app.use('/api', require('./routes/rgPrediction'))
 app.use('/api', require('./routes/driftRiskTimeline'))
+app.use('/api', require('./routes/recover'))
+app.use('/api', require('./routes/recommendations'))
 
 
 
 
-// ── POST /api/cache-state START ──────────────────────────────────────────────
+//  POST /api/cache-state START 
 // Seeds the live state cache with the current resource config so the first change event has a diff
 app.post('/api/cache-state', express.json(), (req, res) => {
   console.log('[POST /api/cache-state] starts')
@@ -123,10 +126,10 @@ app.post('/api/cache-state', express.json(), (req, res) => {
   res.json({ cached: true, resourceId })
   console.log('[POST /api/cache-state] ends — cached resourceId:', resourceId)
 })
-// ── POST /api/cache-state END ────────────────────────────────────────────────
+//  POST /api/cache-state END 
 
 
-// ── POST /internal/drift-event START ────────────────────────────────────────
+//  POST /internal/drift-event START 
 // Internal endpoint called by the Function App to push drift events to connected frontend clients
 // Cross-path dedup: prevents same event emitted by both queue poller and Function App
 const _emittedEvents = new Map()
@@ -156,7 +159,7 @@ app.post('/internal/drift-event', express.json(), (req, res) => {
   res.sendStatus(200)
   console.log('[POST /internal/drift-event] ends')
 })
-// ── POST /internal/drift-event END ──────────────────────────────────────────
+//  POST /internal/drift-event END 
 
 const PORT = process.env.PORT || 3001
 server.listen(PORT, () => {
@@ -166,6 +169,26 @@ server.listen(PORT, () => {
 // Schedule poller — processes due remediation schedules every 60 seconds
 const { processDueSchedules } = require('./services/remediationScheduleService')
 setInterval(() => processDueSchedules().catch(err => console.log('[schedulePoller] error:', err.message)), 60000)
+
+// Genome: daily snapshots at 7 PM (19:00) + cleanup expired genomes
+const { createDailySnapshots, cleanupExpiredGenomes } = require('./services/genomeScheduler')
+function scheduleGenomeAt7PM() {
+  const now = new Date()
+  const target = new Date(now)
+  target.setHours(19, 0, 0, 0)
+  if (now >= target) target.setDate(target.getDate() + 1) // already past 7 PM today, schedule tomorrow
+  const delay = target - now
+  console.log(`[genomeScheduler] next daily genome in ${Math.round(delay / 60000)} minutes (at 7 PM)`)
+  setTimeout(() => {
+    createDailySnapshots().catch(err => console.log('[dailyGenome] error:', err.message))
+    cleanupExpiredGenomes().catch(err => console.log('[genomeCleanup] error:', err.message))
+    setInterval(() => {
+      createDailySnapshots().catch(err => console.log('[dailyGenome] error:', err.message))
+      cleanupExpiredGenomes().catch(err => console.log('[genomeCleanup] error:', err.message))
+    }, 24 * 60 * 60 * 1000) // repeat every 24h
+  }, delay)
+}
+scheduleGenomeAt7PM()
 
 })
 

@@ -25,9 +25,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 // Builds the full URL, sets Content-Type header, checks for HTTP errors, parses JSON
 async function apiRequest(endpoint, options = {}) {
   const fullUrl = `${API_BASE_URL}${endpoint}`
+  const token = sessionStorage.getItem('adip.token')
   const requestConfig = {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
   }
   const httpResponse = await fetch(fullUrl, requestConfig)
   if (!httpResponse.ok) {
@@ -121,6 +122,10 @@ export async function fetchRecentChanges(subscriptionId, { resourceGroup, caller
   if (caller)        queryParams.set('caller', caller)
   if (changeType)    queryParams.set('changeType', changeType)
   return apiRequest(`/changes/recent?${queryParams}`)
+}
+
+export async function fetchChangeDetails(blobKey) {
+  return apiRequest(`/changes/details?blobKey=${encodeURIComponent(blobKey)}`)
 }
 
 // Returns today's stats for KPI cards: { totalChanges, totalDrifted, allTimeTotal }
@@ -307,6 +312,40 @@ export function getReportViewUrl(blobKey) {
 // Deletes a saved report blob
 export async function deleteReport(blobKey) {
   return apiRequest(`/reports?blobKey=${encodeURIComponent(blobKey)}`, { method: 'DELETE' })
+}
+
+// ── Recommendations ──────────────────────────────────────────────────────────
+
+export async function fetchRecommendations({ subscriptionId, resourceGroupId, resourceId, resourceType, intent, differences }) {
+  return apiRequest('/recommendations', { method: 'POST', body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, resourceType, intent, differences }) })
+}
+
+// ── Approval Tickets ──────────────────────────────────────────────────────────
+
+export async function createTicket({ subscriptionId, resourceGroupId, resourceId, severity, description }) {
+  return apiRequest('/tickets', { method: 'POST', body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, severity, description }) })
+}
+
+export async function fetchTickets(status = '') {
+  return apiRequest(`/tickets${status ? `?status=${status}` : ''}`)
+}
+
+export async function approveTicket(ticketId) {
+  return apiRequest(`/tickets/${ticketId}/approve`, { method: 'POST' })
+}
+
+export async function rejectTicket(ticketId, reason = '') {
+  return apiRequest(`/tickets/${ticketId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) })
+}
+
+// ── Resource Recovery ─────────────────────────────────────────────────────────
+
+export async function analyzeRecovery(subscriptionId, resourceId, blobKey) {
+  return apiRequest('/recover/analyze', { method: 'POST', body: JSON.stringify({ subscriptionId, resourceId, blobKey }) })
+}
+
+export async function executeRecovery(subscriptionId, resourceGroupId, resourceId, blobKey) {
+  return apiRequest('/recover/execute', { method: 'POST', body: JSON.stringify({ subscriptionId, resourceGroupId, resourceId, blobKey }) })
 }
 
 //   Change Attribution                            

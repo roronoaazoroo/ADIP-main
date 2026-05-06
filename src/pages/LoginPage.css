@@ -147,7 +147,16 @@
   align-items: center;
   gap: clamp(10px, 1.8vh, 22px);
   animation: slideUp 0.7s ease-out 0.3s both;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 90vh;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.login-card::-webkit-scrollbar {
+  display: none;
 }
 
 .login-card-glow {
@@ -285,6 +294,31 @@
 
 .login-btn:hover:not(:disabled) .login-btn-arrow {
   transform: translateX(4px);
+}
+
+.login-btn-secondary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.login-btn-secondary:hover {
+  background: rgba(25, 149, 255, 0.1);
+  border-color: rgba(25, 149, 255, 0.3);
+  color: #fff;
+  transform: translateY(-1px);
 }
 
 /* Footer Text */
@@ -577,3 +611,4 @@
   white-space: nowrap;
   border-width: 0;
 }
+

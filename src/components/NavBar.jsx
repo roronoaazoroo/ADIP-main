@@ -19,6 +19,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useDashboard } from '../context/DashboardContext';
 import "./NavBar.css";
+import ViewModeToggle from './ViewModeToggle';
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -107,6 +108,7 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
       </div>
 
       <div className="dh-nav-right">
+        <ViewModeToggle />
         {/* Notification button */}
         <button
           className="dh-icon-btn"

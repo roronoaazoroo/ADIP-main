@@ -19,7 +19,7 @@ import JsonTree from '../components/JsonTree'
 import MultiSelectDropdown from '../components/MultiSelectDropdown'
 import NavBar from '../components/NavBar'
 import ScheduleRemediationModal from '../components/ScheduleRemediationModal'
-import { fetchBaseline, runCompare, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, requestRemediation, fetchResourceConfiguration, fetchComplianceImpact, fetchSuppressionRules, fetchCostEstimate } from '../services/api'
+import { fetchBaseline, runCompare, remediateToBaseline, fetchAiExplanation, fetchAiRecommendation, uploadBaseline, createTicket, fetchResourceConfiguration, fetchComplianceImpact, fetchSuppressionRules, fetchCostEstimate } from '../services/api'
 import { getControlsForPath } from '../utils/complianceMap'
 
 // Shows monthly cost delta badge for SKU/tier/encryption drift rows
@@ -44,6 +44,8 @@ function CostDeltaBadge({ resourceType, location, fieldPath, oldValue, newValue 
   )
 }
 import { useDashboard } from '../context/DashboardContext'
+import { useViewMode } from '../context/ViewModeContext'
+import AggregatedDriftView from '../components/AggregatedDriftView'
 import './ComparisonPage.css'
 
 const CRITICAL_PATHS = ['properties.networkAcls','properties.accessPolicies','properties.securityRules','sku','location','identity','properties.encryption']
@@ -115,9 +117,10 @@ export default function ComparisonPage() {
   const subscriptionId  = activeScope?.subscriptionId  || initSubId
   const resourceGroupId = activeScope?.resourceGroupId || initRgId
   const resourceId      = activeScope?.resourceId      || initResId || null
-  const isRgOnly = !!(multiScopes && activeScope && !activeScope.resourceId)
   const effectiveId = resourceId || resourceGroupId
   const { subscription, resourceGroup, resource, configData, scopes: ctxScopes } = useDashboard()
+  const { viewMode } = useViewMode()
+  const [driftViewMode, setDriftViewMode] = useState('individual') // 'individual' | 'aggregated'
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
   // Live config — starts from navigation state, refreshed every 5 seconds
@@ -125,10 +128,10 @@ export default function ComparisonPage() {
 
   // Poll live ARM config every 5 seconds — updates diff silently without loading screen
   useEffect(() => {
-    if (!subscriptionId || !resourceGroupId || !resourceId || isRgOnly) return
+    if (!subscriptionId || !resourceGroupId) return
     const id = setInterval(async () => {
       try {
-        const fresh = await fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
+        const fresh = await fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId || null)
         if (fresh) setCurrentLive(fresh)
       } catch { /* non-fatal */ }
     }, 5000)
@@ -198,7 +201,7 @@ export default function ComparisonPage() {
     setCurrentLive(null); aiExplainedRef.current = false; setAiDriftExplanation(null)
     setIsRemediating(false); setRemediationSucceeded(false); setRemediationError(null)
     setRemediationDiffSummary(null); setIsPolicyCreated(false); setShowScheduleModal(false)
-    if (!subscriptionId || !resourceGroupId || isRgOnly) { setIsLoadingBaseline(false); return }
+    if (!subscriptionId || !resourceGroupId) { setIsLoadingBaseline(false); return }
     setIsLoadingBaseline(true)
 
     runCompare(subscriptionId, resourceGroupId, resourceId || null)
@@ -262,26 +265,15 @@ export default function ComparisonPage() {
       const strippedLiveForSummary = normaliseState(currentLive)
       setRemediationDiffSummary(formatDifferences(deepDiff(baselineConfig || {}, strippedLiveForSummary) || []))
 
-      if (driftSeverity === 'low') {
-        // Low severity: apply immediately via ARM PUT (no approval needed)
-        const result = await remediateToBaseline(subscriptionId, resourceGroupId, effectiveId)
-        if (result?.policiesCreated?.length) {
-          setPoliciesCreated(result.policiesCreated)
-          setIsPolicyCreated(true)
-        }
-      } else {
-        // Medium/High/Critical: send approval email to admin
-        const loggedInUser = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
-        await requestRemediation({
-          subscriptionId,
-          resourceGroupId,
-          resourceId:  effectiveId,
-          differences: fieldDifferences,
-          changes:     fieldDifferences,
-          severity:    driftSeverity,
-          caller:      loggedInUser.name || 'Dashboard User',
-        })
-      }
+      // All severities go through ticket approval system
+      const result = await createTicket({
+        subscriptionId, resourceGroupId, resourceId: effectiveId,
+        severity: driftSeverity || 'medium',
+        description: `Remediation requested for ${displayName}: ${fieldDifferences.length} change(s) detected`,
+      })
+      setRemediationSucceeded(true)
+      setRemediationDiffSummary([{ path: 'Ticket', type: 'info', sentence: `Approval ticket created (${result.currentApprovals}/${result.requiredApprovals} approvals needed)` }])
+
       setRemediationSucceeded(true)
     } catch (remediationErr) {
       setRemediationError(remediationErr.message)
@@ -377,7 +369,7 @@ export default function ComparisonPage() {
         {/* Page header */}
         {/* Multi-scope dropdown */}
         {multiScopes && multiScopes.length > 1 && (
-          <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
             <MultiSelectDropdown
               options={multiScopes.map((s, i) => ({
                 value: i,
@@ -393,11 +385,6 @@ export default function ComparisonPage() {
               placeholder="Select a scope..."
               singleSelect={true}
             />
-            {!activeScope?.resourceId && (
-              <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(245,158,11,0.1)', borderRadius: 6, fontSize: 13, color: '#f59e0b' }}>
-                Comparison for entire resource groups is under development. Select a specific resource above.
-              </div>
-            )}
           </div>
         )}
         <header className="cp-header">
@@ -471,8 +458,8 @@ export default function ComparisonPage() {
           </div>
         )}
 
-        {/* AI cards */}
-        {(isAiLoading || aiDriftExplanation) && (
+        {/* AI cards — Dev view only (CTO shows AI inline above) */}
+        {viewMode === 'dev' && (isAiLoading || aiDriftExplanation) && (
           <div className="cp-ai-card cp-ai-card--blue">
             <span className="material-symbols-outlined">smart_toy</span>
             <div>
@@ -505,8 +492,37 @@ export default function ComparisonPage() {
           </div>
         )}
 
-        {/* Changes summary */}
-        {!isLoadingBaseline && baselineConfig && (
+        {/* View mode toggle: Individual / Aggregated */}
+        {!isLoadingBaseline && baselineConfig && fieldDifferences.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+            <button onClick={() => setDriftViewMode('individual')}
+              style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: driftViewMode === 'individual' ? '#0060a9' : 'rgba(255,255,255,0.04)', color: driftViewMode === 'individual' ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+              Individual Changes
+            </button>
+            <button onClick={() => setDriftViewMode('aggregated')}
+              style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: driftViewMode === 'aggregated' ? '#0060a9' : 'rgba(255,255,255,0.04)', color: driftViewMode === 'aggregated' ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+              Aggregated + AI Recommendations
+            </button>
+          </div>
+        )}
+
+        {/* Aggregated view with AI recommendations */}
+        {driftViewMode === 'aggregated' && !isLoadingBaseline && baselineConfig && fieldDifferences.length > 0 && (
+          <div className="cp-card">
+            <AggregatedDriftView
+              subscriptionId={subscriptionId}
+              resourceGroupId={resourceGroupId}
+              resourceId={resourceId}
+              resourceType={currentLive?.type || ''}
+              fieldDifferences={fieldDifferences}
+            />
+          </div>
+        )}
+
+        {/* Changes summary — Dev view shows detailed diff table, CTO view handled above */}
+        {driftViewMode === 'individual' && viewMode === 'dev' && !isLoadingBaseline && baselineConfig && (
           <div className="cp-card">
             <div className="cp-card-header">
               <span className="material-symbols-outlined" style={{ color: '#0060a9' }}>info</span>
@@ -522,7 +538,7 @@ export default function ComparisonPage() {
                     <div className="cp-change-header">
                       <span className={`cp-change-badge cp-change-badge--${diffItem.type}`}>{diffItem.label}</span>
                       <code className="cp-change-path">{diffItem.path}</code>
-                      {/sku|tier|accesstier|replication|capacity|keysource|encryption/i.test(diffItem.path) && diffItem.oldValue !== undefined && diffItem.newValue !== undefined && (
+                      {/sku|tier|accesstier|replication|capacity|keysource|encryption|vmsize|hardwareprofile/i.test(diffItem.path) && diffItem.oldValue !== undefined && diffItem.newValue !== undefined && (
                         <CostDeltaBadge
                           resourceType={currentLive?.type || ''}
                           location={currentLive?.location || 'westus2'}
@@ -556,8 +572,50 @@ export default function ComparisonPage() {
           </div>
         )}
 
-        {/* JSON panels */}
-        {!isLoadingBaseline && (baselineConfig || currentLive) && (
+        {/* CTO view — AI-powered plain English summary */}
+        {viewMode === 'cto' && !isLoadingBaseline && (
+          <div className="cp-card" style={{ marginTop: 16 }}>
+            <div className="cp-card-header">
+              <span className="material-symbols-outlined" style={{ color: '#0060a9' }}>summarize</span>
+              <h3>Executive Summary</h3>
+              {driftSeverity && <span className="cp-severity-badge" style={{ background: `${SEV_COLOR[driftSeverity]}18`, color: SEV_COLOR[driftSeverity], border: `1px solid ${SEV_COLOR[driftSeverity]}40`, marginLeft: 'auto' }}>{driftSeverity.toUpperCase()}</span>}
+            </div>
+            <div style={{ padding: '16px 20px', fontSize: 14, lineHeight: 1.8, color: 'var(--text-secondary)' }}>
+              {baselineNotFound && <p>No golden baseline has been set for <strong>{displayName}</strong>. Promote the current state to establish a reference point.</p>}
+              {baselineConfig && fieldDifferences.length === 0 && (
+                <p style={{ color: '#10b981', fontSize: 15 }}>✓ <strong>{displayName}</strong> is fully compliant — no configuration drift detected.</p>
+              )}
+              {baselineConfig && fieldDifferences.length > 0 && (
+                <>
+                  {isAiLoading && <p style={{ color: '#60a5fa' }}>⏳ Generating AI analysis with Azure OpenAI...</p>}
+                  {aiDriftExplanation && <p style={{ fontSize: 15, color: 'var(--text-primary)' }}>{aiDriftExplanation}</p>}
+                  {!isAiLoading && !aiDriftExplanation && <p><strong>{fieldDifferences.length}</strong> configuration change{fieldDifferences.length !== 1 ? 's' : ''} detected on <strong>{displayName}</strong>.</p>}
+                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {fieldDifferences.map((diff, index) => (
+                      <div key={index} style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: diff.type === 'removed' ? '#ef4444' : diff.type === 'added' ? '#10b981' : '#f59e0b' }} />
+                        <span style={{ flex: 1 }}>
+                          <strong>{diff.type === 'removed' ? 'Removed' : diff.type === 'added' ? 'Added' : 'Modified'}</strong>{' '}
+                          {diff.path?.toLowerCase().includes('tag') ? (
+                            <span>tag: <strong>{diff.path?.split(' → ').pop()}</strong>{diff.oldValue !== undefined ? `: ${String(diff.oldValue).slice(0,30)}` : ''}</span>
+                          ) : (
+                            <span>{diff.path?.split(' → ').pop() || diff.path}</span>
+                          )}
+                          {!diff.path?.toLowerCase().includes('tag') && diff.oldValue !== undefined && diff.newValue !== undefined && (
+                            <span style={{ color: '#6b7280' }}>{' '}({String(diff.oldValue).slice(0,20)} → {String(diff.newValue).slice(0,20)})</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* JSON panels — Dev view only */}
+        {viewMode === 'dev' && !isLoadingBaseline && (baselineConfig || currentLive) && (
           <div className="cp-json-row">
             <div className="cp-json-panel">
               <div className="cp-json-panel-header">

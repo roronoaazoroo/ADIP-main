@@ -6,6 +6,7 @@ import RgDriftPrediction from '../components/RgDriftPrediction'
 import DriftForecastChart from '../components/DriftForecastChart'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
+import { useViewMode } from '../context/ViewModeContext'
 import ReportsDashboard from '../components/ReportsDashboard'
 import DriftImpactDashboard from '../components/DriftImpactDashboard'
 import TopChangers from '../components/TopChangers'
@@ -21,6 +22,7 @@ const TABS = [
 
 export default function AnalyticsPage() {
   const { subscription, resourceGroup, resource, configData } = useDashboard()
+  const { viewMode } = useViewMode()
   const activeSubscriptionId = subscription || (import.meta.env.VITE_AZURE_SUBSCRIPTION_ID || '')
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 

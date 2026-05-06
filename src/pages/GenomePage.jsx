@@ -20,7 +20,7 @@ import MultiSelectDropdown from '../components/MultiSelectDropdown'
 import NavBar from '../components/NavBar'
 import GenomeHistory from '../components/GenomeHistory'
 import { useDashboard } from '../context/DashboardContext'
-import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot, fetchResourceConfiguration } from '../services/api'
+import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot, fetchResourceConfiguration, analyzeRecovery, executeRecovery } from '../services/api'
 import './GenomePage.css'
 
 // Strips volatile fields for comparison — same keys as ComparisonPage normaliseState
@@ -61,13 +61,12 @@ export default function GenomePage() {
   const subscriptionId  = activeScope?.subscriptionId  || initSubId
   const resourceGroupId = activeScope?.resourceGroupId || initRgId
   const resourceId      = activeScope?.resourceId      || initResId || null
-  const isRgOnly = !!(multiScopes && activeScope && !activeScope.resourceId)
   const { subscription, resourceGroup, resource, configData, scopes: ctxScopes } = useDashboard()
   const [liveConfig, setLiveConfig] = React.useState(configData)
 
   // Fetch fresh live config on mount (in case configData is stale or null)
   useEffect(() => {
-    if (!subscriptionId || !resourceId || isRgOnly) return
+    if (!subscriptionId || !(resourceId || resourceGroupId)) return
     fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId)
       .then(fresh => { if (fresh) setLiveConfig(fresh) })
       .catch(() => {})
@@ -100,14 +99,16 @@ export default function GenomePage() {
   // The _blobKey of the snapshot currently being acted on (promote/rollback/delete)
   // Used to show '...' on the button and disable all buttons for that snapshot
   const [activeActionBlobKey, setActiveActionBlobKey] = useState(null)
+  const [calendarMonth, setCalendarMonth] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(null)
 
   // Fetches all snapshots for this resource from GET /api/genome
   // Called on mount and after every save/rollback/delete action
   const loadSnapshots = useCallback(async () => {
-    if (!subscriptionId || isRgOnly) return
+    if (!subscriptionId) return
     setIsLoadingSnapshots(true)
     try {
-      const fetchedSnapshots = await fetchGenomeSnapshots(subscriptionId, resourceId)
+      const fetchedSnapshots = await fetchGenomeSnapshots(subscriptionId, resourceId || resourceGroupId)
       setSnapshotList(fetchedSnapshots || [])
     } catch (fetchError) {
       setActionFeedbackMessage({ ok: false, text: fetchError.message })
@@ -180,6 +181,32 @@ export default function GenomePage() {
 
   // Permanently deletes a snapshot blob and its genomeIndex Table row
   // If the deleted snapshot was selected in the viewer, clears the viewer
+  // Recover a deleted resource from a genome snapshot
+  const handleRecover = async (snapshotToRecover) => {
+    const targetName = snapshotToRecover.resourceState?.name || resourceId?.split('/').pop() || 'resource'
+    setActiveActionBlobKey(snapshotToRecover._blobKey)
+    try {
+      const analysis = await analyzeRecovery(subscriptionId, resourceId, snapshotToRecover._blobKey)
+      const missingMsg = analysis.missingDependencies?.length
+        ? `\n\nMissing dependencies that cannot be auto-created:\n${analysis.missingDependencies.map(d => `- ${d.name} (${d.type})`).join('\n')}`
+        : ''
+      const warningMsg = analysis.warnings?.join('\n') || ''
+      if (!window.confirm(`Recover ${targetName}?\n\n${warningMsg}${missingMsg}\n\nProceed?`)) {
+        setActiveActionBlobKey(null); return
+      }
+      if (!analysis.canRecover) {
+        setActionFeedbackMessage({ ok: false, text: `Cannot recover: missing required dependencies (${analysis.missingDependencies.map(d => d.name).join(', ')})` })
+        setActiveActionBlobKey(null); return
+      }
+      await executeRecovery(subscriptionId, resourceGroupId, resourceId, snapshotToRecover._blobKey)
+      setActionFeedbackMessage({ ok: true, text: `${targetName} recovered successfully from snapshot.` })
+    } catch (error) {
+      setActionFeedbackMessage({ ok: false, text: `Recovery failed: ${error.message}` })
+    } finally {
+      setActiveActionBlobKey(null)
+    }
+  }
+
   const handleDelete = async (snapshotToDelete) => {
     if (!window.confirm('Delete this snapshot? This cannot be undone.')) return
 
@@ -256,11 +283,6 @@ export default function GenomePage() {
         </header>
 
         {/* RG-only warning */}
-        {isRgOnly && (
-          <div style={{ margin: "8px 0", padding: "8px 12px", background: "rgba(245,158,11,0.1)", borderRadius: 6, fontSize: 13, color: "#f59e0b" }}>
-            Genome history for entire resource groups is under development. Select a specific resource from the dropdown.
-          </div>
-        )}
 
         {/* Alert */}
         {actionFeedbackMessage && (
@@ -296,10 +318,82 @@ export default function GenomePage() {
             {!isLoadingSnapshots && snapshotList.length === 0 && (
               <div className="gp-timeline-empty">
                 <span className="material-symbols-outlined" style={{ fontSize: 36, color: '#c2c7d0' }}>history</span>
-                <p>No snapshots yet. Save one above.</p>
+                <p>No snapshots yet. Snapshots are created automatically on every change and daily.</p>
               </div>
             )}
-            {snapshotList.map(snapshot => (
+            {/* Calendar view */}
+            {(() => {
+              // Group snapshots by date
+              const snapshotsByDate = {}
+              snapshotList.forEach(snapshot => {
+                const date = snapshot.savedAt?.slice(0, 10) || ''
+                if (!snapshotsByDate[date]) snapshotsByDate[date] = []
+                snapshotsByDate[date].push(snapshot)
+              })
+
+              // Calendar grid for current month
+              const year = calendarMonth.getFullYear()
+              const month = calendarMonth.getMonth()
+              const firstDay = new Date(year, month, 1).getDay()
+              const daysInMonth = new Date(year, month + 1, 0).getDate()
+              const monthLabel = calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+              const days = []
+              for (let i = 0; i < firstDay; i++) days.push(null)
+              for (let d = 1; d <= daysInMonth; d++) days.push(d)
+
+              const filteredSnapshots = selectedDate ? (snapshotsByDate[selectedDate] || []) : []
+
+              return (
+                <div>
+                  {/* Month navigation */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <button className="gp-snap-btn gp-snap-btn--grey" onClick={() => setCalendarMonth(new Date(year, month - 1, 1))}>←</button>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{monthLabel}</span>
+                    <button className="gp-snap-btn gp-snap-btn--grey" onClick={() => setCalendarMonth(new Date(year, month + 1, 1))}>→</button>
+                  </div>
+
+                  {/* Day headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, textAlign: 'center', marginBottom: 4 }}>
+                    {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+                      <div key={d} style={{ fontSize: 10, color: '#94a3b8', padding: 4 }}>{d}</div>
+                    ))}
+                  </div>
+
+                  {/* Calendar grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 16 }}>
+                    {days.map((day, index) => {
+                      if (!day) return <div key={`empty-${index}`} />
+                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                      const daySnapshots = snapshotsByDate[dateStr] || []
+                      const hasSnapshots = daySnapshots.length > 0
+                      const hasChanges = daySnapshots.some(s => s.label?.startsWith('change-') || s.hasChanges)
+                      const isSelected = selectedDate === dateStr
+                      const isToday = dateStr === new Date().toISOString().slice(0, 10)
+                      return (
+                        <div key={dateStr}
+                          onClick={() => hasSnapshots && setSelectedDate(isSelected ? null : dateStr)}
+                          style={{
+                            padding: '6px 2px', textAlign: 'center', borderRadius: 6, cursor: hasSnapshots ? 'pointer' : 'default',
+                            background: isSelected ? 'rgba(0,96,169,0.2)' : 'transparent',
+                            border: isToday ? '1px solid rgba(0,96,169,0.4)' : '1px solid transparent',
+                          }}>
+                          <div style={{ fontSize: 12, color: hasSnapshots ? 'var(--text-primary)' : '#cbd5e1', fontWeight: isSelected ? 700 : 400 }}>{day}</div>
+                          {hasSnapshots && (
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', margin: '2px auto 0', background: hasChanges ? '#f59e0b' : '#10b981' }} />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Snapshots for selected date */}
+                  {selectedDate && (
+                    <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 12 }}>
+                      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+                        {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                        {' — '}{filteredSnapshots.length} snapshot{filteredSnapshots.length !== 1 ? 's' : ''}
+                      </div>
+                      {filteredSnapshots.map(snapshot => (
               <div key={snapshot._blobKey} className={`gp-snap ${selectedSnapshot?._blobKey === snapshot._blobKey ? 'gp-snap--active' : ''}`}
                 onClick={() => setSelectedSnapshot(snapshot)}>
                 <div className="gp-snap-time">{new Date(snapshot.savedAt).toLocaleString()}</div>
@@ -317,6 +411,12 @@ export default function GenomePage() {
                     title={configsMatch(snapshot.resourceState, liveConfig) ? 'Live config already matches this snapshot' : isResourceGroupLevel ? 'Rollback all resources' : 'Rollback resource'}>
                     {activeActionBlobKey === snapshot._blobKey ? '...' : configsMatch(snapshot.resourceState, liveConfig) ? 'Already Applied' : isResourceGroupLevel ? 'Rollback All' : 'Rollback'}
                   </button>
+                  <button className="gp-snap-btn gp-snap-btn--green"
+                    onClick={e => { e.stopPropagation(); handleRecover(snapshot) }}
+                    disabled={activeActionBlobKey === snapshot._blobKey}
+                    title="Recover this deleted resource from snapshot">
+                    {activeActionBlobKey === snapshot._blobKey ? '...' : 'Recover'}
+                  </button>
                   <button className="gp-snap-btn gp-snap-btn--grey"
                     onClick={e => { e.stopPropagation(); handleDelete(snapshot) }}
                     disabled={activeActionBlobKey === snapshot._blobKey}>
@@ -324,7 +424,12 @@ export default function GenomePage() {
                   </button>
                 </div>
               </div>
-            ))}
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           {/* JSON viewer */}

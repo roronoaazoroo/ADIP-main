@@ -20,6 +20,7 @@ import { useDriftSocket } from '../hooks/useDriftSocket'
 import {fetchResourceConfiguration, stopMonitoring, cacheState } from '../services/api'
 import './DriftScanner.css'
 import { useDashboard } from '../context/DashboardContext'
+import { useViewMode } from '../context/ViewModeContext'
 import LiveActivityFeed from '../components/LiveActivityFeed'
 import ScopeSelector from '../components/ScopeSelector'
 import MultiSelectDropdown from '../components/MultiSelectDropdown'
@@ -70,6 +71,7 @@ export default function DriftScanner() {
     scanInterval, monitorScope, jsonTreeRef,
     scopes: ctxScopes, setScopes: setCtxScopes,
   } = useDashboard()
+  const { viewMode } = useViewMode()
   // Multi-scope: array of { id, subscriptionId, resourceGroupId, resourceId }
   // Use context scopes if available, otherwise initialize from single-scope context values
   const scopes = ctxScopes && ctxScopes.length > 0 ? ctxScopes : [{ id: 1, subscriptionId: subscription || '', resourceGroupId: resourceGroup || '', resourceId: resource || '' }]
@@ -420,10 +422,132 @@ export default function DriftScanner() {
                   {isScanning && !configData && (
                     <div className="ds-scanning">
                       <div className="ds-scanning-ring" />
-                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>Fetching resource configuration...</p>
+                      <p style={{ color: '#6b7280', fontSize: 13 }}>Fetching resource configuration...</p>
                     </div>
                   )}
-                  {configData && <JsonTree ref={jsonTreeRef} data={configData} />}
+                  {configData && viewMode === 'dev' && <JsonTree ref={jsonTreeRef} data={configData} />}
+                  {configData && viewMode === 'cto' && (() => {
+                    // Resource group level
+                    if (configData.resourceGroup || configData.resources) {
+                      const rg = configData.resourceGroup || {}
+                      const resourceList = configData.resources || []
+                      const sectionStyle = { marginBottom: 16, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }
+                      const labelStyle = { color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }
+                      const valueStyle = { color: '#fff', fontSize: 13, fontWeight: 500, marginTop: 2 }
+                      const rowStyle = { display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }
+                      const typeLabel = (type) => { const parts = (type || '').split('/'); return parts.length > 1 ? parts.slice(1).join('/') : type }
+                      return (
+                        <div style={{ padding: 16, fontSize: 13, overflowY: 'auto', maxHeight: '100%' }}>
+                          <div style={sectionStyle}>
+                            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Resource Group</div>
+                            <div style={rowStyle}><span style={labelStyle}>Name</span><span style={valueStyle}>{rg.name || '—'}</span></div>
+                            <div style={rowStyle}><span style={labelStyle}>Location</span><span style={valueStyle}>{rg.location || '—'}</span></div>
+                            <div style={rowStyle}><span style={labelStyle}>Status</span><span style={valueStyle}>{rg.properties?.provisioningState || '—'}</span></div>
+                            <div style={rowStyle}><span style={labelStyle}>Total Resources</span><span style={valueStyle}>{resourceList.length}</span></div>
+                            {rg.tags && Object.keys(rg.tags).length > 0 && (
+                              <div style={rowStyle}><span style={labelStyle}>Tags</span><span style={valueStyle}>{Object.entries(rg.tags).map(([k,v]) => `${k}=${v}`).join(', ')}</span></div>
+                            )}
+                          </div>
+                          <div style={sectionStyle}>
+                            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Resources ({resourceList.length})</div>
+                            {resourceList.map((resource, index) => (
+                              <div key={index} style={{ ...rowStyle, alignItems: 'center' }}>
+                                <div>
+                                  <div style={valueStyle}>{resource.name || resource.id?.split('/').pop()}</div>
+                                  <div style={{ ...labelStyle, marginTop: 2 }}>{typeLabel(resource.type)}</div>
+                                </div>
+                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{resource.location || ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    // Single resource level
+                    const props = configData.properties || {}
+                    const sku = configData.sku || {}
+                    const networkRules = props.networkAcls || props.networkRuleSet || {}
+                    const encryption = props.encryption || {}
+                    const endpoints = props.primaryEndpoints || {}
+                    const keyCreation = props.keyCreationTime || {}
+                    const boolIcon = (val) => val ? '\u2705 Yes' : '\u274C No'
+                    const sectionStyle = { marginBottom: 16, padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }
+                    const labelStyle = { color: 'rgba(255,255,255,0.4)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }
+                    const valueStyle = { color: '#fff', fontSize: 13, fontWeight: 500, marginTop: 2 }
+                    const rowStyle = { display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }
+                    return (
+                      <div style={{ padding: 16, fontSize: 13, overflowY: 'auto', maxHeight: '100%' }}>
+                        {/* Overview */}
+                        <div style={sectionStyle}>
+                          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Overview</div>
+                          <div style={rowStyle}><span style={labelStyle}>Name</span><span style={valueStyle}>{configData.name || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Type</span><span style={valueStyle}>{configData.type || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Region</span><span style={valueStyle}>{configData.location || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Kind</span><span style={valueStyle}>{configData.kind || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>SKU</span><span style={valueStyle}>{sku.name || '—'} / {sku.tier || '—'}</span></div>
+                        </div>
+                        {/* Configuration */}
+                        <div style={sectionStyle}>
+                          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Configuration</div>
+                          {props.dnsEndpointType && <div style={rowStyle}><span style={labelStyle}>DNS Endpoint Type</span><span style={valueStyle}>{props.dnsEndpointType}</span></div>}
+                          <div style={rowStyle}><span style={labelStyle}>Public Network Access</span><span style={valueStyle}>{props.publicNetworkAccess || 'Enabled'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Min TLS Version</span><span style={valueStyle}>{props.minimumTlsVersion || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Public Blob Access</span><span style={valueStyle}>{boolIcon(props.allowBlobPublicAccess)}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Allow Shared Key Access</span><span style={valueStyle}>{boolIcon(props.allowSharedKeyAccess)}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>HTTPS Only</span><span style={valueStyle}>{boolIcon(props.supportsHttpsTrafficOnly)}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Access Tier</span><span style={valueStyle}>{props.accessTier || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Status</span><span style={valueStyle}>{props.provisioningState || props.statusOfPrimary || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Creation Time</span><span style={valueStyle}>{props.creationTime || '—'}</span></div>
+                          <div style={rowStyle}><span style={labelStyle}>Primary Location</span><span style={valueStyle}>{props.primaryLocation || configData.location || '—'}</span></div>
+                        </div>
+                        {/* Network Rules */}
+                        {Object.keys(networkRules).length > 0 && (
+                          <div style={sectionStyle}>
+                            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Network Rules</div>
+                            <div style={rowStyle}><span style={labelStyle}>Default Action</span><span style={valueStyle}>{networkRules.defaultAction || '—'}</span></div>
+                            <div style={rowStyle}><span style={labelStyle}>Bypass</span><span style={valueStyle}>{networkRules.bypass || '—'}</span></div>
+                            <div style={rowStyle}><span style={labelStyle}>IP Rules</span><span style={valueStyle}>{(networkRules.ipRules || []).length ? networkRules.ipRules.map(r => r.value || r).join(', ') : 'None'}</span></div>
+                            <div style={rowStyle}><span style={labelStyle}>VNet Rules</span><span style={valueStyle}>{(networkRules.virtualNetworkRules || []).length || 'None'}</span></div>
+                          </div>
+                        )}
+                        {/* Encryption */}
+                        {Object.keys(encryption).length > 0 && (
+                          <div style={sectionStyle}>
+                            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Encryption</div>
+                            <div style={rowStyle}><span style={labelStyle}>Key Source</span><span style={valueStyle}>{encryption.keySource || '—'}</span></div>
+                            <div style={rowStyle}><span style={labelStyle}>Require Infrastructure Encryption</span><span style={valueStyle}>{boolIcon(encryption.requireInfrastructureEncryption)}</span></div>
+                          </div>
+                        )}
+                        {/* Primary Endpoints */}
+                        {Object.keys(endpoints).length > 0 && (
+                          <div style={sectionStyle}>
+                            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Primary Endpoints</div>
+                            {Object.entries(endpoints).map(([key, url]) => (
+                              <div key={key} style={rowStyle}><span style={labelStyle}>{key}</span><span style={{ ...valueStyle, fontSize: 11, wordBreak: 'break-all' }}>{url}</span></div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Key Creation Time */}
+                        {Object.keys(keyCreation).length > 0 && (
+                          <div style={sectionStyle}>
+                            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Key Creation Time</div>
+                            {Object.entries(keyCreation).map(([key, time]) => (
+                              <div key={key} style={rowStyle}><span style={labelStyle}>{key}</span><span style={valueStyle}>{time}</span></div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Tags */}
+                        {configData.tags && Object.keys(configData.tags).length > 0 && (
+                          <div style={sectionStyle}>
+                            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Tags</div>
+                            {Object.entries(configData.tags).map(([key, val]) => (
+                              <div key={key} style={rowStyle}><span style={labelStyle}>{key}</span><span style={valueStyle}>{val}</span></div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             )}

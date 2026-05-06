@@ -212,6 +212,37 @@ function startQueuePoller() {
               caller:         enriched.caller,
               detectedAt:     enriched.eventTime,
               changeCount:    enriched.changeCount || 0,
+              changeSummary:  (enriched.changes || []).slice(0, 5).filter(ch => {
+                const p = (ch.path || '').toLowerCase()
+                // Skip internal/volatile fields that produce noisy summaries
+                if (p.includes('_childconfig') || p.includes('storagetables') || p.includes('storagequeues') || p.includes('storagecontainers') || p.includes('fileshares')) return false
+                return true
+              }).map(ch => {
+                const field = (ch.path || '').split(' \u2192 ').pop() || ch.path || ''
+                const resourceName = (enriched.resourceId || '').split('/').pop() || 'resource'
+                // Tag-specific handling first
+                if ((ch.path || '').toLowerCase().includes('tag')) {
+                  if (ch.type === 'removed') return `removed tag "${field}" from ${resourceName}`
+                  if (ch.type === 'added') return `added tag ${field}: ${typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue).slice(0,20) : String(ch.newValue ?? '').slice(0,20)} on ${resourceName}`
+                  return `updated tag ${field} to ${typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue).slice(0,20) : String(ch.newValue ?? '').slice(0,20)} on ${resourceName}`
+                }
+                if (ch.type === 'removed') return `removed ${field} from ${resourceName}`
+                const valStr = (v) => typeof v === 'object' ? JSON.stringify(v).slice(0,25) : String(v ?? '').slice(0,25)
+                if (ch.type === 'added') return `added ${field}: ${valStr(ch.newValue)} to ${resourceName}`
+                const oldStr = typeof ch.oldValue === 'object' ? JSON.stringify(ch.oldValue).slice(0,20) : String(ch.oldValue ?? '')
+                const newStr = typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue).slice(0,20) : String(ch.newValue ?? '')
+                if (field.toLowerCase().includes('httpstraffic') || field.toLowerCase().includes('https'))
+                  return newStr === 'true' ? `enabled HTTPS enforcement on ${resourceName}` : `disabled HTTPS enforcement on ${resourceName}`
+                if (field.toLowerCase().includes('publicaccess') || field.toLowerCase().includes('blobaccesspublic'))
+                  return newStr === 'true' ? `enabled public blob access on ${resourceName}` : `disabled public blob access on ${resourceName}`
+                if (field.toLowerCase().includes('accesstier'))
+                  return `changed access tier from ${oldStr} to ${newStr} on ${resourceName}`
+                if (field.toLowerCase().includes('defaultaction'))
+                  return `changed network default action from ${oldStr} to ${newStr} on ${resourceName}`
+                if (field.toLowerCase().includes('tls'))
+                  return `changed minimum TLS version to ${newStr} on ${resourceName}`
+                return `changed ${field} from "${oldStr.slice(0,15)}" to "${newStr.slice(0,15)}" on ${resourceName}`
+              }).join('. ') || '',
               source:         'queue-poller',
             })
           } catch { /* non-fatal */ }
@@ -235,6 +266,30 @@ function startQueuePoller() {
             } catch (driftErr) {
               console.log('[queuePoller] driftIndex write failed (non-fatal):', driftErr.message)
             }
+          }
+
+          // Mark resource as deleted in driftIndex if delete event
+          if ((enriched.eventType || '').includes('Delete') && enriched.resourceId) {
+            try {
+              await getBlobServiceModule().saveDriftRecord({
+                subscriptionId: enriched.subscriptionId,
+                resourceId:     enriched.resourceId,
+                resourceGroup:  enriched.resourceGroup,
+                differences:    [{ type: 'removed', path: 'resource', oldValue: 'exists', newValue: 'deleted' }],
+                severity:       'critical',
+                changeCount:    1,
+                caller:         enriched.caller || 'System',
+                detectedAt:     enriched.eventTime || new Date().toISOString(),
+                eventType:      'deleted',
+              })
+            } catch { /* non-fatal */ }
+          }
+
+          // Auto-save genome snapshot on every change (Feature 2: change-triggered genome)
+          if (enriched.liveState && enriched.resourceId) {
+            const changeLabel = `change-${(enriched.eventTime || new Date().toISOString()).replace(/[:.]/g, '-')}`
+            getBlobServiceModule().saveGenomeSnapshot(enriched.subscriptionId, enriched.resourceId, enriched.liveState, changeLabel)
+              .catch(genomeErr => console.log('[queuePoller] genome save failed (non-fatal):', genomeErr.message))
           }
 
           if (global.io) {

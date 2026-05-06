@@ -191,10 +191,13 @@ async function getDriftHistory({ subscriptionId, startDate, endDate, resourceId,
 
 //  saveGenomeSnapshot START 
 // Writes blob + upserts index entity into genomeIndex table
-async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, label = '') {
+// retentionDays: org-level setting, defaults to 30
+async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, label = '', retentionDays = 30) {
   const ts  = new Date().toISOString()
   const key = `${ts.replace(/[:.]/g, '-')}_${Buffer.from(resourceId).toString('base64url')}.json`
-  const doc = { subscriptionId, resourceId, resourceState, label, savedAt: ts }
+  const expiresAt = new Date(Date.now() + retentionDays * 86400000).toISOString()
+  const hasChanges = label.startsWith('change-') || label.startsWith('promoted-')
+  const doc = { subscriptionId, resourceId, resourceState, label, savedAt: ts, expiresAt }
   await writeBlob('baseline-genome', key, doc)
 
   tableClient('genomeIndex')?.upsertEntity({
@@ -204,6 +207,8 @@ async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, lab
     resourceId:   resourceId || '',
     savedAt:      ts,
     label:        label || '',
+    expiresAt,
+    hasChanges,
   }, 'Replace').catch(() => {})
 
   return { ...doc, _blobKey: key }
@@ -314,12 +319,14 @@ async function saveChangeRecord(record) {
     blobKey:       key,
     resourceId:    record.resourceId    || '',
     resourceGroup: record.resourceGroup || '',
-    eventType:     record.eventType     || record.operationName || '',
+    eventType:     record.eventType     || '',
+    operationName: record.operationName || '',
     changeType:    record.changeType    || 'modified',
     severity:      record.severity      || 'low',
     caller:        record.caller        || '',
     detectedAt:    ts,
     changeCount:   record.changeCount   || record.differences?.length || 0,
+    changeSummary: record.changeSummary || '',
   }, 'Replace').catch(() => {})
 }
 //  saveChangeRecord END 
@@ -358,25 +365,67 @@ async function getRecentChanges({ subscriptionId, resourceGroup, caller, changeT
       resourceId:    entity.resourceId    || '',
       resourceGroup: entity.resourceGroup || '',
       eventType:     entity.eventType     || '',
-      operationName: entity.operationName || '',
+      operationName: entity.operationName || entity.eventType || '',
       changeType:    entity.changeType    || 'modified',
       caller:        entity.caller        || '',
       detectedAt:    entity.detectedAt    || '',
       changeCount:   entity.changeCount   || 0,
       severity:      entity.severity      || '',
+      changeSummary: entity.changeSummary || '',
       _blobKey:      entity.blobKey,
     })
   }
+  // Enrich events missing changeSummary by reading from driftIndex
+  const needsEnrichment = sortedResults => {
+    return sortedResults.map(async (event) => {
+      if (event.changeSummary || !event.resourceId) return event
+      try {
+        const driftTc = tableClient('driftIndex')
+        if (!driftTc) return event
+        const driftFilter = `PartitionKey eq '${subscriptionId}' and resourceId eq '${event.resourceId}' and detectedAt eq '${event.detectedAt}'`
+        for await (const driftEntity of driftTc.listEntities({ queryOptions: { filter: driftFilter } })) {
+          if (driftEntity.blobKey) {
+            const driftBlob = await readBlob('drift-records', driftEntity.blobKey).catch(() => null)
+            if (driftBlob?.differences?.length) {
+              const resourceName = (event.resourceId || '').split('/').pop()
+              event.changeSummary = driftBlob.differences.slice(0, 5)
+                .filter(d => !(d.path || '').toLowerCase().includes('_childconfig'))
+                .map(d => {
+                  const field = (d.path || '').split(' \u2192 ').pop() || d.path || ''
+                  if ((d.path || '').toLowerCase().includes('tag')) {
+                    if (d.type === 'removed') return `removed tag "${field}" from ${resourceName}`
+                    if (d.type === 'added') return `added tag ${field}: ${typeof d.newValue === 'object' ? JSON.stringify(d.newValue).slice(0,20) : String(d.newValue ?? '').slice(0,20)} on ${resourceName}`
+                    return `updated tag ${field} on ${resourceName}`
+                  }
+                  if (d.type === 'removed') return `removed ${field} from ${resourceName}`
+                  const nv = typeof d.newValue === 'object' ? JSON.stringify(d.newValue).slice(0,20) : String(d.newValue ?? '').slice(0,20)
+                  const ov = typeof d.oldValue === 'object' ? JSON.stringify(d.oldValue).slice(0,20) : String(d.oldValue ?? '').slice(0,20)
+                  if (field.toLowerCase().includes('https')) return nv === 'true' ? `enabled HTTPS on ${resourceName}` : `disabled HTTPS on ${resourceName}`
+                  if (field.toLowerCase().includes('accesstier')) return `changed access tier from ${ov} to ${nv} on ${resourceName}`
+                  if (field.toLowerCase().includes('defaultaction')) return `changed network default action to ${nv} on ${resourceName}`
+                  if (d.type === 'added') return `added ${field}: ${nv} on ${resourceName}`
+                  return `changed ${field} from ${ov} to ${nv} on ${resourceName}`
+                }).join('. ')
+            }
+          }
+          break
+        }
+      } catch { /* non-fatal */ }
+      return event
+    })
+  }
   const sortedResults = results.sort((a, b) => new Date(b.detectedAt) - new Date(a.detectedAt))
+  const enrichedResults = await Promise.all(needsEnrichment(sortedResults.slice(0, 20)))
+  const finalResults = [...enrichedResults, ...sortedResults.slice(20)]
 
   // Cache for 10 seconds — short enough to show new events quickly
-  _recentChangesCache.set(cacheKey, { data: sortedResults, expiresAt: Date.now() + 10000 })
+  _recentChangesCache.set(cacheKey, { data: finalResults, expiresAt: Date.now() + 10000 })
   // Prune stale entries to prevent unbounded growth
   for (const [key, entry] of _recentChangesCache) {
     if (entry.expiresAt < Date.now()) _recentChangesCache.delete(key)
   }
 
-  return sortedResults
+  return finalResults
 }
 //  getRecentChanges END 
 
