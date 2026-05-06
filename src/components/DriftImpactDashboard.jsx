@@ -256,8 +256,8 @@ export default function DriftImpactDashboard({ subscriptionId: propSubId }) {
                     <thead><tr><th>Resource</th><th>Drifts</th><th>Max Severity</th><th style={{ width: 40 }}></th></tr></thead>
                     <tbody>
                       {data.topResources.map((r, i) => (
-                        <>
-                          <tr key={i} className="an-tr" style={{ cursor: 'pointer' }}
+                        <React.Fragment key={i}>
+                          <tr className="an-tr" style={{ cursor: 'pointer' }}
                             onClick={() => setExpandedResource(expandedResource === r.resourceId ? null : r.resourceId)}>
                             <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.name}</td>
                             <td>{r.driftCount}</td>
@@ -275,7 +275,7 @@ export default function DriftImpactDashboard({ subscriptionId: propSubId }) {
                               </td>
                             </tr>
                           )}
-                        </>
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>

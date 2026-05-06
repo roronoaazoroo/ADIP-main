@@ -196,6 +196,8 @@ export default function ComparisonPage() {
     // Reset on scope change
     setBaselineConfig(null); setFieldDifferences([]); setBaselineNotFound(false)
     setCurrentLive(null); aiExplainedRef.current = false; setAiDriftExplanation(null)
+    setIsRemediating(false); setRemediationSucceeded(false); setRemediationError(null)
+    setRemediationDiffSummary(null); setIsPolicyCreated(false); setShowScheduleModal(false)
     if (!subscriptionId || !resourceGroupId || isRgOnly) { setIsLoadingBaseline(false); return }
     setIsLoadingBaseline(true)
 

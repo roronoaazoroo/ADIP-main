@@ -575,3 +575,281 @@
   width: 100%; height: 600px; border: none;
   border-radius: 0 0 12px 12px; background: #fff;
 }
+
+
+/* ── Prediction & Forecasting Tab ────────────────────────────── */
+.pf-empty {
+  text-align: center;
+  padding: 64px 24px;
+  color: #94a3b8;
+  font-size: 13px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f1f5f9;
+}
+
+.pf-empty strong { color: #003359; }
+
+.pf-empty-icon {
+  display: block;
+  font-size: 32px;
+  margin: 0 auto 12px;
+  color: #cbd5e1;
+}
+
+.pf-scope-tag {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f3f3f6;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+  align-items: flex-start;
+  gap: 20px;
+  padding: 28px 32px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.04), rgba(25,149,255,0.06), rgba(16,185,129,0.03));
+  border: 1px solid rgba(99,102,241,0.12);
+  border-radius: 20px;
+  animation: an-fadeIn 0.3s ease;
+}
+
+.pf-intro-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.2);
+}
+
+.pf-intro-icon-wrap .material-symbols-outlined {
+  font-size: 26px;
+  color: #fff;
+}
+
+.pf-intro-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #003359;
+  font-family: 'Manrope', 'Inter', sans-serif;
+  margin: 0 0 6px;
+}
+
+.pf-intro-desc {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.65;
+  margin: 0;
+  max-width: 700px;
+}
+
+/* ── Guide Cards Row ────────────────────────────────────────── */
+.pf-guide-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.pf-guide-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 12px rgba(31,97,154,0.05);
+  border: 1px solid rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.pf-guide-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(31,97,154,0.1);
+}
+
+.pf-guide-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-guide-icon .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.pf-guide-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #003359;
+  font-family: 'Manrope', 'Inter', sans-serif;
+}
+
+.pf-guide-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+/* ── Empty State ────────────────────────────────────────────── */
+.pf-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 64px 32px;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 4px 24px rgba(31,97,154,0.07);
+}
+
+.pf-empty-icon-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(0,51,89,0.06), rgba(0,96,169,0.08));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.pf-empty-icon-wrap .material-symbols-outlined {
+  font-size: 36px;
+  color: #004a7d;
+}
+
+.pf-empty-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #003359;
+  font-family: 'Manrope', 'Inter', sans-serif;
+  margin: 0 0 10px;
+}
+
+.pf-empty-desc {
+  font-size: 14px;
+  color: #64748b;
+  max-width: 480px;
+  line-height: 1.6;
+  margin: 0 0 32px;
+}
+
+.pf-empty-desc strong {
+  color: #003359;
+}
+
+/* Step flow */
+.pf-empty-steps {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pf-empty-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: #f3f3f6;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.pf-empty-step strong {
+  color: #003359;
+}
+
+.pf-step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #003359, #004a7d);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pf-empty-step-arrow {
+  color: #94a3b8;
+}
+
+.pf-empty-step-arrow .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* ── RG Badge ───────────────────────────────────────────────── */
+.pf-rg-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #f3f3f6;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #003359;
+}
+
+/* ── Forecast Chart Prompt ──────────────────────────────────── */
+.pf-chart-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.pf-chart-prompt p {
+  margin: 0;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+.pf-chart-prompt strong {
+  color: #003359;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .pf-guide-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .pf-guide-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pf-intro-banner {
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .pf-empty-steps {
+    flex-direction: column;
+  }
+
+  .pf-empty-step-arrow {
+    transform: rotate(90deg);
+  }
+}

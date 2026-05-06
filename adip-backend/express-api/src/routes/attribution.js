@@ -1,11 +1,10 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/routes/attribution.js
 // ROLE: Change Attribution endpoint
-//
+
 // GET /api/attribution?subscriptionId=&days=
 //   Aggregates changesIndex + driftIndex by caller identity.
 //   Returns per-caller: totalChanges, driftCount, topResourceType, riskLevel
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const { getChangesIndexTableClient, getDriftIndexTableClient } = require('../services/blobService')

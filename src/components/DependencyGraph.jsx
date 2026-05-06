@@ -2,216 +2,609 @@
 // FILE: src/components/DependencyGraph.jsx
 // ROLE: Renders the resource dependency graph for a resource group.
 //
-// Uses react-force-graph-2d for force-directed layout.
-// Nodes render with Azure service icons (official Microsoft icon CDN).
-// Drifted nodes get a red ring overlay.
-// Clicking a node navigates to its ComparisonPage.
+// Uses React Flow for a clean flowchart-style layout with dagre
+// for automatic hierarchical positioning. Nodes show Azure service
+// type, name, location, and drift status with severity rings.
+//
+// FEATURE: Clicking a node opens a slide-out detail panel showing
+// the resource configuration in a clean, human-readable card format.
 // ============================================================
-import React, { useState, useEffect, useRef } from 'react'
-import ForceGraph2D from 'react-force-graph-2d'
-import { fetchDependencyGraph } from '../services/api'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import ReactFlow, {
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  MarkerType,
+  Handle,
+  Position,
+} from 'reactflow'
+import dagre from 'dagre'
+import { fetchDependencyGraph, fetchResourceConfiguration } from '../services/api'
+import 'reactflow/dist/style.css'
+import './DependencyGraph.css'
 
-// Azure service icons — colored dots used as fallback
-const ICON_MAP = {}
-
-
-// Fallback color per type family (used when icon fails to load)
-const TYPE_COLOR = {
-  'microsoft.storage':     '#10b981',
-  'microsoft.compute':     '#f97316',
-  'microsoft.network':     '#1995ff',
-  'microsoft.web':         '#f59e0b',
-  'microsoft.logic':       '#a78bfa',
-  'microsoft.eventgrid':   '#ec4899',
-  'microsoft.insights':    '#64748b',
-  'microsoft.keyvault':    '#f59e0b',
-  'microsoft.cognitive':   '#06b6d4',
+// ── Azure type → icon + color mapping ────────────────────────────────────────
+const TYPE_META = {
+  'microsoft.storage':     { icon: 'database',         color: '#10b981', label: 'Storage' },
+  'microsoft.compute':     { icon: 'memory',           color: '#f97316', label: 'Compute' },
+  'microsoft.network':     { icon: 'lan',              color: '#1995ff', label: 'Network' },
+  'microsoft.web':         { icon: 'language',         color: '#f59e0b', label: 'Web' },
+  'microsoft.logic':       { icon: 'account_tree',     color: '#a78bfa', label: 'Logic' },
+  'microsoft.eventgrid':   { icon: 'bolt',             color: '#ec4899', label: 'Event Grid' },
+  'microsoft.insights':    { icon: 'monitoring',       color: '#64748b', label: 'Insights' },
+  'microsoft.keyvault':    { icon: 'vpn_key',          color: '#f59e0b', label: 'Key Vault' },
+  'microsoft.cognitive':   { icon: 'psychology',       color: '#06b6d4', label: 'Cognitive' },
+  'microsoft.sql':         { icon: 'storage',          color: '#4f46e5', label: 'SQL' },
+  'microsoft.containerservice': { icon: 'view_in_ar',  color: '#8b5cf6', label: 'AKS' },
 }
 
-function nodeColor(type) {
+function getTypeMeta(type) {
   const t = (type || '').toLowerCase()
-  for (const [prefix, color] of Object.entries(TYPE_COLOR)) {
-    if (t.startsWith(prefix)) return color
+  for (const [prefix, meta] of Object.entries(TYPE_META)) {
+    if (t.startsWith(prefix)) return meta
   }
-  return '#64748b'
+  return { icon: 'cloud', color: '#64748b', label: 'Resource' }
 }
 
-// Preloads an Image and returns it (cached)
-const _imgCache = {}
-function loadIcon(type) {
-  const key = (type || '').toLowerCase()
-  if (_imgCache[key]) return _imgCache[key]
-  const url = ICON_MAP[key]
-  if (!url) return null
-  const img = new Image()
-  img.src = url
-  img.crossOrigin = 'anonymous'
-  _imgCache[key] = img
-  return img
+// ── Severity styling ─────────────────────────────────────────────────────────
+const SEVERITY_STYLE = {
+  critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.5)', glow: '0 0 20px rgba(239,68,68,0.25)' },
+  high:     { color: '#f97316', bg: 'rgba(249,115,22,0.06)', border: 'rgba(249,115,22,0.4)', glow: '0 0 16px rgba(249,115,22,0.2)' },
+  medium:   { color: '#f59e0b', bg: 'rgba(245,158,11,0.05)', border: 'rgba(245,158,11,0.35)', glow: 'none' },
+  low:      { color: '#facc15', bg: 'rgba(250,204,21,0.04)', border: 'rgba(250,204,21,0.3)', glow: 'none' },
 }
 
+// ── Friendly property label mapping ──────────────────────────────────────────
+const FRIENDLY_LABELS = {
+  provisioningState: 'Status',
+  vmSize: 'VM Size',
+  osType: 'OS',
+  osDisk: 'OS Disk',
+  managedDisk: 'Managed Disk',
+  storageAccountType: 'Disk Type',
+  diskSizeGB: 'Disk Size (GB)',
+  adminUsername: 'Admin User',
+  computerName: 'Computer Name',
+  sku: 'SKU / Tier',
+  enableSoftDelete: 'Soft Delete',
+  enablePurgeProtection: 'Purge Protection',
+  enableRbacAuthorization: 'RBAC Auth',
+  defaultAction: 'Default Action',
+  bypass: 'Bypass',
+  networkAcls: 'Network Rules',
+  ipRules: 'IP Rules',
+  virtualNetworkRules: 'VNet Rules',
+  supportsHttpsTrafficOnly: 'HTTPS Only',
+  minimumTlsVersion: 'Min TLS Version',
+  allowBlobPublicAccess: 'Public Blob Access',
+  accessTier: 'Access Tier',
+  kind: 'Account Kind',
+  httpsOnly: 'HTTPS Only',
+  serverFarmId: 'App Service Plan',
+  state: 'State',
+  hostNames: 'Host Names',
+  enabledHostNames: 'Enabled Hosts',
+  siteConfig: 'Site Config',
+  linuxFxVersion: 'Runtime Stack',
+  ftpsState: 'FTPS State',
+  http20Enabled: 'HTTP/2',
+  alwaysOn: 'Always On',
+  addressSpace: 'Address Space',
+  addressPrefixes: 'Address Prefixes',
+  subnets: 'Subnets',
+  securityRules: 'Security Rules',
+  direction: 'Direction',
+  access: 'Access',
+  protocol: 'Protocol',
+  sourceAddressPrefix: 'Source',
+  destinationAddressPrefix: 'Destination',
+  destinationPortRange: 'Port Range',
+  priority: 'Priority',
+  ipConfigurations: 'IP Configs',
+  privateIPAddress: 'Private IP',
+  publicIPAddress: 'Public IP',
+  publicIPAllocationMethod: 'IP Allocation',
+  networkSecurityGroup: 'NSG',
+  dnsSettings: 'DNS Settings',
+  location: 'Region',
+  tags: 'Tags',
+  id: 'Resource ID',
+  name: 'Name',
+  type: 'Type',
+}
+
+function friendlyLabel(key) {
+  return FRIENDLY_LABELS[key] || key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, s => s.toUpperCase())
+    .replace(/_/g, ' ')
+    .trim()
+}
+
+// ── Value formatter for human-readable display ───────────────────────────────
+function formatValue(val) {
+  if (val === null || val === undefined) return '—'
+  if (typeof val === 'boolean') return val ? '✅ Yes' : '❌ No'
+  if (typeof val === 'number') return val.toLocaleString()
+  if (typeof val === 'string') {
+    if (val.length > 120) return val.slice(0, 117) + '…'
+    return val
+  }
+  if (Array.isArray(val)) {
+    if (val.length === 0) return 'None'
+    // Array of strings
+    if (typeof val[0] === 'string') return val.join(', ')
+    return `${val.length} item${val.length !== 1 ? 's' : ''}`
+  }
+  if (typeof val === 'object') {
+    const keys = Object.keys(val)
+    if (keys.length === 0) return '{}'
+    // Special: if object has id and name, show name
+    if (val.name) return val.name
+    if (val.id) return val.id.split('/').pop()
+    return `${keys.length} properties`
+  }
+  return String(val)
+}
+
+// Keys to skip in detail panel (too noisy / internal)
+const SKIP_KEYS = new Set(['id', 'etag', 'resourceGuid', 'uniqueId', 'tenantId', 'objectId'])
+
+// ── Resource Detail Panel Component ──────────────────────────────────────────
+function ResourceDetailPanel({ nodeData, configData, configLoading, configError, onClose, onCompare }) {
+  const meta = getTypeMeta(nodeData.type)
+  const sev = nodeData.isDrifted ? (SEVERITY_STYLE[nodeData.severity] || SEVERITY_STYLE.low) : null
+
+  // Flatten top-level and properties into display sections
+  const sections = useMemo(() => {
+    if (!configData) return []
+    const result = []
+
+    // 1. Overview section
+    const overview = {}
+    if (configData.name)     overview['Name'] = configData.name
+    if (configData.type)     overview['Type'] = configData.type
+    if (configData.location) overview['Region'] = configData.location
+    if (configData.kind)     overview['Kind'] = configData.kind
+    if (configData.sku) {
+      overview['SKU'] = typeof configData.sku === 'object'
+        ? [configData.sku.name, configData.sku.tier].filter(Boolean).join(' / ')
+        : configData.sku
+    }
+    if (Object.keys(overview).length) {
+      result.push({ title: 'Overview', icon: 'info', entries: Object.entries(overview) })
+    }
+
+    // 2. Properties section — the main config
+    const props = configData.properties || {}
+    const propEntries = []
+    const nestedSections = []
+
+    for (const [key, val] of Object.entries(props)) {
+      if (SKIP_KEYS.has(key)) continue
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        // Nested objects become sub-sections
+        const subEntries = Object.entries(val)
+          .filter(([k]) => !SKIP_KEYS.has(k))
+          .map(([k, v]) => [friendlyLabel(k), formatValue(v)])
+        if (subEntries.length > 0) {
+          nestedSections.push({ title: friendlyLabel(key), icon: 'settings', entries: subEntries })
+        }
+      } else if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
+        // Array of objects — show count + first item summary
+        const items = val.slice(0, 3).map((item, i) => {
+          const label = item.name || item.id?.split('/').pop() || `Item ${i + 1}`
+          const summary = Object.entries(item)
+            .filter(([k]) => !SKIP_KEYS.has(k) && k !== 'name' && k !== 'id')
+            .slice(0, 3)
+            .map(([k, v]) => `${friendlyLabel(k)}: ${formatValue(v)}`)
+            .join(' · ')
+          return [label, summary || '—']
+        })
+        if (val.length > 3) items.push([`+${val.length - 3} more`, ''])
+        nestedSections.push({ title: `${friendlyLabel(key)} (${val.length})`, icon: 'list', entries: items })
+      } else {
+        propEntries.push([friendlyLabel(key), formatValue(val)])
+      }
+    }
+
+    if (propEntries.length > 0) {
+      result.push({ title: 'Configuration', icon: 'tune', entries: propEntries })
+    }
+    result.push(...nestedSections)
+
+    // 3. Tags section
+    const tags = configData.tags || {}
+    const tagEntries = Object.entries(tags)
+    if (tagEntries.length > 0) {
+      result.push({ title: 'Tags', icon: 'sell', entries: tagEntries })
+    }
+
+    return result
+  }, [configData])
+
+  return (
+    <div className="dg-detail-overlay" onClick={onClose}>
+      <div className="dg-detail-panel" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="dg-detail-header">
+          <div className="dg-detail-header-top">
+            <div className="dg-detail-icon" style={{ background: `${meta.color}15`, color: meta.color }}>
+              <span className="material-symbols-outlined">{meta.icon}</span>
+            </div>
+            <button className="dg-detail-close" onClick={onClose} title="Close">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <h3 className="dg-detail-name">{nodeData.fullName}</h3>
+          <span className="dg-detail-type">{nodeData.type}</span>
+          {nodeData.location && (
+            <span className="dg-detail-location">
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>location_on</span>
+              {nodeData.location}
+            </span>
+          )}
+          {nodeData.isDrifted && (
+            <div className="dg-detail-drift-alert" style={{ borderColor: sev?.border, background: sev?.bg }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16, color: sev?.color }}>warning</span>
+              <span style={{ color: sev?.color, fontWeight: 600 }}>
+                {nodeData.driftCount} drift event{nodeData.driftCount !== 1 ? 's' : ''} — {nodeData.severity} severity
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="dg-detail-body">
+          {configLoading && (
+            <div className="dg-detail-loading">
+              <div className="dg-loading-ring" style={{ width: 28, height: 28 }} />
+              <span>Loading configuration…</span>
+            </div>
+          )}
+
+          {configError && (
+            <div className="dg-detail-error">
+              <span className="material-symbols-outlined">error_outline</span>
+              <span>{configError}</span>
+            </div>
+          )}
+
+          {!configLoading && !configError && sections.length === 0 && (
+            <div className="dg-detail-empty">
+              <span className="material-symbols-outlined" style={{ fontSize: 28, color: '#94a3b8' }}>description</span>
+              <span>No configuration data available</span>
+            </div>
+          )}
+
+          {sections.map((section, si) => (
+            <div className="dg-detail-section" key={si}>
+              <div className="dg-detail-section-title">
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{section.icon}</span>
+                {section.title}
+              </div>
+              <div className="dg-detail-grid">
+                {section.entries.map(([label, value], ei) => (
+                  <div className="dg-detail-row" key={ei}>
+                    <span className="dg-detail-key">{label}</span>
+                    <span className="dg-detail-val" title={typeof value === 'string' && value.length > 50 ? value : undefined}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer actions */}
+        <div className="dg-detail-footer">
+          {onCompare && (
+            <button className="dg-detail-btn dg-detail-btn--primary" onClick={() => onCompare(nodeData)}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>compare_arrows</span>
+              Compare Drift
+            </button>
+          )}
+          <button className="dg-detail-btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Custom Node Component ────────────────────────────────────────────────────
+function ResourceNode({ data }) {
+  const meta = getTypeMeta(data.type)
+  const sev = data.isDrifted ? (SEVERITY_STYLE[data.severity] || SEVERITY_STYLE.low) : null
+
+  return (
+    <div
+      className={`dg-node ${data.isDrifted ? 'dg-node--drifted' : ''}`}
+      style={{
+        borderColor: sev ? sev.border : 'rgba(0,0,0,0.08)',
+        background: sev ? sev.bg : '#ffffff',
+        boxShadow: sev ? sev.glow + ', 0 2px 12px rgba(0,0,0,0.06)' : '0 2px 12px rgba(0,0,0,0.06)',
+      }}
+    >
+      <Handle type="target" position={Position.Top} className="dg-handle" />
+
+      {/* Drift badge */}
+      {data.isDrifted && data.driftCount > 0 && (
+        <div className="dg-drift-badge" style={{ background: sev?.color || '#ef4444' }}>
+          {data.driftCount > 9 ? '9+' : data.driftCount}
+        </div>
+      )}
+
+      {/* Icon */}
+      <div className="dg-node-icon" style={{ background: `${meta.color}15`, color: meta.color }}>
+        <span className="material-symbols-outlined">{meta.icon}</span>
+      </div>
+
+      {/* Info */}
+      <div className="dg-node-info">
+        <span className="dg-node-name" title={data.fullName}>{data.label}</span>
+        <span className="dg-node-type">{meta.label}</span>
+      </div>
+
+      {/* Drift severity indicator */}
+      {data.isDrifted && (
+        <div className="dg-node-severity" style={{ color: sev?.color }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>warning</span>
+          <span>{data.severity}</span>
+        </div>
+      )}
+
+      <Handle type="source" position={Position.Bottom} className="dg-handle" />
+    </div>
+  )
+}
+
+const nodeTypes = { resource: ResourceNode }
+
+// ── Dagre layout ─────────────────────────────────────────────────────────────
+const NODE_WIDTH = 200
+const NODE_HEIGHT = 90
+
+function layoutGraph(nodes, edges) {
+  const g = new dagre.graphlib.Graph()
+  g.setDefaultEdgeLabel(() => ({}))
+  g.setGraph({ rankdir: 'TB', ranksep: 100, nodesep: 60, marginx: 40, marginy: 40 })
+
+  nodes.forEach(node => {
+    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+  })
+  edges.forEach(edge => {
+    g.setEdge(edge.source, edge.target)
+  })
+
+  dagre.layout(g)
+
+  return nodes.map(node => {
+    const pos = g.node(node.id)
+    return {
+      ...node,
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
+    }
+  })
+}
+
+// ── Main Component ───────────────────────────────────────────────────────────
 export default function DependencyGraph({ subscriptionId, resourceGroupId, onNodeClick }) {
-  const [graphData,  setGraphData]  = useState({ nodes: [], links: [] })
-  const [loading,    setLoading]    = useState(false)
-  const [error,      setError]      = useState(null)
-  const containerRef = useRef(null)
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
+  const [nodes, setNodes, onNodesChange] = useNodesState([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [isEmpty, setIsEmpty] = useState(false)
 
-  useEffect(() => {
-    if (!containerRef.current) return
-    const { offsetWidth, offsetHeight } = containerRef.current
-    setDimensions({ width: offsetWidth || 800, height: offsetHeight || 600 })
-  }, [containerRef.current])
+  // Detail panel state
+  const [selectedNode, setSelectedNode] = useState(null)
+  const [detailConfig, setDetailConfig] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState(null)
+
+  // Build unique legend from loaded nodes
+  const legend = useMemo(() => {
+    const seen = new Map()
+    nodes.forEach(n => {
+      const meta = getTypeMeta(n.data?.type)
+      if (!seen.has(meta.label)) seen.set(meta.label, meta)
+    })
+    return [...seen.entries()]
+  }, [nodes])
 
   useEffect(() => {
     if (!subscriptionId || !resourceGroupId) return
     let cancelled = false
     setLoading(true)
+    setError(null)
+    setIsEmpty(false)
+
     fetchDependencyGraph(subscriptionId, resourceGroupId)
       .then(data => {
         if (cancelled) return
-        const nodes = (data.nodes || [])
-        // Preload all icons
-        nodes.forEach(n => loadIcon(n.type))
-        setGraphData({ nodes, links: data.links || [] })
+        const rawNodes = data.nodes || []
+        const rawLinks = data.links || []
+
+        if (!rawNodes.length) {
+          setIsEmpty(true)
+          setLoading(false)
+          return
+        }
+
+        // Build React Flow nodes
+        const flowNodes = rawNodes.map(n => ({
+          id: n.id,
+          type: 'resource',
+          position: { x: 0, y: 0 },
+          data: {
+            label: (n.name || '').length > 20 ? n.name.slice(0, 18) + '…' : n.name,
+            fullName: n.name,
+            type: n.type,
+            isDrifted: n.isDrifted,
+            severity: n.severity || 'none',
+            driftCount: n.driftCount || 0,
+            lastDriftAt: n.lastDriftAt,
+            location: n.location,
+            id: n.id,
+          },
+        }))
+
+        // Build React Flow edges
+        const flowEdges = rawLinks.map((link, i) => ({
+          id: `e-${i}`,
+          source: link.source,
+          target: link.target,
+          label: link.label || '',
+          type: 'smoothstep',
+          animated: false,
+          style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+          labelStyle: { fontSize: 10, fill: '#64748b', fontWeight: 500 },
+          labelBgStyle: { fill: '#ffffff', fillOpacity: 0.9 },
+          labelBgPadding: [6, 3],
+          labelBgBorderRadius: 4,
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8', width: 16, height: 16 },
+        }))
+
+        // Apply dagre layout
+        const layoutedNodes = layoutGraph(flowNodes, flowEdges)
+        setNodes(layoutedNodes)
+        setEdges(flowEdges)
       })
       .catch(err => { if (!cancelled) setError(err.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
+
     return () => { cancelled = true }
   }, [subscriptionId, resourceGroupId])
 
-  // Custom canvas node renderer — severity-differentiated drift ring + drift count badge
-  const paintNode = (node, ctx, globalScale) => {
-    const r    = 18
-    const x    = node.x
-    const y    = node.y
-    const img  = loadIcon(node.type)
+  // Handle node click — open detail panel and fetch config
+  const onNodeClickHandler = useCallback((event, node) => {
+    const data = node.data
+    setSelectedNode(data)
+    setDetailConfig(null)
+    setDetailError(null)
+    setDetailLoading(true)
 
-    // Severity → ring style
-    const severityStyle = {
-      critical: { color: '#ef4444', width: 4,   glow: 'rgba(239,68,68,0.3)',   bg: 'rgba(239,68,68,0.2)' },
-      high:     { color: '#f97316', width: 3,   glow: 'rgba(249,115,22,0.25)', bg: 'rgba(249,115,22,0.15)' },
-      medium:   { color: '#f59e0b', width: 2.5, glow: null,                    bg: 'rgba(245,158,11,0.12)' },
-      low:      { color: '#facc15', width: 2,   glow: null,                    bg: 'rgba(250,204,21,0.1)' },
+    fetchResourceConfiguration(subscriptionId, resourceGroupId, data.id)
+      .then(config => {
+        setDetailConfig(config)
+      })
+      .catch(err => {
+        setDetailError(err.message || 'Failed to load configuration')
+      })
+      .finally(() => {
+        setDetailLoading(false)
+      })
+  }, [subscriptionId, resourceGroupId])
+
+  // Close detail panel
+  const closeDetail = useCallback(() => {
+    setSelectedNode(null)
+    setDetailConfig(null)
+    setDetailError(null)
+  }, [])
+
+  // Navigate to comparison page from detail panel
+  const handleCompare = useCallback((nodeData) => {
+    if (onNodeClick) {
+      onNodeClick({ id: nodeData.id, name: nodeData.fullName })
     }
-    const sev   = node.isDrifted ? (severityStyle[node.severity] || severityStyle.low) : null
-    const color = nodeColor(node.type)
+  }, [onNodeClick])
 
-    // Background circle
-    ctx.beginPath()
-    ctx.arc(x, y, r, 0, 2 * Math.PI)
-    ctx.fillStyle = sev ? sev.bg : 'rgba(255,255,255,0.08)'
-    ctx.fill()
-
-    // Glow for critical
-    if (sev?.glow) {
-      ctx.beginPath()
-      ctx.arc(x, y, r + 3, 0, 2 * Math.PI)
-      ctx.strokeStyle = sev.glow
-      ctx.lineWidth   = 6
-      ctx.stroke()
-    }
-
-    // Border ring
-    ctx.beginPath()
-    ctx.arc(x, y, r, 0, 2 * Math.PI)
-    ctx.strokeStyle = sev ? sev.color : color
-    ctx.lineWidth   = sev ? sev.width : 1.5
-    ctx.stroke()
-
-    // Azure icon
-    if (img?.complete && img.naturalWidth > 0) {
-      const iconSize = r * 1.4
-      try { ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize) } catch {}
-    } else {
-      ctx.beginPath()
-      ctx.arc(x, y, r * 0.5, 0, 2 * Math.PI)
-      ctx.fillStyle = color
-      ctx.fill()
-    }
-
-    // Drift count badge (top-right corner)
-    if (node.isDrifted && node.driftCount > 0) {
-      const bx = x + r * 0.7
-      const by = y - r * 0.7
-      ctx.beginPath()
-      ctx.arc(bx, by, 7, 0, 2 * Math.PI)
-      ctx.fillStyle = sev ? sev.color : '#ef4444'
-      ctx.fill()
-      ctx.font        = `bold ${Math.max(7, 9 / globalScale)}px Inter, sans-serif`
-      ctx.textAlign   = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillStyle   = '#fff'
-      ctx.fillText(node.driftCount > 9 ? '9+' : String(node.driftCount), bx, by)
-    }
-
-    // Label
-    const label    = node.name || ''
-    const fontSize = Math.max(8, 11 / globalScale)
-    ctx.font        = `${fontSize}px Inter, sans-serif`
-    ctx.textAlign   = 'center'
-    ctx.textBaseline = 'top'
-    ctx.fillStyle   = sev ? sev.color : '#e2e8f0'
-    ctx.fillText(label.length > 18 ? label.slice(0, 16) + '…' : label, x, y + r + 3)
-  }
+  // Minimap node color
+  const minimapColor = useCallback((node) => {
+    const meta = getTypeMeta(node.data?.type)
+    return node.data?.isDrifted ? '#ef4444' : meta.color
+  }, [])
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', fontSize: 14 }}>
-      Building dependency graph...
+    <div className="dg-status">
+      <div className="dg-loading-ring" />
+      <p>Building resource topology…</p>
     </div>
   )
   if (error) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#ef4444', fontSize: 14 }}>
-      {error}
+    <div className="dg-status dg-status--error">
+      <span className="material-symbols-outlined" style={{ fontSize: 32 }}>error_outline</span>
+      <p>{error}</p>
     </div>
   )
-  if (!graphData.nodes.length) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: 14 }}>
-      No resources found in this resource group.
+  if (isEmpty) return (
+    <div className="dg-status">
+      <span className="material-symbols-outlined" style={{ fontSize: 32, color: '#94a3b8' }}>device_hub</span>
+      <p>No resources found in this resource group.</p>
     </div>
   )
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <ForceGraph2D
-        graphData={graphData}
-        width={dimensions.width}
-        height={dimensions.height}
-        nodeLabel={node => {
-          let label = `${node.name}\n${node.type}`
-          if (node.isDrifted) {
-            label += `\n⚠ ${node.driftCount || 1} drift event${(node.driftCount || 1) !== 1 ? 's' : ''} (${node.severity})`
-            if (node.lastDriftAt) {
-              const ago = Math.round((Date.now() - new Date(node.lastDriftAt)) / 3600000)
-              label += `\nLast: ${ago < 24 ? ago + 'h ago' : Math.round(ago/24) + 'd ago'}`
-            }
-          }
-          return label
-        }}
-        nodeCanvasObject={paintNode}
-        nodeCanvasObjectMode={() => 'replace'}
-        nodeRelSize={18}
-        linkLabel={link => link.label || ''}
-        linkColor={() => 'rgba(100,116,139,0.5)'}
-        linkDirectionalArrowLength={4}
-        linkDirectionalArrowRelPos={1}
-        linkCurvature={0.1}
-        onNodeClick={undefined}
-        backgroundColor="transparent"
-      />
+    <div className="dg-container">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClickHandler}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.3}
+        maxZoom={2}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background color="#e2e8f0" gap={20} size={1} />
+        <Controls
+          showInteractive={false}
+          className="dg-controls"
+        />
+        <MiniMap
+          nodeColor={minimapColor}
+          maskColor="rgba(243,243,246,0.7)"
+          className="dg-minimap"
+          pannable
+          zoomable
+        />
+      </ReactFlow>
 
       {/* Legend */}
-      <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(15,23,42,0.85)', padding: '10px 14px', borderRadius: 8, fontSize: 12, color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>Legend</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #ef4444', background: 'rgba(239,68,68,0.15)', display: 'inline-block' }} />
-          Drifted recently
+      <div className="dg-legend">
+        <div className="dg-legend-title">Resource Types</div>
+        {legend.map(([label, meta]) => (
+          <div key={label} className="dg-legend-item">
+            <span className="dg-legend-dot" style={{ background: meta.color }} />
+            {label}
+          </div>
+        ))}
+        <div className="dg-legend-divider" />
+        <div className="dg-legend-item">
+          <span className="dg-legend-dot dg-legend-dot--drift" />
+          Drifted
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 12, height: 12, borderRadius: '50%', border: '1.5px solid #64748b', background: 'rgba(255,255,255,0.08)', display: 'inline-block' }} />
+        <div className="dg-legend-item">
+          <span className="dg-legend-dot dg-legend-dot--ok" />
           No drift
         </div>
       </div>
+
+      {/* Click hint */}
+      <div className="dg-click-hint">
+        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>touch_app</span>
+        Click a resource to view its configuration
+      </div>
+
+      {/* Detail panel — slides in when a node is clicked */}
+      {selectedNode && (
+        <ResourceDetailPanel
+          nodeData={selectedNode}
+          configData={detailConfig}
+          configLoading={detailLoading}
+          configError={detailError}
+          onClose={closeDetail}
+          onCompare={onNodeClick ? handleCompare : null}
+        />
+      )}
     </div>
   )
 }

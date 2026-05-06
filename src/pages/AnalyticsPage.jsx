@@ -1,11 +1,6 @@
 // FILE: src/pages/AnalyticsPage.jsx
 // ROLE: Drift Analytics & Insights — trend reports, impact analysis, prediction & forecasting
 
-// Three tabs:
-//   1. Drift Analysis & Trend Reports  — trend charts, severity breakdown, top drifted resources
-//   2. Drift Impact Analysis            — impact scores, risk matrix, most impacted groups
-//   3. Drift Prediction & Forecasting   — AI predictions, forecast chart, risk projections
-
 import React, { useState } from 'react'
 import RgDriftPrediction from '../components/RgDriftPrediction'
 import DriftForecastChart from '../components/DriftForecastChart'
@@ -17,8 +12,6 @@ import TopChangers from '../components/TopChangers'
 import CostImpactDashboard from '../components/CostImpactDashboard'
 import './AnalyticsPage.css'
 
-// MAIN PAGE COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
 const TABS = [
   { key: 'impact',     label: 'Drift Analysis & Trends',    icon: 'trending_up' },
   { key: 'prediction', label: 'Prediction & Forecasting',   icon: 'auto_graph' },
@@ -38,7 +31,6 @@ export default function AnalyticsPage() {
       <NavBar user={user} subscription={subscription} resourceGroup={resourceGroup} resource={resource} configData={configData} />
 
       <main className="an-main" id="main-content" role="main">
-        {/* Header */}
         <header className="an-header">
           <div>
             <h1 className="an-headline">Drift Analytics</h1>
@@ -52,7 +44,6 @@ export default function AnalyticsPage() {
           </div>
         </header>
 
-        {/* Tab bar */}
         <div className="an-tab-bar" role="tablist" aria-label="Analytics views">
           {TABS.map(tab => (
             <button
@@ -61,7 +52,6 @@ export default function AnalyticsPage() {
               onClick={() => setActiveTab(tab.key)}
               role="tab"
               aria-selected={activeTab === tab.key}
-              aria-controls={`tab-panel-${tab.key}`}
             >
               <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{tab.icon}</span>
               {tab.label}
@@ -69,7 +59,7 @@ export default function AnalyticsPage() {
           ))}
         </div>
 
-        {/* ═══ TAB 2: Drift Impact Analysis ═════════════════════════════════ */}
+        {/* ═══ Drift Analysis & Trends ═══ */}
         {activeTab === 'impact' && (
           <div className="an-tab-content" key="impact">
             <DriftImpactDashboard subscriptionId={activeSubscriptionId} />
@@ -79,40 +69,55 @@ export default function AnalyticsPage() {
           </div>
         )}
 
-        {/* ═══ TAB 3: Prediction & Forecasting ══════════════════════════════ */}
+        {/* ═══ Prediction & Forecasting ═══ */}
         {activeTab === 'prediction' && (
           <div className="an-tab-content" key="prediction">
-
-            {/* RG-level bubble matrix + heatmap + AI prediction cards */}
-            {resourceGroup && (
-              <div className="an-card an-card--full">
-                <div className="an-card-header">
-                  <div className="an-card-title-row">
-                    <span className="material-symbols-outlined an-card-icon">hub</span>
-                    <span className="an-card-title">Resource Group Drift Analysis</span>
-                    <span className="an-card-badge an-card-badge--ai">
-                      <span className="material-symbols-outlined" style={{ fontSize: 12 }}>auto_awesome</span>
-                      AI Powered
-                    </span>
-                  </div>
-                </div>
-                <div className="an-card-body">
-                  <RgDriftPrediction subscriptionId={activeSubscriptionId} resourceGroup={resourceGroup} />
-                </div>
+            {!resourceGroup ? (
+              <div className="pf-empty">
+                <span className="material-symbols-outlined pf-empty-icon">radar</span>
+                <p>Select a subscription and resource group on the <strong>Drift Scanner</strong>, then run a scan to see predictions here.</p>
               </div>
-            )}
+            ) : (
+              <>
+                {/* Main prediction dashboard */}
+                <RgDriftPrediction
+                  subscriptionId={activeSubscriptionId}
+                  resourceGroup={resourceGroup}
+                />
 
+                {/* Drift timeline for selected resource */}
+                {resource && (
+                  <div className="an-card an-card--full" style={{ marginTop: 8 }}>
+                    <div className="an-card-header">
+                      <div className="an-card-title-row">
+                        <span className="material-symbols-outlined an-card-icon">bar_chart</span>
+                        <span className="an-card-title">Drift Timeline</span>
+                      </div>
+                      <span className="pf-scope-tag">
+                        {resource.split('/').pop()}
+                      </span>
+                    </div>
+                    <div className="an-card-body">
+                      <DriftForecastChart
+                        subscriptionId={activeSubscriptionId}
+                        resourceId={resource}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
-
-        {/* ═══ TAB 4: Reports ═══════════════════════════════════════════ */}
+        {/* ═══ Cost Impact ═══ */}
         {activeTab === 'cost' && (
           <div className="an-tab-content" key="cost">
             <CostImpactDashboard subscriptionId={activeSubscriptionId} />
           </div>
         )}
 
+        {/* ═══ Reports ═══ */}
         {activeTab === 'reports' && (
           <div className="an-tab-content" key="reports">
             <ReportsDashboard subscriptionId={activeSubscriptionId} />
