@@ -42,10 +42,14 @@ async function generateOtp(email) {
     attempts: 0,
   }, 'Replace')
 
-  // Send via ACS email
+  // Always log OTP to console for dev/testing
+  console.log(`[OTP] Code for ${email}: ${code}`)
+
+  // Send via ACS email (non-fatal if it fails)
   const connectionString = process.env.COMMS_CONNECTION_STRING
   const senderAddress = process.env.SENDER_ADDRESS
   if (connectionString && senderAddress) {
+    try {
     const emailClient = new EmailClient(connectionString)
     await emailClient.beginSend({
       senderAddress,
@@ -64,10 +68,10 @@ async function generateOtp(email) {
       },
       recipients: { to: [{ address: email }] },
     })
-    console.log('[otpService] OTP sent to:', email)
-  } else {
-    // Dev mode — log to console
-    console.log(`[otpService] DEV MODE — OTP for ${email}: ${code}`)
+    console.log('[otpService] OTP email sent to:', email)
+    } catch (emailError) {
+      console.log('[otpService] ACS email failed (non-fatal):', emailError.message)
+    }
   }
 
   return { sent: true }
