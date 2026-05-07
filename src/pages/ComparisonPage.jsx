@@ -528,17 +528,23 @@ export default function ComparisonPage() {
           </div>
         )}
 
-        {/* View mode toggle: Individual / Aggregated */}
+        {/* View mode tab bar */}
         {!isLoadingBaseline && baselineConfig && fieldDifferences.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
-            <button onClick={() => setDriftViewMode('individual')}
-              style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                background: driftViewMode === 'individual' ? '#0060a9' : 'rgba(255,255,255,0.04)', color: driftViewMode === 'individual' ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+          <div className="cp-view-tabs" role="tablist" aria-label="Drift view mode">
+            <button
+              className={`cp-view-tab ${driftViewMode === 'individual' ? 'cp-view-tab--active' : ''}`}
+              onClick={() => setDriftViewMode('individual')}
+              role="tab"
+              aria-selected={driftViewMode === 'individual'}
+            >
               Individual Changes
             </button>
-            <button onClick={() => setDriftViewMode('aggregated')}
-              style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                background: driftViewMode === 'aggregated' ? '#0060a9' : 'rgba(255,255,255,0.04)', color: driftViewMode === 'aggregated' ? '#fff' : 'rgba(255,255,255,0.5)' }}>
+            <button
+              className={`cp-view-tab ${driftViewMode === 'aggregated' ? 'cp-view-tab--active' : ''}`}
+              onClick={() => setDriftViewMode('aggregated')}
+              role="tab"
+              aria-selected={driftViewMode === 'aggregated'}
+            >
               Aggregated + AI Recommendations
             </button>
           </div>
@@ -546,7 +552,7 @@ export default function ComparisonPage() {
 
         {/* Aggregated view with AI recommendations */}
         {driftViewMode === 'aggregated' && !isLoadingBaseline && baselineConfig && fieldDifferences.length > 0 && (
-          <div className="cp-card">
+          <div className="cp-card cp-tab-panel">
             <AggregatedDriftView
               subscriptionId={subscriptionId}
               resourceGroupId={resourceGroupId}
@@ -559,7 +565,7 @@ export default function ComparisonPage() {
 
         {/* Changes summary — Dev view shows detailed diff table, CTO view handled above */}
         {driftViewMode === 'individual' && viewMode === 'dev' && !isLoadingBaseline && baselineConfig && (
-          <div className="cp-card">
+          <div className="cp-card cp-tab-panel">
             <div className="cp-card-header">
               <span className="material-symbols-outlined" style={{ color: '#0060a9' }}>info</span>
               <h3>{fieldDifferences.length === 0 ? 'In sync with baseline' : `${fieldDifferences.length} change(s) detected`}</h3>

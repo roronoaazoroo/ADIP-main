@@ -4,12 +4,12 @@
 //       with checkboxes to selectively revert or keep changes
 // ============================================================
 import React, { useState, useEffect } from 'react'
-import { fetchRecommendations, createTicket } from '../services/api'
+import { fetchRecommendations, createTicket, uploadBaseline } from '../services/api'
 
 const INTENT_OPTIONS = [
-  { key: 'security', label: '🔒 Security', color: '#ef4444' },
-  { key: 'cost', label: '💰 Cost', color: '#f59e0b' },
-  { key: 'compliance', label: '📋 Compliance', color: '#0060a9' },
+  { key: 'security', label: 'Security' },
+  { key: 'cost', label: 'Cost' },
+  { key: 'compliance', label: 'Compliance' },
 ]
 
 const PRIORITY_COLOR = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', keep: '#10b981' }
@@ -62,15 +62,15 @@ export default function AggregatedDriftView({ subscriptionId, resourceGroupId, r
   return (
     <div style={{ padding: 16 }}>
       {/* Intent selector */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div className="cp-view-tabs" role="tablist" style={{ marginBottom: 16 }}>
         {INTENT_OPTIONS.map(option => (
-          <button key={option.key} onClick={() => setIntent(option.key)}
-            style={{
-              padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              background: intent === option.key ? `${option.color}20` : 'rgba(255,255,255,0.04)',
-              color: intent === option.key ? option.color : 'rgba(255,255,255,0.5)',
-              border: `1px solid ${intent === option.key ? option.color + '40' : 'rgba(255,255,255,0.08)'}`,
-            }}>
+          <button 
+            key={option.key} 
+            onClick={() => setIntent(option.key)}
+            className={`cp-view-tab ${intent === option.key ? 'cp-view-tab--active' : ''}`}
+            role="tab"
+            aria-selected={intent === option.key}
+          >
             {option.label}
           </button>
         ))}
@@ -117,6 +117,24 @@ export default function AggregatedDriftView({ subscriptionId, resourceGroupId, r
       {/* Actions */}
       {!loading && recommendations.length > 0 && (
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button onClick={async () => {
+            const toKeep = [...selected].map(i => recommendations[i]).filter(r => r.action === 'keep' || r.action === 'revert')
+            if (!toKeep.length) { setFeedback('No items selected'); return }
+            setApplyingTickets(true)
+            try {
+              // Fetch current live config and save as new baseline (accepts current state)
+              const { fetchResourceConfiguration } = await import('../services/api')
+              const liveConfig = await fetchResourceConfiguration(subscriptionId, resourceGroupId, resourceId || null)
+              if (liveConfig) {
+                await uploadBaseline(subscriptionId, resourceGroupId, resourceId || resourceGroupId, liveConfig)
+                setFeedback(`Baseline updated — ${toKeep.length} change(s) accepted as new baseline`)
+              }
+            } catch (err) { setFeedback(`Error: ${err.message}`) }
+            finally { setApplyingTickets(false) }
+          }} disabled={!selected.size || applyingTickets}
+            style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !selected.size ? 0.4 : 1 }}>
+            {applyingTickets ? 'Updating...' : `Keep Selected (${selected.size})`}
+          </button>
           <button onClick={handleApplySelected} disabled={!selected.size || applyingTickets}
             style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: '#0060a9', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !selected.size ? 0.4 : 1 }}>
             {applyingTickets ? 'Creating ticket...' : `Apply Selected (${selected.size})`}

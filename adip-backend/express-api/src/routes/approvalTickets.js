@@ -53,6 +53,14 @@ async function getRequiredApprovals(orgId, resourceId) {
         }
       } catch {}
     }
+    // Per-resource override check
+    if (resourceId) {
+      try {
+        const overrideTc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'approvalOverrides')
+        const override = await overrideTc.getEntity(orgId, Buffer.from(resourceId).toString('base64url').slice(0, 200))
+        if (override.requiredApprovals) return Number(override.requiredApprovals)
+      } catch {}
+    }
     return org.requiredApprovals || 2
   } catch { return 2 }
 }

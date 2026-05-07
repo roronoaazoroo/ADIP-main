@@ -29,7 +29,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 async function ensureTables() {
   const { TableServiceClient } = require('@azure/data-tables')
   const svc = TableServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings','organizations','orgMembers','notifications','approvalTickets','otpCodes','orgAdmins']
+  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings','organizations','orgMembers','notifications','approvalTickets','otpCodes','orgAdmins','approvalOverrides']
   for (const name of required) {
     await svc.createTable(name).catch(() => {})  // no-op if already exists
   }
@@ -170,6 +170,27 @@ server.listen(PORT, () => {
 // Schedule poller — processes due remediation schedules every 60 seconds
 const { processDueSchedules } = require('./services/remediationScheduleService')
 setInterval(() => processDueSchedules().catch(err => console.log('[schedulePoller] error:', err.message)), 60000)
+
+// Ticket timeout: check pending tickets every 60s, escalate after 48h, auto-reject after 96h
+setInterval(async () => {
+  try {
+    const { TableClient } = require('@azure/data-tables')
+    const tc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'approvalTickets')
+    const now = Date.now()
+    for await (const entity of tc.listEntities({ queryOptions: { filter: `status eq 'pending'` } })) {
+      const ageHours = (now - new Date(entity.createdAt).getTime()) / 3600000
+      if (ageHours >= 96) {
+        await tc.upsertEntity({ ...entity, status: 'rejected', rejectedBy: 'System (timeout)', rejectionReason: 'Auto-rejected after 96h without sufficient approvals', resolvedAt: new Date().toISOString() }, 'Replace')
+        console.log('[ticketTimeout] auto-rejected ticket:', entity.ticketId)
+      } else if (ageHours >= 48 && !entity.escalated) {
+        await tc.upsertEntity({ ...entity, escalated: true }, 'Replace')
+        const { notifyAllMembers } = require('./routes/orgManagement')
+        await notifyAllMembers(entity.partitionKey, `Ticket for ${entity.resourceName} has been pending for 48h — needs attention`, 'ticket_escalated')
+        console.log('[ticketTimeout] escalated ticket:', entity.ticketId)
+      }
+    }
+  } catch (err) { console.log('[ticketTimeout] error:', err.message) }
+}, 60000)
 
 // Genome: daily snapshots at 7 PM (19:00) + cleanup expired genomes
 const { createDailySnapshots, cleanupExpiredGenomes } = require('./services/genomeScheduler')

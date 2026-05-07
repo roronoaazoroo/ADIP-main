@@ -524,8 +524,8 @@ export default function DashboardHome() {
                           <td className="dh-td-rg">{changeEvent.resourceGroup || '—'}</td>
                           <td className="dh-td-operation" title={changeEvent.operationName}>{shortOperationName || '—'}</td>
                           <td>
-                            <span className={`dh-change-badge dh-change-badge--${isDeleteEvent ? 'deleted' : 'modified'}`}>
-                              {changeEvent.changeType || 'modified'}
+                            <span className={`dh-change-badge dh-change-badge--${isDeleteEvent ? 'deleted' : 'modified'}`} style={isDeleteEvent ? { background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 700 } : {}}>
+                              {isDeleteEvent ? '🗑 DELETED' : (changeEvent.changeType || 'modified')}
                             </span>
                           </td>
                         </tr>
