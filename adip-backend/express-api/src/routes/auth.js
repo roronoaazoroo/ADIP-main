@@ -219,11 +219,13 @@ router.post('/auth/login', async (req, res) => {
   try {
     // Search orgAdmins first, then orgMembers
     let member = null
-    for await (const entity of orgAdminsTable().listEntities()) {
-      if (entity.email === email.toLowerCase()) {
-        if (!member || (entity.joinedAt || '') > (member.joinedAt || '')) member = entity
+    try {
+      for await (const entity of orgAdminsTable().listEntities()) {
+        if (entity.email === email.toLowerCase()) {
+          if (!member || (entity.joinedAt || '') > (member.joinedAt || '')) member = entity
+        }
       }
-    }
+    } catch { /* orgAdmins table may not exist yet */ }
     if (!member) {
       for await (const entity of orgMembersTable().listEntities()) {
         if (entity.email === email.toLowerCase()) {
@@ -231,7 +233,11 @@ router.post('/auth/login', async (req, res) => {
         }
       }
     }
-    if (!member) return res.status(401).json({ error: 'Invalid email or password' })
+    if (!member) {
+      console.log('[login] no member found for email:', email.toLowerCase())
+      return res.status(401).json({ error: 'Invalid email or password' })
+    }
+    console.log('[login] found member:', member.email, 'role:', member.role, 'orgId:', member.partitionKey)
 
     const isValid = await bcrypt.compare(password, member.passwordHash)
     if (!isValid) return res.status(401).json({ error: 'Invalid email or password' })

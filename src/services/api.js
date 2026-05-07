@@ -280,6 +280,23 @@ export async function deleteGenomeSnapshot(subscriptionId, blobKey) {
 }
 
 
+
+// ── Genome Config Viewer ─────────────────────────────────────────────────────
+
+
+export async function fetchBestConfigs(subscriptionId, resourceId) {
+  return apiRequest(`/genome/best-configs?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceId=${encodeURIComponent(resourceId)}`)
+}
+export async function fetchCategorizedGenomeHistory(subscriptionId, resourceId) {
+  return apiRequest(`/genome/categorize?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceId=${encodeURIComponent(resourceId)}`)
+}
+export async function fetchGenomeConfig(blobKey, subscriptionId = '', resourceId = '') {
+  const params = new URLSearchParams({ blobKey })
+  if (subscriptionId) params.set('subscriptionId', subscriptionId)
+  if (resourceId) params.set('resourceId', resourceId)
+  return apiRequest(`/genome/config?${params}`)
+}
+
 export default {
   fetchSubscriptions,
   fetchResourceGroups,

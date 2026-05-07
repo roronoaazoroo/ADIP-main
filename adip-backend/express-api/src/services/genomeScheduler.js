@@ -24,7 +24,7 @@ function organizationsTable() {
  */
 async function createDailySnapshots() {
   console.log('[createDailySnapshots] starts')
-  const { saveGenomeSnapshot } = require('./blobService')
+  const { saveDailySnapshot } = require('./blobService')
   const today = new Date().toISOString().slice(0, 10)
 
   // Get retention from org settings (default 30)
@@ -59,7 +59,7 @@ async function createDailySnapshots() {
       const resourceGroupId = parts[4] || ''
       const liveConfig = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
       if (liveConfig) {
-        await saveGenomeSnapshot(subscriptionId, resourceId, liveConfig, `daily-${today}`, retentionDays)
+        await saveDailySnapshot(subscriptionId, resourceId, liveConfig, '')
         created++
       }
     } catch (error) {
@@ -103,4 +103,61 @@ async function cleanupExpiredGenomes() {
   return { deleted }
 }
 
-module.exports = { createDailySnapshots, cleanupExpiredGenomes }
+
+/**
+ * Creates 'stable' genome snapshots for resources with no changes in the last 24 hours.
+ * Idempotent: skips if a stable snapshot already exists for today.
+ */
+async function createInactivitySnapshots() {
+  console.log('[createInactivitySnapshots] starts')
+  const { saveGenomeSnapshot, getChangesIndexTableClient } = require('./blobService')
+  const today = new Date().toISOString().slice(0, 10)
+  const cutoff = new Date(Date.now() - 24 * 3600000).toISOString()
+
+  const resourceMap = {} // { resourceId: subscriptionId }
+  try {
+    for await (const entity of genomeIndexTable().listEntities()) {
+      if (entity.resourceId && !resourceMap[entity.resourceId]) {
+        if (entity.snapshotType === 'stable' && entity.savedAt?.startsWith(today)) {
+          resourceMap[entity.resourceId] = null
+        } else if (resourceMap[entity.resourceId] === undefined) {
+          resourceMap[entity.resourceId] = entity.partitionKey
+        }
+      }
+    }
+  } catch (error) {
+    console.log('[createInactivitySnapshots] error listing genomes:', error.message)
+    return { created: 0 }
+  }
+
+  let created = 0
+  const changesTable = getChangesIndexTableClient()
+
+  for (const [resourceId, subscriptionId] of Object.entries(resourceMap)) {
+    if (!subscriptionId) continue
+    try {
+      let hasRecentChange = false
+      const filter = `PartitionKey eq '${subscriptionId}' and resourceId eq '${resourceId}' and detectedAt ge '${cutoff}'`
+      for await (const _ of changesTable.listEntities({ queryOptions: { filter } })) {
+        hasRecentChange = true
+        break
+      }
+      if (hasRecentChange) continue
+
+      const parts = resourceId.split('/')
+      const resourceGroupId = parts[4] || ''
+      const liveConfig = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+      if (liveConfig) {
+        await saveGenomeSnapshot(subscriptionId, resourceId, liveConfig, `stable-${today}`, 30, 'stable')
+        created++
+      }
+    } catch (error) {
+      console.log('[createInactivitySnapshots] error for', resourceId.split('/').pop(), ':', error.message)
+    }
+  }
+
+  console.log('[createInactivitySnapshots] ends - created:', created)
+  return { created }
+}
+
+module.exports = { createDailySnapshots, cleanupExpiredGenomes, createInactivitySnapshots }

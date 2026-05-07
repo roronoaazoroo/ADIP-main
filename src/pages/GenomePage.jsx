@@ -398,6 +398,7 @@ export default function GenomePage() {
                 onClick={() => setSelectedSnapshot(snapshot)}>
                 <div className="gp-snap-time">{new Date(snapshot.savedAt).toLocaleString()}</div>
                 <div className="gp-snap-label">{snapshot.label || 'snapshot'}</div>
+
                 <div className="gp-snap-actions">
                   <button className="gp-snap-btn gp-snap-btn--green"
                     onClick={e => { e.stopPropagation(); handlePromote(snapshot) }}

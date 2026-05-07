@@ -29,7 +29,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 async function ensureTables() {
   const { TableServiceClient } = require('@azure/data-tables')
   const svc = TableServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings','organizations','orgMembers','notifications','approvalTickets','otpCodes','orgAdmins']
+  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings','genomeDailyIndex','genomePreDeletionIndex','organizations','orgMembers','notifications','approvalTickets','otpCodes','orgAdmins']
   for (const name of required) {
     await svc.createTable(name).catch(() => {})  // no-op if already exists
   }
@@ -171,7 +171,7 @@ const { processDueSchedules } = require('./services/remediationScheduleService')
 setInterval(() => processDueSchedules().catch(err => console.log('[schedulePoller] error:', err.message)), 60000)
 
 // Genome: daily snapshots at 7 PM (19:00) + cleanup expired genomes
-const { createDailySnapshots, cleanupExpiredGenomes } = require('./services/genomeScheduler')
+const { createDailySnapshots, cleanupExpiredGenomes, createInactivitySnapshots } = require('./services/genomeScheduler')
 function scheduleGenomeAt7PM() {
   const now = new Date()
   const target = new Date(now)
@@ -181,6 +181,7 @@ function scheduleGenomeAt7PM() {
   console.log(`[genomeScheduler] next daily genome in ${Math.round(delay / 60000)} minutes (at 7 PM)`)
   setTimeout(() => {
     createDailySnapshots().catch(err => console.log('[dailyGenome] error:', err.message))
+    createInactivitySnapshots().catch(err => console.log('[inactivityGenome] error:', err.message))
     cleanupExpiredGenomes().catch(err => console.log('[genomeCleanup] error:', err.message))
     setInterval(() => {
       createDailySnapshots().catch(err => console.log('[dailyGenome] error:', err.message))

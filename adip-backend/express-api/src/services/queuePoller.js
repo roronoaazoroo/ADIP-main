@@ -30,6 +30,40 @@ function getBlobServiceModule() {
   return _blobService
 }
 
+
+// ── AI-based change categorization for genome history filters ─────────────────
+const GENOME_CATEGORIES = ['Network', 'Security', 'Tags', 'SKU', 'Identity', 'Configuration']
+async function categorizeChangeWithAI(rawPaths) {
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
+  const apiKey   = process.env.AZURE_OPENAI_KEY
+  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
+  if (!endpoint || !apiKey || !rawPaths) return 'Configuration'
+  const fetch = require('node-fetch')
+  const resp = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
+    body: JSON.stringify({
+      messages: [
+        { role: 'system', content: `Classify these Azure ARM resource config changes into categories. Rules:
+- Network: networkAcls, defaultAction, ipRules, virtualNetworkRules, subnets, publicIP, firewall, loadBalancer
+- Security: securityRules, accessPolicies, encryption, keySource, TLS, HTTPS, supportsHttpsTrafficOnly, minimumTlsVersion, allowBlobPublicAccess
+- Tags: any tag field
+- SKU: sku, tier, capacity
+- Identity: identity, managedIdentity, principalId
+- Configuration: anything else (accessTier, kind, general settings)
+Respond ONLY with comma-separated category names from: ${GENOME_CATEGORIES.join(', ')}. No explanation.` },
+        { role: 'user', content: `Changed fields: ${rawPaths}` },
+      ],
+      max_tokens: 30,
+      temperature: 0,
+    }),
+  })
+  if (!resp.ok) return 'Configuration'
+  const data = await resp.json()
+  const result = data.choices?.[0]?.message?.content?.trim() || 'Configuration'
+  return result.split(',').map(c => c.trim()).filter(c => GENOME_CATEGORIES.includes(c)).join(',') || 'Configuration'
+}
+
 //  Queue client 
 let _queueClient = null
 function getQueueClient() {
@@ -95,6 +129,8 @@ function parseMessage(msg) {
 
     // Normalize child resource URIs to parent (blobServices/default -> storageAccounts/foo)
     let resourceId = event.data?.resourceUri || event.subject || ''
+    // Normalize ARM ID casing: ensure 'resourceGroups' not 'resourcegroups'
+    resourceId = resourceId.replace(/\/resourcegroups\//i, '/resourceGroups/')
     const parts    = resourceId.split('/')
     if (parts.length > 9) resourceId = parts.slice(0, 9).join('/')
 
@@ -268,6 +304,16 @@ function startQueuePoller() {
             }
           }
 
+          // Save pre-deletion genome snapshot for recovery (Feature 2: versioning)
+          if ((enriched.eventType || '').includes('Delete') && enriched.resourceId) {
+            const prevState = await cacheGet(enriched.resourceId)
+            if (prevState) {
+              const preDeletionLabel = `pre-deletion-${(enriched.eventTime || new Date().toISOString()).replace(/[:.]/g, '-')}`
+              getBlobServiceModule().savePreDeletionSnapshot(enriched.subscriptionId, enriched.resourceId, prevState, enriched.caller || '')
+                .catch(e => console.log('[queuePoller] pre-deletion genome save failed (non-fatal):', e.message))
+            }
+          }
+
           // Mark resource as deleted in driftIndex if delete event
           if ((enriched.eventType || '').includes('Delete') && enriched.resourceId) {
             try {
@@ -288,7 +334,12 @@ function startQueuePoller() {
           // Auto-save genome snapshot on every change (Feature 2: change-triggered genome)
           if (enriched.liveState && enriched.resourceId) {
             const changeLabel = `change-${(enriched.eventTime || new Date().toISOString()).replace(/[:.]/g, '-')}`
-            getBlobServiceModule().saveGenomeSnapshot(enriched.subscriptionId, enriched.resourceId, enriched.liveState, changeLabel)
+            let _changedFields = ''
+            if (enriched.changes && enriched.changes.length > 0) {
+              const _rawPaths = enriched.changes.map(c => c.path || '').filter(Boolean).join('; ')
+              _changedFields = await categorizeChangeWithAI(_rawPaths).catch(() => 'Configuration')
+            }
+            getBlobServiceModule().saveGenomeSnapshot(enriched.subscriptionId, enriched.resourceId, enriched.liveState, changeLabel, 30, 'change', enriched.caller || '', _changedFields)
               .catch(genomeErr => console.log('[queuePoller] genome save failed (non-fatal):', genomeErr.message))
           }
 
