@@ -15,20 +15,28 @@ async function authRequest(path, options = {}) {
   return data
 }
 
-export async function createOrganization({ organizationName, name, email, password, subscriptionId, retentionDays, requiredApprovals }) {
+export async function sendOtp(email) {
+  return authRequest('/auth/send-otp', { method: 'POST', body: JSON.stringify({ email }) })
+}
+
+export async function verifyOtp(email, code) {
+  return authRequest('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email, code }) })
+}
+
+export async function createOrganization({ organizationName, name, email, password, subscriptionId, retentionDays, requiredApprovals, allowedDomain }) {
   const data = await authRequest('/auth/create-org', {
     method: 'POST',
-    body: JSON.stringify({ organizationName, name, email, password, subscriptionId, retentionDays, requiredApprovals }),
+    body: JSON.stringify({ organizationName, name, email, password, subscriptionId, retentionDays, requiredApprovals, allowedDomain }),
   })
   sessionStorage.setItem('adip.token', data.token)
   sessionStorage.setItem('adip.user', JSON.stringify(data))
   return data
 }
 
-export async function joinOrganization({ orgId, name, email, password }) {
+export async function joinOrganization({ inviteCode, email, password }) {
   const data = await authRequest('/auth/join-org', {
     method: 'POST',
-    body: JSON.stringify({ orgId, name, email, password }),
+    body: JSON.stringify({ inviteCode, email, password }),
   })
   sessionStorage.setItem('adip.token', data.token)
   sessionStorage.setItem('adip.user', JSON.stringify(data))
@@ -61,7 +69,6 @@ export function logoutUser() {
 export function isAuthenticated() {
   return !!getAuthToken()
 }
-
 
 // ── Organization Management ───────────────────────────────────────────────────
 
@@ -97,11 +104,5 @@ export async function markNotificationRead(rowKey) {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!response.ok) throw new Error((await response.json()).error || 'Failed')
-  return response.json()
-}
-
-export async function fetchOrganizations() {
-  const response = await fetch(`${API_BASE}/auth/organizations`)
-  if (!response.ok) throw new Error('Failed to load organizations')
   return response.json()
 }
