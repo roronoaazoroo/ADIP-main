@@ -30,10 +30,6 @@ function checkRateLimit(email) {
 }
 
 async function generateOtp(email) {
-  if (!checkRateLimit(email)) {
-    throw new Error('Too many OTP requests. Please wait 15 minutes.')
-  }
-
   const code = crypto.randomInt(100000, 999999).toString()
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString()
 
