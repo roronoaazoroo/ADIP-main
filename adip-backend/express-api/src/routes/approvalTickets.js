@@ -132,6 +132,8 @@ router.get('/tickets', async (req, res) => {
         createdByName: entity.createdByName,
         createdAt: entity.createdAt,
         resolvedAt: entity.resolvedAt,
+        rejectedBy: entity.rejectedBy || '',
+        rejectionReason: entity.rejectionReason || '',
       })
     }
     tickets.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -164,6 +166,8 @@ router.get('/tickets/:id', async (req, res) => {
       createdByName: entity.createdByName,
       createdAt: entity.createdAt,
       resolvedAt: entity.resolvedAt,
+      rejectedBy: entity.rejectedBy || '',
+      rejectionReason: entity.rejectionReason || '',
     })
   } catch {
     res.status(404).json({ error: 'Ticket not found' })

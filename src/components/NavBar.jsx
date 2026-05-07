@@ -49,7 +49,8 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
     if (!socket) return;
     const handleRoleChange = (data) => {
       const currentUser = JSON.parse(sessionStorage.getItem('adip.user') || '{}');
-      if (data.userId === currentUser.userId) {
+      const userObj = JSON.parse(sessionStorage.getItem('user') || '{}');
+      if (data.userId === currentUser.userId || data.name === userObj.name || data.name === currentUser.name) {
         setLiveRole(data.role);
         // Update sessionStorage
         const u = JSON.parse(sessionStorage.getItem('user') || '{}');
@@ -180,22 +181,27 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           <span className="material-symbols-outlined">logout</span>
         </button>
 
-        {/* User avatar */}
-        <div
-          className="dh-avatar"
-          role="img"
-          aria-label={`Signed in as ${user?.name || 'User'}`}
-          data-tooltip={user?.name || 'User'}
-        >
-          {user?.name?.charAt(0)?.toUpperCase() || "U"}
-        </div>
-        {(liveRole || user?.role) && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 3, textTransform: "capitalize",
-            background: (liveRole || user?.role) === "admin" ? "rgba(0,96,169,0.15)" : (liveRole || user?.role) === "approver" ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
-            color: (liveRole || user?.role) === "admin" ? "#60a5fa" : (liveRole || user?.role) === "approver" ? "#10b981" : "#f59e0b" }}>
-            {liveRole || user?.role}
-          </span>
-        )}
+        {/* User chip — avatar + name + role */}
+        {(() => {
+          const role = liveRole || user?.role
+          const roleBg    = role === 'admin'    ? 'rgba(25,149,255,0.12)'   : role === 'approver' ? 'rgba(16,185,129,0.12)'  : 'rgba(245,158,11,0.12)'
+          const roleColor = role === 'admin'    ? '#1995ff'                 : role === 'approver' ? '#10b981'                : '#d97706'
+          return (
+            <div className="dh-user-chip" aria-label={`Signed in as ${user?.name || 'User'}, role: ${role || 'unknown'}`}>
+              <div className="dh-avatar" aria-hidden="true">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div className="dh-user-info">
+                <span className="dh-user-name">{user?.name || user?.username || 'User'}</span>
+                {role && (
+                  <span className="dh-user-role" style={{ background: roleBg, color: roleColor }}>
+                    {role}
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Mobile menu toggle */}
         <button

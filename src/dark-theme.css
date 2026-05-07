@@ -687,3 +687,83 @@
 [data-theme="dark"] .an-rec-title { color: #f1f5f9; }
 [data-theme="dark"] .an-rec-desc { color: #94a3b8; }
 
+
+/*
+   11. NOTIFICATION PANEL (NotificationPanel.css)
+   NOTE: Base overrides also live inside NotificationPanel.css itself.
+*/
+[data-theme="dark"] .np-overlay   { background: rgba(0,0,0,0.4); }
+[data-theme="dark"] .np-panel     { background: #161d2f; border-left-color: rgba(255,255,255,0.07); box-shadow: -8px 0 40px rgba(0,0,0,0.5); }
+[data-theme="dark"] .np-header    { border-bottom-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .np-title     { color: #f1f5f9; }
+[data-theme="dark"] .np-close-btn { color: rgba(255,255,255,0.45); }
+[data-theme="dark"] .np-close-btn:hover { background: rgba(255,255,255,0.08); color: #f1f5f9; }
+[data-theme="dark"] .np-tabs      { border-bottom-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .np-tab       { color: rgba(255,255,255,0.4); }
+[data-theme="dark"] .np-tab:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.03); }
+[data-theme="dark"] .np-tab--active { color: #38bdf8; border-bottom-color: #1995ff; background: rgba(25,149,255,0.06); }
+[data-theme="dark"] .np-card      { background: rgba(255,255,255,0.025); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .np-card:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+[data-theme="dark"] .np-card--unread { border-color: rgba(25,149,255,0.2); background: rgba(25,149,255,0.03); }
+[data-theme="dark"] .np-resource-name     { color: #f1f5f9; }
+[data-theme="dark"] .np-notification-text { color: #cbd5e1; }
+[data-theme="dark"] .np-meta              { color: rgba(255,255,255,0.3); }
+[data-theme="dark"] .np-description       { color: rgba(255,255,255,0.5); }
+[data-theme="dark"] .np-approval-count    { color: #34d399; }
+[data-theme="dark"] .np-empty             { color: rgba(255,255,255,0.2); }
+[data-theme="dark"] .np-expanded          { background: rgba(25,149,255,0.05); border-color: rgba(25,149,255,0.12); }
+[data-theme="dark"] .np-expanded-desc     { color: rgba(255,255,255,0.5); }
+[data-theme="dark"] .np-detailed-btn      { background: rgba(25,149,255,0.08); border-color: rgba(25,149,255,0.25); color: #60a5fa; }
+[data-theme="dark"] .np-reject-input      { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); color: #e2e8f0; }
+[data-theme="dark"] .np-reject-input::placeholder { color: rgba(255,255,255,0.2); }
+[data-theme="dark"] .np-btn--ghost        { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+[data-theme="dark"] .np-btn--ghost:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #f1f5f9; }
+[data-theme="dark"] .np-btn--approve      { background: linear-gradient(135deg,#059669,#10b981); box-shadow: 0 2px 8px rgba(5,150,105,0.3); }
+[data-theme="dark"] .np-btn--reject       { background: linear-gradient(135deg,#b45309,#d97706); box-shadow: 0 2px 8px rgba(180,83,9,0.3); }
+[data-theme="dark"] .np-mark-all-btn      { color: #60a5fa; border-color: rgba(25,149,255,0.2); }
+[data-theme="dark"] .np-status--pending   { color: #fbbf24; }
+[data-theme="dark"] .np-status--approved  { color: #34d399; }
+[data-theme="dark"] .np-status--rejected  { color: #f87171; }
+
+
+/*
+   12. MANUAL FIX GUIDE (ManualFixGuide.css)
+   NOTE: Base overrides also live inside ManualFixGuide.css itself.
+*/
+[data-theme="dark"] .mfg-step         { background: rgba(255,255,255,0.025); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .mfg-step:hover   { background: rgba(255,255,255,0.04); border-color: rgba(25,149,255,0.25); }
+[data-theme="dark"] .mfg-step-title   { color: #f1f5f9; }
+[data-theme="dark"] .mfg-step-number  { background: rgba(25,149,255,0.15); color: #38bdf8; }
+[data-theme="dark"] .mfg-step-desc    { color: #94a3b8; }
+[data-theme="dark"] .mfg-step-portal  { color: #64748b; }
+[data-theme="dark"] .mfg-step-portal strong { color: #94a3b8; }
+[data-theme="dark"] .mfg-step-cli     { color: #64748b; }
+[data-theme="dark"] .mfg-step-cli strong { color: #94a3b8; }
+[data-theme="dark"] .mfg-code         { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.08); color: #7dd3fc; }
+[data-theme="dark"] .mfg-body         { color: #94a3b8; }
+[data-theme="dark"] .mfg-plain-text   { color: #cbd5e1; }
+[data-theme="dark"] .mfg-bullet-item  { background: rgba(255,255,255,0.025); border-color: rgba(255,255,255,0.06); color: #cbd5e1; }
+[data-theme="dark"] .mfg-bullet-dot   { background: #38bdf8; }
+[data-theme="dark"] .mfg-empty        { color: #475569; }
+[data-theme="dark"] .mfg-error        { color: #fca5a5; }
+[data-theme="dark"] .mfg-loading      { color: #38bdf8; }
+
+
+/*
+   13. ORG MEMBERS PANEL (OrgMembersPanel.css)
+   NOTE: Base overrides also live inside OrgMembersPanel.css itself.
+*/
+[data-theme="dark"] .omp-org-name    { color: #f1f5f9; }
+[data-theme="dark"] .omp-count       { color: rgba(255,255,255,0.3); }
+[data-theme="dark"] .omp-invite-code { background: rgba(25,149,255,0.1); color: #60a5fa; border-color: rgba(25,149,255,0.2); }
+[data-theme="dark"] .omp-header-icon { color: #38bdf8; }
+[data-theme="dark"] .omp-member      { background: rgba(255,255,255,0.025); border-color: rgba(255,255,255,0.06); }
+[data-theme="dark"] .omp-member:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.1); }
+[data-theme="dark"] .omp-name    { color: #f1f5f9; }
+[data-theme="dark"] .omp-email   { color: rgba(255,255,255,0.35); }
+[data-theme="dark"] .omp-joined  { color: rgba(255,255,255,0.25); }
+[data-theme="dark"] .omp-role-select { background-color: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
+[data-theme="dark"] .omp-role-select:hover { background-color: rgba(255,255,255,0.07); }
+[data-theme="dark"] .omp-loading { color: rgba(255,255,255,0.4); }
+[data-theme="dark"] .omp-error   { color: #fca5a5; }
+

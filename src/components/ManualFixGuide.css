@@ -1,0 +1,214 @@
+/*
+   ManualFixGuide.css
+   AI-generated step-by-step manual fix guide component styles
+   Default = light theme. Dark overrides via [data-theme="dark"].
+*/
+
+/* ── Guide step cards ────────────────────────────── */
+.mfg-step {
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  animation: slideUp 0.25s ease-out both;
+}
+
+.mfg-step:nth-child(1) { animation-delay: 0.05s; }
+.mfg-step:nth-child(2) { animation-delay: 0.10s; }
+.mfg-step:nth-child(3) { animation-delay: 0.15s; }
+.mfg-step:nth-child(4) { animation-delay: 0.20s; }
+.mfg-step:nth-child(5) { animation-delay: 0.25s; }
+
+.mfg-step:hover {
+  border-color: rgba(25, 149, 255, 0.2);
+  background: #f1f5f9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.mfg-step-title {
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mfg-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(25, 149, 255, 0.12);
+  color: #1995ff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mfg-step-desc {
+  font-size: 12px;
+  color: #4a5568;
+  margin-bottom: 6px;
+  line-height: 1.6;
+}
+
+.mfg-step-portal {
+  font-size: 12px;
+  color: #718096;
+  margin-bottom: 4px;
+  line-height: 1.5;
+}
+
+.mfg-step-portal strong {
+  color: #4a5568;
+}
+
+.mfg-step-cli {
+  font-size: 12px;
+  color: #718096;
+}
+
+.mfg-step-cli strong {
+  color: #4a5568;
+}
+
+.mfg-code {
+  display: block;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  margin-top: 4px;
+  color: #0060a9;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+/* ── Guide content wrapper ───────────────────────── */
+.mfg-body {
+  padding: 16px 20px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #4a5568;
+}
+
+/* ── AI bullet list (plain-text formatted) ───────── */
+.mfg-plain-text {
+  white-space: pre-wrap;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* Bullet-point lines parsed from AI text */
+.mfg-bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mfg-bullet-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.6;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: background 0.15s;
+}
+
+.mfg-bullet-item:hover {
+  background: #f1f5f9;
+}
+
+.mfg-bullet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1995ff;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+/* ── Loading / error / empty ─────────────────────── */
+.mfg-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1995ff;
+  font-size: 13px;
+}
+
+.mfg-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(25, 149, 255, 0.2);
+  border-top-color: #1995ff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.mfg-error {
+  color: #dc2626;
+  font-size: 13px;
+}
+
+.mfg-empty {
+  color: #a0aec0;
+  font-size: 13px;
+}
+
+
+/* ══════════════════════════════════════════════════
+   DARK THEME OVERRIDES
+   ══════════════════════════════════════════════════ */
+[data-theme="dark"] .mfg-step {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+[data-theme="dark"] .mfg-step:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(25, 149, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+[data-theme="dark"] .mfg-step-title    { color: #f1f5f9; }
+[data-theme="dark"] .mfg-step-number   { background: rgba(25, 149, 255, 0.15); color: #38bdf8; }
+[data-theme="dark"] .mfg-step-desc     { color: #94a3b8; }
+[data-theme="dark"] .mfg-step-portal   { color: #64748b; }
+[data-theme="dark"] .mfg-step-portal strong { color: #94a3b8; }
+[data-theme="dark"] .mfg-step-cli      { color: #64748b; }
+[data-theme="dark"] .mfg-step-cli strong { color: #94a3b8; }
+[data-theme="dark"] .mfg-code {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #7dd3fc;
+}
+[data-theme="dark"] .mfg-body          { color: #94a3b8; }
+[data-theme="dark"] .mfg-plain-text    { color: #cbd5e1; }
+[data-theme="dark"] .mfg-bullet-item {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+}
+[data-theme="dark"] .mfg-bullet-item:hover { background: rgba(255, 255, 255, 0.04); }
+[data-theme="dark"] .mfg-bullet-dot    { background: #38bdf8; }
+[data-theme="dark"] .mfg-error         { color: #fca5a5; }
+[data-theme="dark"] .mfg-empty         { color: #475569; }
+[data-theme="dark"] .mfg-loading       { color: #38bdf8; }

@@ -663,29 +663,29 @@ export default function ComparisonPage() {
                 const resSku = resource.sku || {}
                 const isExpanded = expandedCompareResource === index
                 return (
-                  <div key={index} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', marginBottom: 4 }}>
+                  <div key={index} style={{ borderBottom: '1px solid var(--border-subtle)', marginBottom: 4 }}>
                     <div onClick={() => setExpandedCompareResource(isExpanded ? null : index)}
                       style={{ cursor: 'pointer', padding: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: '#60a5fa', fontSize: 12, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : '' }}>▶</span>
-                      <div style={{ flex: 1 }}>
+                      <span style={{ color: '#1995ff', fontSize: 11, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : '', flexShrink: 0 }}>▶</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{resource.name || resource.id?.split('/').pop()}</div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{(resource.type || '').split('/').pop()}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{(resource.type || '').split('/').pop()}</div>
                       </div>
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{resource.location || ''}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>{resource.location || ''}</span>
                     </div>
                     {isExpanded && (
                       <div style={{ padding: '6px 12px 12px 20px', fontSize: 12 }}>
-                        {resSku.name && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>SKU</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{resSku.name}{resSku.tier ? ` / ${resSku.tier}` : ''}</span></div>}
-                        {resource.kind && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Kind</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{resource.kind}</span></div>}
+                        {resSku.name && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>SKU</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{resSku.name}{resSku.tier ? ` / ${resSku.tier}` : ''}</span></div>}
+                        {resource.kind && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Kind</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{resource.kind}</span></div>}
                         {Object.entries(resProps).filter(([k]) => k !== 'provisioningState' && k !== 'creationTime').map(([key, value]) => (
-                          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{key}</span>
+                          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0, marginRight: 12 }}>{key}</span>
                             <span style={{ color: 'var(--text-primary)', fontSize: 12, maxWidth: '60%', textAlign: 'right', wordBreak: 'break-all' }}>
                               {typeof value === 'boolean' ? (value ? '✅' : '❌') : typeof value === 'object' ? JSON.stringify(value).slice(0, 80) : String(value).slice(0, 80)}
                             </span>
                           </div>
                         ))}
-                        {resource.tags && Object.keys(resource.tags).length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Tags</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{Object.entries(resource.tags).map(([k,v]) => `${k}=${v}`).join(', ')}</span></div>}
+                        {resource.tags && Object.keys(resource.tags).length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Tags</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{Object.entries(resource.tags).map(([k,v]) => `${k}=${v}`).join(', ')}</span></div>}
                       </div>
                     )}
                   </div>

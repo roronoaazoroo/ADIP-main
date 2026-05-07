@@ -222,9 +222,39 @@ export default function SettingsPage() {
     return () => document.removeEventListener('click', handler, true)
   }, [isDirty])
 
-  // Scroll to section
+  // Scroll spy — update active sidebar item as sections enter the viewport
+  useEffect(() => {
+    const sectionIds = SECTIONS.map(s => `sp-section-${s.key}`)
+    const observers = []
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Pick the topmost visible section
+        const visible = entries
+          .filter(e => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible.length > 0) {
+          const id = visible[0].target.id           // 'sp-section-profile'
+          const key = id.replace('sp-section-', '')
+          setActiveSection(key)
+        }
+      },
+      {
+        rootMargin: '-64px 0px -60% 0px', // top offset = navbar height
+        threshold: 0,
+      }
+    )
+
+    sectionIds.forEach(id => {
+      const el = document.getElementById(id)
+      if (el) observer.observe(el)
+    })
+
+    return () => observer.disconnect()
+  }, []) // run once on mount
+
+  // Scroll to section when sidebar item is clicked
   const scrollToSection = (sectionKey) => {
-    setActiveSection(sectionKey)
     const el = document.getElementById(`sp-section-${sectionKey}`)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -269,15 +299,27 @@ export default function SettingsPage() {
           {/* Profile Section*/}
           <div id="sp-section-profile">
             <SectionCard icon="person" title="Profile" badge="Account">
-              <div className="sp-profile-header">
-                <div className="sp-avatar-large">
-                  {displayName?.charAt(0)?.toUpperCase() || 'U'}
-                </div>
-                <div className="sp-profile-info">
-                  <div className="sp-profile-name">{displayName || 'User'}</div>
-                  <div className="sp-profile-role">Platform Administrator</div>
-                </div>
-              </div>
+              {/* User chip — mirrors NavBar chip design */}
+              {(() => {
+                const role = user?.role
+                const roleBg    = role === 'admin'    ? 'rgba(25,149,255,0.12)' : role === 'approver' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'
+                const roleColor = role === 'admin'    ? '#1995ff'               : role === 'approver' ? '#10b981'               : '#d97706'
+                return (
+                  <div className="sp-user-chip">
+                    <div className="sp-avatar-large" aria-hidden="true">
+                      {displayName?.charAt(0)?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="sp-user-chip-info">
+                      <span className="sp-user-chip-name">{displayName || 'User'}</span>
+                      {role && (
+                        <span className="sp-user-chip-role" style={{ background: roleBg, color: roleColor }}>
+                          {role}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
               <div className="sp-form-grid">
                 <div className="sp-form-field">

@@ -143,6 +143,11 @@ export default function LoginPage() {
       <div className="login-bg" aria-hidden="true">
         <div className="login-bg-gradient" />
         <div className="login-bg-grid" />
+        <div className="login-bubbles">
+          {Array.from({ length: 15 }).map((_, i) => (
+            <span key={i} className="login-bubble" />
+          ))}
+        </div>
       </div>
 
       <div className="login-content">

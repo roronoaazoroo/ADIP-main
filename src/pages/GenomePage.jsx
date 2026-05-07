@@ -20,7 +20,7 @@ import MultiSelectDropdown from '../components/MultiSelectDropdown'
 import NavBar from '../components/NavBar'
 import GenomeHistory from '../components/GenomeHistory'
 import { useDashboard } from '../context/DashboardContext'
-import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot, fetchResourceConfiguration, analyzeRecovery, executeRecovery } from '../services/api'
+import { fetchGenomeSnapshots, saveGenomeSnapshot, promoteGenomeSnapshot, rollbackToSnapshot, deleteGenomeSnapshot, fetchResourceConfiguration, analyzeRecovery, executeRecovery, fetchTickets } from '../services/api'
 import './GenomePage.css'
 
 // Strips volatile fields for comparison — same keys as ComparisonPage normaliseState
@@ -46,6 +46,46 @@ function stripForCompare(obj) {
 function configsMatch(a, b) {
   if (!a || !b) return false
   return JSON.stringify(stripForCompare(a)) === JSON.stringify(stripForCompare(b))
+}
+
+function RequestHistory() {
+  const [tickets, setTickets] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [expanded, setExpanded] = React.useState(null)
+  React.useEffect(() => {
+    fetchTickets().then(setTickets).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+  if (loading) return <div style={{ padding: 24, color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading request history...</div>
+  if (!tickets.length) return <div style={{ padding: 24, color: 'rgba(255,255,255,0.4)', fontSize: 13, textAlign: 'center' }}>No remediation requests yet.</div>
+  const statusColor = { pending: '#f59e0b', approved: '#10b981', rejected: '#ef4444' }
+  return (
+    <div style={{ padding: 16 }}>
+      {tickets.map(ticket => (
+        <div key={ticket.ticketId} style={{ marginBottom: 8, padding: '12px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div onClick={() => setExpanded(expanded === ticket.ticketId ? null : ticket.ticketId)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#60a5fa', fontSize: 12, transform: expanded === ticket.ticketId ? 'rotate(90deg)' : '', transition: 'transform 0.2s' }}>▶</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{ticket.resourceName}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>by {ticket.createdByName} • {ticket.createdAt ? new Date(ticket.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, textTransform: 'capitalize', background: `${statusColor[ticket.status] || '#64748b'}18`, color: statusColor[ticket.status] || '#64748b' }}>{ticket.status}</span>
+            <span style={{ fontSize: 11, color: '#10b981' }}>{ticket.currentApprovals}/{ticket.requiredApprovals}</span>
+          </div>
+          {expanded === ticket.ticketId && (
+            <div style={{ marginTop: 10, paddingLeft: 20, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+              <div><strong>Severity:</strong> <span style={{ textTransform: 'capitalize' }}>{ticket.severity}</span></div>
+              <div><strong>Changes:</strong> {ticket.description || 'No details available'}</div>
+              <div><strong>Resource:</strong> {ticket.resourceName} ({ticket.resourceId?.split('/').pop()})</div>
+              {ticket.approvers?.length > 0 && <div style={{ color: '#10b981' }}><strong>Approved by:</strong> {ticket.approvers.map(a => `${a.name} (${new Date(a.decidedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })})`).join(', ')}</div>}
+              {ticket.rejectedBy && <div style={{ color: '#ef4444' }}><strong>Rejected by:</strong> {ticket.rejectedBy}</div>}
+              {ticket.rejectionReason && <div style={{ color: '#ef4444' }}><strong>Reason:</strong> {ticket.rejectionReason}</div>}
+              {ticket.resolvedAt && <div><strong>Resolved:</strong> {new Date(ticket.resolvedAt).toLocaleString()}</div>}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function GenomePage() {
@@ -303,10 +343,18 @@ export default function GenomePage() {
             <span className="material-symbols-outlined" style={{ fontSize: 16 }}>manage_history</span>
             Genome History
           </button>
+          <button
+            className={`gp-tab-btn ${activeTab === 'requests' ? 'gp-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('requests')}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>approval</span>
+            Request History
+          </button>
         </div>
 
         {/* Body */}
-        {activeTab === 'history' ? (
+        {activeTab === 'requests' ? (
+          <RequestHistory />
+        ) : activeTab === 'history' ? (
           <div className="gp-history-panel">
             <GenomeHistory subscriptionId={subscriptionId} resourceId={resourceId} />
           </div>
