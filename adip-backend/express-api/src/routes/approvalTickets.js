@@ -35,7 +35,24 @@ function getUser(req) {
 // Get required approvals for a resource (org default or per-resource override)
 async function getRequiredApprovals(orgId, resourceId) {
   try {
+    // First check org table
     const org = await organizationsTable().getEntity(orgId, orgId)
+    // Then check admin's user preferences (overrides org default)
+    const adminUserId = org.adminUserId
+    if (adminUserId) {
+      // Find admin email from orgAdmins table
+      const { TableClient } = require('@azure/data-tables')
+      const adminsTable = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'orgAdmins')
+      try {
+        const admin = await adminsTable.getEntity(orgId, adminUserId)
+        if (admin.email) {
+          const prefsTable = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'userPreferences')
+          const prefsEntity = await prefsTable.getEntity(admin.email, 'settings')
+          const prefs = JSON.parse(prefsEntity.preferences || '{}')
+          if (prefs.requiredApprovals) return Number(prefs.requiredApprovals)
+        }
+      } catch {}
+    }
     return org.requiredApprovals || 2
   } catch { return 2 }
 }
@@ -77,12 +94,9 @@ router.post('/tickets', async (req, res) => {
     await ticketsTable().upsertEntity(ticket, 'Replace')
 
     // Notify all approvers in the org
-    const { createNotification } = require('./orgManagement')
-    for await (const member of membersTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${user.orgId}'` } })) {
-      if (member.role === 'approver' || member.role === 'admin') {
-        await createNotification(user.orgId, member.rowKey, `New remediation request for ${ticket.resourceName} by ${user.name}`, 'ticket_created')
-      }
-    }
+    // Notify all org members (admins + members)
+    const { notifyAllMembers } = require('./orgManagement')
+    await notifyAllMembers(user.orgId, `New remediation request for ${ticket.resourceName} by ${user.name}`, 'ticket_created', user.userId)
 
     res.status(201).json({ ticketId, status: 'pending', requiredApprovals, currentApprovals: 0 })
     console.log('[POST /tickets] ends — ticketId:', ticketId)
@@ -118,6 +132,8 @@ router.get('/tickets', async (req, res) => {
         createdByName: entity.createdByName,
         createdAt: entity.createdAt,
         resolvedAt: entity.resolvedAt,
+        rejectedBy: entity.rejectedBy || '',
+        rejectionReason: entity.rejectionReason || '',
       })
     }
     tickets.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -150,6 +166,8 @@ router.get('/tickets/:id', async (req, res) => {
       createdByName: entity.createdByName,
       createdAt: entity.createdAt,
       resolvedAt: entity.resolvedAt,
+      rejectedBy: entity.rejectedBy || '',
+      rejectionReason: entity.rejectionReason || '',
     })
   } catch {
     res.status(404).json({ error: 'Ticket not found' })
@@ -161,7 +179,13 @@ router.post('/tickets/:id/approve', async (req, res) => {
   console.log('[POST /tickets/:id/approve] starts')
   const user = getUser(req)
   if (!user) return res.status(401).json({ error: 'Authentication required' })
-  if (user.role === 'requestor') return res.status(403).json({ error: 'Only approvers can approve tickets' })
+  // Check live role from table (JWT may be stale after role change)
+  let liveRole = user.role
+  try {
+    const memberEntity = await membersTable().getEntity(user.orgId, user.userId).catch(() => null)
+    if (memberEntity) liveRole = memberEntity.role
+  } catch {}
+  if (liveRole === 'requestor') return res.status(403).json({ error: 'Only approvers can approve tickets' })
 
   try {
     const entity = await ticketsTable().getEntity(user.orgId, req.params.id)
@@ -184,8 +208,8 @@ router.post('/tickets/:id/approve', async (req, res) => {
     await ticketsTable().upsertEntity(updatedEntity, 'Replace')
 
     // Notify requestor of progress
-    const { createNotification } = require('./orgManagement')
-    await createNotification(user.orgId, entity.createdBy, `${user.name} approved your remediation for ${entity.resourceName} (${currentApprovals}/${entity.requiredApprovals})`, 'ticket_approved')
+    const { notifyAllMembers: notifyAll } = require('./orgManagement')
+    await notifyAll(user.orgId, `${user.name} approved remediation for ${entity.resourceName} (${currentApprovals}/${entity.requiredApprovals})`, 'ticket_approved')
 
     // If threshold met, execute remediation
     if (thresholdMet) {
@@ -198,7 +222,8 @@ router.post('/tickets/:id/approve', async (req, res) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subscriptionId: entity.subscriptionId, resourceGroupId: entity.resourceGroupId, resourceId: entity.resourceId }),
         })
-        await createNotification(user.orgId, entity.createdBy, `Remediation executed for ${entity.resourceName}`, 'ticket_executed')
+        const { notifyAllMembers: notifyExec } = require('./orgManagement')
+        await notifyExec(user.orgId, `Remediation executed for ${entity.resourceName}`, 'ticket_executed')
       } catch (execError) {
         console.log('[approve] execution error:', execError.message)
       }
@@ -222,7 +247,12 @@ router.post('/tickets/:id/reject', async (req, res) => {
   console.log('[POST /tickets/:id/reject] starts')
   const user = getUser(req)
   if (!user) return res.status(401).json({ error: 'Authentication required' })
-  if (user.role === 'requestor') return res.status(403).json({ error: 'Only approvers can reject tickets' })
+  let liveRoleReject = user.role
+  try {
+    const memberEntity = await membersTable().getEntity(user.orgId, user.userId).catch(() => null)
+    if (memberEntity) liveRoleReject = memberEntity.role
+  } catch {}
+  if (liveRoleReject === 'requestor') return res.status(403).json({ error: 'Only approvers can reject tickets' })
 
   const { reason } = req.body || {}
 
@@ -239,8 +269,8 @@ router.post('/tickets/:id/reject', async (req, res) => {
     }, 'Replace')
 
     // Notify requestor
-    const { createNotification } = require('./orgManagement')
-    await createNotification(user.orgId, entity.createdBy, `Remediation for ${entity.resourceName} rejected by ${user.name}${reason ? ': ' + reason : ''}`, 'ticket_rejected')
+    const { notifyAllMembers: notifyReject } = require('./orgManagement')
+    await notifyReject(user.orgId, `Remediation for ${entity.resourceName} rejected by ${user.name}${reason ? ': ' + reason : ''}`, 'ticket_rejected')
 
     if (global.io) {
       global.io.emit('ticketUpdate', { ticketId: entity.ticketId, status: 'rejected' })

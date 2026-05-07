@@ -20,6 +20,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useDashboard } from '../context/DashboardContext';
 import "./NavBar.css";
 import ViewModeToggle from './ViewModeToggle';
+import NotificationPanel from './NotificationPanel';
+import { fetchNotifications } from '../services/authService';
+import { getSocket } from '../services/socketSingleton';
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -35,7 +38,36 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
   const { scopes: ctxScopes } = useDashboard() || {};
   const scopes = scopesProp || ctxScopes || null;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [liveRole, setLiveRole] = useState(user?.role || null);
   const mobileMenuRef = useRef(null);
+
+  // Listen for role changes targeting this user
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const handleRoleChange = (data) => {
+      const currentUser = JSON.parse(sessionStorage.getItem('adip.user') || '{}');
+      const userObj = JSON.parse(sessionStorage.getItem('user') || '{}');
+      if (data.userId === currentUser.userId || data.name === userObj.name || data.name === currentUser.name) {
+        setLiveRole(data.role);
+        // Update sessionStorage
+        const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+        sessionStorage.setItem('user', JSON.stringify({ ...u, role: data.role }));
+      }
+    };
+    socket.on('roleChange', handleRoleChange);
+    return () => socket.off('roleChange', handleRoleChange);
+  }, []);
+
+  // Poll unread notification count
+  useEffect(() => {
+    const loadCount = () => fetchNotifications().then(n => setUnreadCount((n || []).filter(x => !x.read).length)).catch(() => {});
+    loadCount();
+    const interval = setInterval(loadCount, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Close mobile menu on route change
   useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
@@ -79,6 +111,7 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
   };
 
   return (
+    <>
     <nav className="dh-nav" role="navigation" aria-label="Main navigation">
       {/* Skip to content link for keyboard users */}
 
@@ -114,8 +147,13 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           className="dh-icon-btn"
           aria-label="Notifications"
           data-tooltip="Notifications"
+          onClick={() => { setNotificationPanelOpen(true); setUnreadCount(0); }}
+          style={{ position: 'relative' }}
         >
           <span className="material-symbols-outlined">notifications</span>
+          {unreadCount > 0 && (
+            <span style={{ position: 'absolute', top: 2, right: 2, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
+          )}
         </button>
 
         {/* Settings button */}
@@ -133,6 +171,8 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           className="dh-icon-btn dh-icon-btn--logout"
           onClick={() => {
             sessionStorage.removeItem('user');
+            sessionStorage.removeItem('adip.token');
+            sessionStorage.removeItem('adip.user');
             navigate("/");
           }}
           aria-label="Sign out"
@@ -141,15 +181,27 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           <span className="material-symbols-outlined">logout</span>
         </button>
 
-        {/* User avatar */}
-        <div
-          className="dh-avatar"
-          role="img"
-          aria-label={`Signed in as ${user?.name || 'User'}`}
-          data-tooltip={user?.name || 'User'}
-        >
-          {user?.name?.charAt(0)?.toUpperCase() || "U"}
-        </div>
+        {/* User chip — avatar + name + role */}
+        {(() => {
+          const role = liveRole || user?.role
+          const roleBg    = role === 'admin'    ? 'rgba(25,149,255,0.12)'   : role === 'approver' ? 'rgba(16,185,129,0.12)'  : 'rgba(245,158,11,0.12)'
+          const roleColor = role === 'admin'    ? '#1995ff'                 : role === 'approver' ? '#10b981'                : '#d97706'
+          return (
+            <div className="dh-user-chip" aria-label={`Signed in as ${user?.name || 'User'}, role: ${role || 'unknown'}`}>
+              <div className="dh-avatar" aria-hidden="true">
+                {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              </div>
+              <div className="dh-user-info">
+                <span className="dh-user-name">{user?.name || user?.username || 'User'}</span>
+                {role && (
+                  <span className="dh-user-role" style={{ background: roleBg, color: roleColor }}>
+                    {role}
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Mobile menu toggle */}
         <button
@@ -184,6 +236,8 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
         </div>
       )}
     </nav>
+      <NotificationPanel isOpen={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
+    </>
   );
 };
 

@@ -301,12 +301,24 @@ async function getResourceConfig(subscriptionId, resourceGroupName, resourceId) 
     console.log('[getResourceConfig] ends — single resource')
     return resource
   }
-  const resources = []
-  for await (const r of client.resources.listByResourceGroup(resourceGroupName, { expand: 'properties' })) {
-    resources.push(r)
+  // List resources then fetch each one's full config in parallel
+  const resourceList = []
+  for await (const r of client.resources.listByResourceGroup(resourceGroupName)) {
+    resourceList.push(r)
   }
+  const resources = await Promise.all(resourceList.map(async (r) => {
+    try {
+      const parts = r.id.split('/')
+      const provider = parts[6]
+      const type = parts[7]
+      const name = parts[8]
+      const apiVersion = await getApiVersion(subscriptionId, provider, type)
+      const full = await client.resources.get(resourceGroupName, provider, '', type, name, apiVersion)
+      return full
+    } catch { return r }
+  }))
   const rg = await client.resourceGroups.get(resourceGroupName)
-  console.log('[getResourceConfig] ends — resource group with', resources.length, 'resources')
+  console.log('[getResourceConfig] ends — resource group with', resources.length, 'resources (full configs)')
   return { resourceGroup: rg, resources }
 }
 //  getResourceConfig END 

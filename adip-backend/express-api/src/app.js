@@ -106,6 +106,7 @@ app.use('/api', require('./routes/rgPrediction'))
 app.use('/api', require('./routes/driftRiskTimeline'))
 app.use('/api', require('./routes/recover'))
 app.use('/api', require('./routes/recommendations'))
+app.use('/api', require('./routes/manualGuide'))
 
 
 

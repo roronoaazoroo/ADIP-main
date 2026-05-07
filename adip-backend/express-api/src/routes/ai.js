@@ -33,7 +33,31 @@ async function forwardGetToAiFunction(operationName, queryParams) {
   return httpResponse.json()
 }
 
-router.post('/ai/explain',   async (req, res) => { try { res.json(await forwardPostToAiFunction('explain',   req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
+router.post('/ai/explain', async (req, res) => {
+  try {
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
+    const apiKey = process.env.AZURE_OPENAI_KEY
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
+    if (!endpoint || !apiKey) return res.json(await forwardPostToAiFunction('explain', req.body))
+    const record = req.body
+    const changes = (record.differences || record.changes || []).map(c => c.sentence || `${c.type} ${c.path}`).slice(0, 15).join('\n')
+    const fetch = require('node-fetch')
+    const aiRes = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-15-preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: 'You are an Azure security expert. Summarize what changed in bullet points. Be concise — no definitions, no filler. Each bullet: what field changed, from what to what, and the security/cost/compliance impact in one short phrase. No introductions or conclusions.' },
+          { role: 'user', content: `Resource: ${record.resourceId?.split('/').pop() || 'unknown'}\nResource Group: ${record.resourceGroup || ''}\nChanges:\n${changes}` }
+        ],
+        max_tokens: 300, temperature: 0.3,
+      }),
+    })
+    if (!aiRes.ok) throw new Error(`OpenAI ${aiRes.status}`)
+    const data = await aiRes.json()
+    res.json({ explanation: data.choices[0]?.message?.content?.trim() || '' })
+  } catch (aiError) { res.status(500).json({ error: aiError.message }) }
+})
 router.post('/ai/severity',  async (req, res) => { try { res.json(await forwardPostToAiFunction('severity',  req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 router.post('/ai/recommend', async (req, res) => { try { res.json(await forwardPostToAiFunction('recommend', req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 router.get('/ai/predict',    async (req, res) => { try { res.json(await forwardGetToAiFunction('predict',    req.query)) } catch (aiError) { res.status(500).json({ error: aiError.message }) } })

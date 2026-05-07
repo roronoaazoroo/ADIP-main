@@ -8,6 +8,7 @@
   background: #f9f9fc;
   color: #1a1c1e;
   font-family: 'Inter', sans-serif;
+  /* Do NOT set overflow here — it breaks position:sticky on children */
 }
 
 .sp-main {
@@ -23,10 +24,11 @@
 .sp-sidebar {
   width: 240px;
   flex-shrink: 0;
+  /* sticky requires align-self:flex-start so height doesn't stretch to parent */
+  align-self: flex-start;
   position: sticky;
   top: 80px;
-  max-height: calc(100vh - 96px);
-  overflow-y: auto;
+  /* NOTE: do NOT add overflow-y here — it disables sticky */
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -184,24 +186,27 @@
   padding: 24px 28px 28px;
 }
 
-/*   Profile section*/
-.sp-profile-header {
+/*   Profile section – user chip */
+.sp-user-chip {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 28px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 16px 20px;
+  background: rgba(0, 51, 89, 0.03);
+  border: 1px solid rgba(0, 51, 89, 0.08);
+  border-radius: 16px;
+  transition: background 0.15s;
 }
 
 .sp-avatar-large {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   background: linear-gradient(135deg, #003359, #0060a9);
   color: #fff;
   font-weight: 800;
-  font-size: 26px;
+  font-size: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -209,18 +214,30 @@
   flex-shrink: 0;
 }
 
-/* .sp-profile-info {} */
-.sp-profile-name {
-  font-size: 18px;
+.sp-user-chip-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sp-user-chip-name {
+  font-size: 16px;
   font-weight: 700;
   color: #003359;
-  margin-bottom: 2px;
+  line-height: 1.2;
 }
-.sp-profile-role {
-  font-size: 13px;
-  color: #4b5563;
-  font-weight: 500;
+
+.sp-user-chip-role {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 5px;
+  text-transform: capitalize;
+  letter-spacing: 0.03em;
+  width: fit-content;
 }
+
 
 .sp-form-grid {
   display: grid;

@@ -125,15 +125,68 @@
   align-items: center;
   justify-content: center;
   letter-spacing: 0.02em;
-  transition: transform var(--transition-fast);
-  cursor: default;
-  margin-left: 4px;
   flex-shrink: 0;
 }
 
-.dh-avatar:hover {
-  transform: scale(1.05);
+/* ── User chip (avatar + name + role stacked) ── */
+.dh-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 12px;
+  background: rgba(0, 51, 89, 0.04);
+  border: 1px solid rgba(0, 51, 89, 0.08);
+  cursor: default;
+  transition: background 0.15s, border-color 0.15s;
+  margin-left: 4px;
+  user-select: none;
 }
+
+.dh-user-chip:hover {
+  background: rgba(0, 51, 89, 0.07);
+  border-color: rgba(0, 51, 89, 0.14);
+}
+
+.dh-user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dh-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a202c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  line-height: 1.2;
+}
+
+.dh-user-role {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: capitalize;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+}
+
+/* Dark theme overrides for user chip */
+[data-theme="dark"] .dh-user-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+[data-theme="dark"] .dh-user-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .dh-user-name { color: #f1f5f9; }
 
 /*  Logo  */
 .ct-logo {

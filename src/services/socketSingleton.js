@@ -12,7 +12,7 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'
 let socket = null
 const listeners = new Set()
 
-function getSocket() {
+export function getSocket() {
   if (!socket) {
     socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
@@ -52,3 +52,4 @@ export function isConnected() {
 
 // Initialise on import
 getSocket()
+

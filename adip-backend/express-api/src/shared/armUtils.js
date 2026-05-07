@@ -7,6 +7,7 @@
 const VOLATILE_FIELDS = [
   'etag', 'changedTime', 'createdTime', 'provisioningState',
   'lastModifiedAt', 'systemData', '_ts', '_etag', '_rid', '_self', 'id',
+  'azureFilesIdentityBasedAuthentication',
 ]
 
 // Read-only fields ARM rejects or ignores on PUT — resource-type specific

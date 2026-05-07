@@ -42,11 +42,18 @@ async function createNotification(orgId, recipientUserId, message, type) {
     type,
     read: false,
     createdAt: new Date().toISOString(),
-  }, 'Replace').catch(() => {})
+  }, 'Replace').catch(err => console.log('[createNotification] error:', err.message))
+  console.log('[createNotification] sent to', recipientUserId, ':', message)
 }
 
 // Helper: notify all members of an org
 async function notifyAllMembers(orgId, message, type, excludeUserId = null) {
+  // Notify admins
+  for await (const member of adminsTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${orgId}'` } })) {
+    if (member.rowKey === excludeUserId) continue
+    await createNotification(orgId, member.rowKey, message, type)
+  }
+  // Notify members
   for await (const member of membersTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${orgId}'` } })) {
     if (member.rowKey === excludeUserId) continue
     await createNotification(orgId, member.rowKey, message, type)
@@ -99,10 +106,14 @@ router.put('/org/members/:userId', async (req, res) => {
 
     // Notify all members about role change
     const promotedName = entity.name || entity.email
-    if (role === 'approver') {
-      await notifyAllMembers(user.orgId, `${promotedName} is now an approver`, 'role_change', userId)
-    }
+    const roleMessage = role === 'approver' ? `${promotedName} is now an approver` : `${promotedName} is now a requestor`
+    await notifyAllMembers(user.orgId, roleMessage, 'role_change')
 
+    // Broadcast role change to all connected clients
+    if (global.io) {
+      global.io.emit('roleChange', { userId, role, name: entity.name || entity.email })
+      global.io.emit('newNotification', { orgId: user.orgId, message: roleMessage })
+    }
     res.json({ updated: true, userId, role })
   } catch (error) {
     res.status(500).json({ error: error.message })

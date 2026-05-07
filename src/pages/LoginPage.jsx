@@ -46,6 +46,7 @@ export default function LoginPage() {
     setError(null)
     if (!email.trim()) { setError('Please enter your email.'); return }
     if (authMode !== 'login' && !password) { setError('Please enter a password.'); return }
+    if (authMode !== 'login' && password.length < 6) { setError('Password must be at least 6 characters.'); return }
     if (authMode === 'joinOrg' && !inviteCode.trim()) { setError('Please enter the invite code.'); return }
     if (authMode === 'createOrg' && !name.trim()) { setError('Please enter your name.'); return }
 
@@ -142,6 +143,11 @@ export default function LoginPage() {
       <div className="login-bg" aria-hidden="true">
         <div className="login-bg-gradient" />
         <div className="login-bg-grid" />
+        <div className="login-bubbles">
+          {Array.from({ length: 15 }).map((_, i) => (
+            <span key={i} className="login-bubble" />
+          ))}
+        </div>
       </div>
 
       <div className="login-content">

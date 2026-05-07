@@ -14,6 +14,7 @@ const VOLATILE = [
   'enableAutomaticUpdates', 'winRM',
   // NSG back-references
   'defaultSecurityRules',
+  'azureFilesIdentityBasedAuthentication',
 ]
 
 const CRITICAL_PATHS = [
