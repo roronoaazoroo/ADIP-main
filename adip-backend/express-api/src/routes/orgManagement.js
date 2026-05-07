@@ -14,6 +14,9 @@ const jwt = require('jsonwebtoken')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'adip-dev-secret-change-in-production'
 
+function adminsTable() {
+  return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'orgAdmins')
+}
 function membersTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'orgMembers')
 }
@@ -57,10 +60,22 @@ router.get('/org/members', async (req, res) => {
 
   try {
     const members = []
+    // Admins
+    for await (const entity of adminsTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${user.orgId}'` } })) {
+      members.push({ userId: entity.rowKey, email: entity.email, name: entity.name, role: entity.role, joinedAt: entity.joinedAt })
+    }
+    // Members
     for await (const entity of membersTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${user.orgId}'` } })) {
       members.push({ userId: entity.rowKey, email: entity.email, name: entity.name, role: entity.role, joinedAt: entity.joinedAt })
     }
-    res.json(members)
+    // Include org info
+    let orgInfo = null
+    try {
+      const { TableClient } = require('@azure/data-tables')
+      const orgEntity = await TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'organizations').getEntity(user.orgId, user.orgId)
+      orgInfo = { organizationName: orgEntity.organizationName, inviteCode: orgEntity.inviteCode }
+    } catch {}
+    res.json({ members, organization: orgInfo })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

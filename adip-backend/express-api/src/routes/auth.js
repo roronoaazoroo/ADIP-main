@@ -23,6 +23,9 @@ const JWT_EXPIRY = '24h'
 function organizationsTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'organizations')
 }
+function orgAdminsTable() {
+  return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'orgAdmins')
+}
 function orgMembersTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'orgMembers')
 }
@@ -100,7 +103,7 @@ router.post('/auth/create-org', async (req, res) => {
       createdAt: new Date().toISOString(),
     }, 'Replace')
 
-    await orgMembersTable().upsertEntity({
+    await orgAdminsTable().upsertEntity({
       partitionKey: orgId,
       rowKey: userId,
       email: email.toLowerCase(),
@@ -111,6 +114,24 @@ router.post('/auth/create-org', async (req, res) => {
     }, 'Replace')
 
     verifiedEmails.delete(email.toLowerCase())
+    // Send invite code to admin's email
+    try {
+      const { EmailClient } = require('@azure/communication-email')
+      const connStr = process.env.COMMS_CONNECTION_STRING
+      const sender = process.env.SENDER_ADDRESS
+      if (connStr && sender) {
+        const emailClient = new EmailClient(connStr)
+        await emailClient.beginSend({
+          senderAddress: sender,
+          content: {
+            subject: `ADIP — Your Organization Invite Code`,
+            html: `<div style="font-family:Segoe UI,Arial,sans-serif;max-width:400px;margin:0 auto;padding:32px"><h2 style="color:#0f172a">Organization Created</h2><p style="color:#64748b">Share this invite code with your team:</p><div style="background:#f1f5f9;border-radius:8px;padding:16px;text-align:center;margin:20px 0"><span style="font-size:28px;font-weight:700;letter-spacing:4px;color:#0f172a">${inviteCode}</span></div><p style="color:#64748b;font-size:13px">Team members enter this code on the ADIP sign-up page to join <strong>${organizationName}</strong>.</p><p style="color:#94a3b8;font-size:11px;margin-top:24px">— Azure Drift Intelligence Platform</p></div>`,
+            plainText: `Your ADIP organization invite code is: ${inviteCode}. Share it with team members to join ${organizationName}.`,
+          },
+          recipients: { to: [{ address: email }] },
+        })
+      }
+    } catch { /* non-fatal */ }
     const token = generateAuthToken({ userId, orgId, role: 'admin', email, name })
     res.status(201).json({ token, inviteCode, orgId, userId, role: 'admin', organizationName, subscriptionId })
     console.log('[POST /auth/create-org] ends — orgId:', orgId, 'inviteCode:', inviteCode)
@@ -196,9 +217,19 @@ router.post('/auth/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'email and password required' })
 
   try {
+    // Search orgAdmins first, then orgMembers
     let member = null
-    for await (const entity of orgMembersTable().listEntities()) {
-      if (entity.email === email.toLowerCase()) { member = entity; break }
+    for await (const entity of orgAdminsTable().listEntities()) {
+      if (entity.email === email.toLowerCase()) {
+        if (!member || (entity.joinedAt || '') > (member.joinedAt || '')) member = entity
+      }
+    }
+    if (!member) {
+      for await (const entity of orgMembersTable().listEntities()) {
+        if (entity.email === email.toLowerCase()) {
+          if (!member || (entity.joinedAt || '') > (member.joinedAt || '')) member = entity
+        }
+      }
     }
     if (!member) return res.status(401).json({ error: 'Invalid email or password' })
 
