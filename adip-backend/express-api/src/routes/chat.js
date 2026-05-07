@@ -35,6 +35,31 @@ router.post('/chat', async (req, res) => {
       if (resourceContext.driftSummary) systemPromptWithContext += `Recent drift: ${resourceContext.driftSummary}\n`
     }
 
+    // Auto-fetch resource config if user mentions a known resource name
+    const lastUserMessage = (conversationHistory[conversationHistory.length - 1]?.content || '').toLowerCase()
+    try {
+      const { getResourceConfig } = require('../services/azureResourceService')
+      const { TableClient } = require('@azure/data-tables')
+      const subId = process.env.AZURE_SUBSCRIPTION_ID
+      if (subId) {
+        const changesTc = TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'changesIndex')
+        const seen = new Set()
+        for await (const entity of changesTc.listEntities({ queryOptions: { filter: `PartitionKey eq '${subId}'` } })) {
+          const resName = (entity.resourceId || '').split('/').pop()?.toLowerCase()
+          if (!resName || seen.has(resName)) continue
+          seen.add(resName)
+          if (lastUserMessage.includes(resName)) {
+            const rg = entity.resourceGroup || entity.resourceId.split('/')[4]
+            const config = await getResourceConfig(subId, rg, entity.resourceId)
+            if (config) {
+              systemPromptWithContext += `\n\nLIVE CONFIGURATION of ${resName} (fetched from Azure):\n${JSON.stringify(config, null, 2).slice(0, 4000)}\nUse this data to answer the user.`
+            }
+            break
+          }
+        }
+      }
+    } catch (configErr) { console.log('[chat] config fetch non-fatal:', configErr.message) }
+
     const openAiEndpointUrl = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${CHAT_API_VERSION}`
     const openAiResponse = await fetch(openAiEndpointUrl, {
       method: 'POST',

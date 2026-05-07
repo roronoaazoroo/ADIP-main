@@ -79,6 +79,7 @@ export default function DriftScanner() {
   const isMultiScope = scopes.length > 1
   // Which scope is selected in the config/graph tab dropdown
   const [selectedScopeId, setSelectedScopeId] = React.useState(null)
+  const [expandedResourceIndex, setExpandedResourceIndex] = React.useState(null)
   const activeScope = scopes.find(s => (s.resourceId || s.resourceGroupId) === selectedScopeId) || scopes[0]
 
   const { subscriptions, loading: scopeLoading, isDemoMode, fetchRGs, fetchResources } = useAzureScope({
@@ -450,15 +451,38 @@ export default function DriftScanner() {
                           </div>
                           <div style={sectionStyle}>
                             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#fff' }}>Resources ({resourceList.length})</div>
-                            {resourceList.map((resource, index) => (
-                              <div key={index} style={{ ...rowStyle, alignItems: 'center' }}>
-                                <div>
-                                  <div style={valueStyle}>{resource.name || resource.id?.split('/').pop()}</div>
-                                  <div style={{ ...labelStyle, marginTop: 2 }}>{typeLabel(resource.type)}</div>
+                            {resourceList.map((resource, index) => {
+                              const resProps = resource.properties || {}
+                              const resSku = resource.sku || {}
+                              const isExpanded = expandedResourceIndex === index
+                              return (
+                              <div key={index} style={{ marginBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                <div onClick={() => setExpandedResourceIndex(isExpanded ? null : index)}
+                                  style={{ cursor: 'pointer', padding: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ color: '#60a5fa', fontSize: 12, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={valueStyle}>{resource.name || resource.id?.split('/').pop()}</div>
+                                    <div style={{ ...labelStyle, marginTop: 2 }}>{typeLabel(resource.type)}</div>
+                                  </div>
+                                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{resource.location || ''}</span>
                                 </div>
-                                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{resource.location || ''}</span>
+                                {isExpanded && (
+                                <div style={{ padding: '6px 12px 12px 20px', fontSize: 12 }}>
+                                  {resSku.name && <div style={rowStyle}><span style={labelStyle}>SKU</span><span style={valueStyle}>{resSku.name}{resSku.tier ? ` / ${resSku.tier}` : ''}</span></div>}
+                                  {resource.kind && <div style={rowStyle}><span style={labelStyle}>Kind</span><span style={valueStyle}>{resource.kind}</span></div>}
+                                  {Object.entries(resProps).map(([key, value]) => {
+                                    if (key === 'provisioningState' || key === 'creationTime') return null
+                                    const displayValue = typeof value === 'boolean' ? (value ? '✅ Yes' : '❌ No')
+                                      : typeof value === 'object' ? JSON.stringify(value).slice(0, 60)
+                                      : String(value).slice(0, 60)
+                                    return <div key={key} style={rowStyle}><span style={labelStyle}>{key}</span><span style={valueStyle}>{displayValue}</span></div>
+                                  })}
+                                  {resource.tags && Object.keys(resource.tags).length > 0 && <div style={rowStyle}><span style={labelStyle}>Tags</span><span style={valueStyle}>{Object.entries(resource.tags).map(([k,v]) => `${k}=${v}`).join(', ')}</span></div>}
+                                </div>
+                                )}
                               </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       )

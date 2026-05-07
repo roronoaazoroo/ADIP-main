@@ -46,6 +46,7 @@ function CostDeltaBadge({ resourceType, location, fieldPath, oldValue, newValue 
 import { useDashboard } from '../context/DashboardContext'
 import { useViewMode } from '../context/ViewModeContext'
 import AggregatedDriftView from '../components/AggregatedDriftView'
+import ManualFixGuide from '../components/ManualFixGuide'
 import './ComparisonPage.css'
 
 const CRITICAL_PATHS = ['properties.networkAcls','properties.accessPolicies','properties.securityRules','sku','location','identity','properties.encryption']
@@ -487,32 +488,9 @@ export default function ComparisonPage() {
           </div>
         )}
 
-        {/* Manual Fix Guide — shown when remediation mode is OFF */}
+        {/* AI Manual Fix Guide — shown when remediation mode is OFF */}
         {!remediationMode && fieldDifferences.length > 0 && baselineConfig && (
-          <div className="cp-card" style={{ marginTop: 16 }}>
-            <div className="cp-card-header">
-              <span className="material-symbols-outlined" style={{ color: '#f59e0b' }}>menu_book</span>
-              <h3>Manual Fix Guide (Read-Only Mode)</h3>
-            </div>
-            <div style={{ padding: '16px 20px', fontSize: 13, lineHeight: 1.8, color: 'var(--text-secondary)' }}>
-              <p style={{ marginBottom: 12, color: 'rgba(255,255,255,0.5)' }}>Auto-remediation is disabled. Follow these steps to manually revert:</p>
-              {fieldDifferences.map((diff, index) => {
-                const field = diff.path?.split(' → ').pop() || diff.path
-                const resourceName = displayName
-                return (
-                  <div key={index} style={{ padding: '10px 12px', marginBottom: 8, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{index + 1}. Revert "{field}"</div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-                      <strong>Portal:</strong> Azure Portal → {resourceName} → Settings → Find "{field}" → Change back to "{String(diff.oldValue ?? 'original value').slice(0, 30)}"
-                    </div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
-                      <strong>CLI:</strong> <code style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 3 }}>az resource update --ids {resourceId} --set properties.{field}={String(diff.oldValue ?? '').slice(0, 20)}</code>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          <ManualFixGuide resourceId={resourceId} resourceType={currentLive?.type} displayName={displayName} differences={fieldDifferences} />
         )}
 
         {/* AI cards — Dev view only (CTO shows AI inline above) */}
