@@ -55,7 +55,7 @@ async function explainDrift(record) {
   const changes = (record.differences || record.changes || [])
     .map(c => c.sentence || `${c.type} ${c.path}`).slice(0, 15).join('\n')
   const result = await chat(
-    'You are an Azure security expert. Explain this configuration drift in plain English in 3-4 sentences. Focus on security implications. No markdown, no bullet points.',
+    'You are an Azure security expert. Summarize what changed in bullet points. Be concise — no definitions, no filler. Each bullet: what field changed, from what to what, and the security/cost/compliance impact in one short phrase. No introductions or conclusions.',
     `Resource: ${record.resourceId?.split('/').pop()} (type: ${record.resourceId?.split('/')[7] || 'unknown'})\nResource Group: ${record.resourceGroup}\nChanges:\n${changes}`
   )
   console.log('[explainDrift] ends')

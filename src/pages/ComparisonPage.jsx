@@ -79,7 +79,7 @@ function normaliseState(state) {
   if (!state) return {}
   const VOLATILE = ['etag','changedTime','createdTime','provisioningState','lastModifiedAt','systemData','_ts','_etag','_rid','_self']
   // VM and general read-only fields that should never appear as drift
-  const READONLY = ['vmId','timeCreated','instanceView','powerState','statuses','resources','latestModelApplied',
+  const READONLY = ['vmId','timeCreated','instanceView','powerState','statuses','latestModelApplied',
     'resourceGuid','defaultSecurityRules','adminUsername','adminPassword','computerName',
     'disablePasswordAuthentication','ssh','provisionVMAgent','patchSettings','enableAutomaticUpdates','winRM']
   const strip = (obj, parentKey = '') => {
@@ -123,6 +123,7 @@ export default function ComparisonPage() {
   const { viewMode } = useViewMode()
   const [remediationMode, setRemediationMode] = useState(false)
   const [driftViewMode, setDriftViewMode] = useState('individual') // 'individual' | 'aggregated'
+  const [expandedCompareResource, setExpandedCompareResource] = useState(null)
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
   // Live config — starts from navigation state, refreshed every 5 seconds
@@ -645,6 +646,51 @@ export default function ComparisonPage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* RG-level resource details — CTO view */}
+        {viewMode === 'cto' && currentLive?.resources && (
+          <div className="cp-card" style={{ marginTop: 16 }}>
+            <div className="cp-card-header">
+              <span className="material-symbols-outlined" style={{ color: '#0060a9' }}>dns</span>
+              <h3>Resources ({currentLive.resources.length})</h3>
+            </div>
+            <div style={{ padding: '12px 16px' }}>
+              {currentLive.resources.map((resource, index) => {
+                const resProps = resource.properties || {}
+                const resSku = resource.sku || {}
+                const isExpanded = expandedCompareResource === index
+                return (
+                  <div key={index} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', marginBottom: 4 }}>
+                    <div onClick={() => setExpandedCompareResource(isExpanded ? null : index)}
+                      style={{ cursor: 'pointer', padding: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: '#60a5fa', fontSize: 12, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : '' }}>▶</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{resource.name || resource.id?.split('/').pop()}</div>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{(resource.type || '').split('/').pop()}</div>
+                      </div>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{resource.location || ''}</span>
+                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: '6px 12px 12px 20px', fontSize: 12 }}>
+                        {resSku.name && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>SKU</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{resSku.name}{resSku.tier ? ` / ${resSku.tier}` : ''}</span></div>}
+                        {resource.kind && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Kind</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{resource.kind}</span></div>}
+                        {Object.entries(resProps).filter(([k]) => k !== 'provisioningState' && k !== 'creationTime').map(([key, value]) => (
+                          <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                            <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{key}</span>
+                            <span style={{ color: 'var(--text-primary)', fontSize: 12, maxWidth: '60%', textAlign: 'right', wordBreak: 'break-all' }}>
+                              {typeof value === 'boolean' ? (value ? '✅' : '❌') : typeof value === 'object' ? JSON.stringify(value).slice(0, 80) : String(value).slice(0, 80)}
+                            </span>
+                          </div>
+                        ))}
+                        {resource.tags && Object.keys(resource.tags).length > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Tags</span><span style={{ color: 'var(--text-primary)', fontSize: 12 }}>{Object.entries(resource.tags).map(([k,v]) => `${k}=${v}`).join(', ')}</span></div>}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
