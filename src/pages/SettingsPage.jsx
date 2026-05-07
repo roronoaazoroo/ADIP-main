@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
 import SuppressionRules from '../components/SuppressionRules'
+import OrgMembersPanel from '../components/OrgMembersPanel'
 import { fetchUserPreferences, saveUserPreferences } from '../services/api'
 import './SettingsPage.css'
 
@@ -450,6 +451,13 @@ export default function SettingsPage() {
                   {theme === 'dark' && <span className="sp-theme-check material-symbols-outlined">check_circle</span>}
                 </button>
               </div>
+            </SectionCard>
+          </div>
+
+          {/* Organization Members */}
+          <div id="sp-section-org">
+            <SectionCard icon="group" title="Organization Members" badge="Team">
+              <OrgMembersPanel />
             </SectionCard>
           </div>
 
