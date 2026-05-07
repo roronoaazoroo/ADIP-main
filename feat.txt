@@ -1,0 +1,18 @@
+1. (toggle to switch to dev view and the CTO view)
+so they can see necessary info they should know and be shown
+In case of CTO(cost, security)
+
+2. versioning of every resource, irrespective of drift(so it could just be changes not drift particularly). So if in case of resource deletion you could recover it(So the versioning must be strong enough)
+
+3. drift as ticketing system, you would be having approvers and rejectors(approvers approve the changes and the requestors request it)
+If the person choose to be the approver, every members in the cloudthat gets notified that that particular person is the approver, so it must be authenticated,
+
+4. maintain the history of changes, like who did the change who approved the change, and these are the changes happened
+
+5. fresh service integration(documentation gets created)(ticketing system)
+
+6. better security, better downtime management, better cost management in the genome versions, best version out of this top 5 versions
+
+
+
+
