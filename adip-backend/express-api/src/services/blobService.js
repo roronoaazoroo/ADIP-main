@@ -40,7 +40,10 @@ function getBlobService() {
 
 const containers = {}
 function container(name) {
-  if (!containers[name]) containers[name] = getBlobService().getContainerClient(name)
+  if (!containers[name]) {
+    containers[name] = getBlobService().getContainerClient(name)
+    containers[name].createIfNotExists().catch(() => {})
+  }
   return containers[name]
 }
 
@@ -192,12 +195,13 @@ async function getDriftHistory({ subscriptionId, startDate, endDate, resourceId,
 //  saveGenomeSnapshot START 
 // Writes blob + upserts index entity into genomeIndex table
 // retentionDays: org-level setting, defaults to 30
-async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, label = '', retentionDays = 30) {
+// snapshotType: change | daily | stable | pre-deletion | manual
+async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, label = '', retentionDays = 30, snapshotType = 'manual', caller = '', changedFields = '') {
   const ts  = new Date().toISOString()
   const key = `${ts.replace(/[:.]/g, '-')}_${Buffer.from(resourceId).toString('base64url')}.json`
   const expiresAt = new Date(Date.now() + retentionDays * 86400000).toISOString()
   const hasChanges = label.startsWith('change-') || label.startsWith('promoted-')
-  const doc = { subscriptionId, resourceId, resourceState, label, savedAt: ts, expiresAt }
+  const doc = { subscriptionId, resourceId, resourceState, label, savedAt: ts, expiresAt, snapshotType, caller, changedFields }
   await writeBlob('baseline-genome', key, doc)
 
   tableClient('genomeIndex')?.upsertEntity({
@@ -209,6 +213,9 @@ async function saveGenomeSnapshot(subscriptionId, resourceId, resourceState, lab
     label:        label || '',
     expiresAt,
     hasChanges,
+    snapshotType,
+    caller: caller || '',
+    changedFields: changedFields || '',
   }, 'Replace').catch(() => {})
 
   return { ...doc, _blobKey: key }
@@ -447,7 +454,61 @@ function getMonitorSessionsTableClient() { return tableClient('monitorSessions')
 function getDriftIndexTableClient()      { return tableClient('driftIndex') }
 function getChangesIndexTableClient()    { return tableClient('changesIndex') }
 
+
+// ── saveDailySnapshot START ──────────────────────────────────────────────────
+async function saveDailySnapshot(subscriptionId, resourceId, resourceState, caller = '') {
+  const ts = new Date().toISOString()
+  const date = ts.slice(0, 10)
+  const key = `${date}_${Buffer.from(resourceId).toString('base64url')}.json`
+  const doc = { subscriptionId, resourceId, resourceState, savedAt: ts, snapshotType: 'daily', caller }
+  await writeBlob('genome-daily', key, doc)
+  tableClient('genomeDailyIndex')?.upsertEntity({
+    partitionKey: subscriptionId || 'unknown',
+    rowKey: rowKey(key),
+    blobKey: key,
+    resourceId: resourceId || '',
+    savedAt: ts,
+    caller: caller || '',
+    container: 'genome-daily',
+  }, 'Replace').catch(() => {})
+  return { ...doc, _blobKey: key }
+}
+// ── saveDailySnapshot END ────────────────────────────────────────────────────
+
+// ── savePreDeletionSnapshot START ────────────────────────────────────────────
+async function savePreDeletionSnapshot(subscriptionId, resourceId, resourceState, caller = '') {
+  const ts = new Date().toISOString()
+  const key = `${ts.replace(/[:.]/g, '-')}_${Buffer.from(resourceId).toString('base64url')}.json`
+  const doc = { subscriptionId, resourceId, resourceState, savedAt: ts, snapshotType: 'pre-deletion', caller }
+  await writeBlob('genome-pre-deletion', key, doc)
+  tableClient('genomePreDeletionIndex')?.upsertEntity({
+    partitionKey: subscriptionId || 'unknown',
+    rowKey: rowKey(key),
+    blobKey: key,
+    resourceId: resourceId || '',
+    savedAt: ts,
+    caller: caller || '',
+    container: 'genome-pre-deletion',
+  }, 'Replace').catch(() => {})
+  return { ...doc, _blobKey: key }
+}
+// ── savePreDeletionSnapshot END ──────────────────────────────────────────────
+
+// ── getSnapshotConfig START ──────────────────────────────────────────────────
+async function getSnapshotConfig(blobKey) {
+  const containers = ['baseline-genome', 'genome-daily', 'genome-pre-deletion']
+  for (const c of containers) {
+    const doc = await readBlob(c, blobKey)
+    if (doc) return doc
+  }
+  return null
+}
+// ── getSnapshotConfig END ────────────────────────────────────────────────────
+
 module.exports = {
+  saveDailySnapshot,
+  savePreDeletionSnapshot,
+  getSnapshotConfig,
   getBaseline,
   saveBaseline,
   saveDriftRecord,
