@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ctMsLogo from '../assets/ct-logo-x-ms.png'
-import { loginUser, createOrganization, joinOrganization } from '../services/authService'
+import { loginUser, createOrganization, joinOrganization, fetchOrganizations } from '../services/authService'
 import './LoginPage.css'
 
 export default function LoginPage() {
@@ -11,15 +11,15 @@ export default function LoginPage() {
   const [username, setUsername]   = useState('')
   const [password, setPassword]   = useState('')
   const [showPass, setShowPass]   = useState(false)
-  const [authMode, setAuthMode]   = useState('login') // 'login' | 'createOrg' | 'joinOrg'
+  const [authMode, setAuthMode]   = useState('joinOrg') // 'login' | 'createOrg' | 'joinOrg'
   const [name, setName]           = useState('')
   const [email, setEmail]         = useState('')
   const [organizationName, setOrganizationName] = useState('')
-  const [organizationToken, setOrganizationToken] = useState('')
+  const [selectedOrgId, setSelectedOrgId] = useState('')
+  const [organizationsList, setOrganizationsList] = useState([])
   const [subscriptionId, setSubscriptionId] = useState('')
   const [retentionDays, setRetentionDays] = useState(30)
   const [requiredApprovals, setRequiredApprovals] = useState(2)
-  const [createdOrgToken, setCreatedOrgToken] = useState(null)
   const usernameRef = useRef(null)
   const errorRef = useRef(null)
 
@@ -35,6 +35,8 @@ export default function LoginPage() {
       errorRef.current.focus()
     }
   }, [error])
+
+  useEffect(() => { fetchOrganizations().then(setOrganizationsList).catch(() => {}) }, [])
 
 
   /**
@@ -70,12 +72,12 @@ export default function LoginPage() {
         const userEmail = username.trim().toLowerCase()
         if (!organizationName || !name || !userEmail || !password || !subscriptionId) { setError('All fields are required.'); setIsLoading(false); return }
         const result = await createOrganization({ organizationName, name, email: userEmail, password, subscriptionId, retentionDays, requiredApprovals })
-        setCreatedOrgToken(result.organizationToken)
         sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: userEmail, email: userEmail, role: result.role, orgId: result.orgId }))
+        navigate('/dashboard')
       } else if (authMode === 'joinOrg') {
         const userEmail = username.trim().toLowerCase()
-        if (!organizationToken || !name || !userEmail || !password) { setError('All fields are required.'); setIsLoading(false); return }
-        const result = await joinOrganization({ organizationToken, name, email: userEmail, password })
+        if (!selectedOrgId || !name || !userEmail || !password) { setError('All fields are required.'); setIsLoading(false); return }
+        const result = await joinOrganization({ orgId: selectedOrgId, name, email: userEmail, password })
         sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: userEmail, email: userEmail, role: result.role, orgId: result.orgId }))
         navigate('/dashboard')
       }
@@ -194,11 +196,7 @@ export default function LoginPage() {
           <form className="login-fields" onSubmit={(e) => { e.preventDefault(); handleLogin(); }} noValidate>
 
             {/* Extra fields for Create/Join org modes */}
-            {authMode !== 'login' && (
-              <div className="login-field-wrap">
-                <input type="text" className="login-input" placeholder="Your Full Name" value={name} onChange={e => setName(e.target.value)} disabled={isLoading} />
-              </div>
-            )}
+            
             {authMode === 'createOrg' && (
               <div className="login-field-wrap">
                 <input type="text" className="login-input" placeholder="Organization Name" value={organizationName} onChange={e => setOrganizationName(e.target.value)} disabled={isLoading} />
@@ -206,7 +204,10 @@ export default function LoginPage() {
             )}
             {authMode === 'joinOrg' && (
               <div className="login-field-wrap">
-                <input type="text" className="login-input" placeholder="Organization Token (e.g. ADIP-A1B2C3-D4E5F6)" value={organizationToken} onChange={e => setOrganizationToken(e.target.value)} disabled={isLoading} />
+                <select className="login-input" value={selectedOrgId} onChange={e => setSelectedOrgId(e.target.value)} disabled={isLoading}>
+                  <option value="">Select your organization</option>
+                  {organizationsList.map(org => <option key={org.orgId} value={org.orgId}>{org.organizationName}</option>)}
+                </select>
               </div>
             )}
 
@@ -322,24 +323,20 @@ export default function LoginPage() {
 
           {/* Mode switcher */}
           <div style={{ display: 'flex', gap: 16, marginTop: 16, width: '100%' }}>
-            {authMode === 'login' ? (
+            {authMode === 'joinOrg' && (
               <>
+                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('login'); setError(null) }}>Already have an account? Sign In</button>
                 <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('createOrg'); setError(null) }}>Create Organization</button>
-                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>Join Organization</button>
               </>
-            ) : (
-              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('login'); setError(null) }}>← Back to Sign In</button>
+            )}
+            {authMode === 'login' && (
+              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>Don't have an account? Sign Up</button>
+            )}
+            {authMode === 'createOrg' && (
+              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>← Back</button>
             )}
           </div>
 
-          {/* Show org token after creation */}
-          {createdOrgToken && (
-            <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 8, textAlign: 'center' }}>
-              <p style={{ color: '#10b981', fontSize: 12, margin: '0 0 8px' }}>Organization created! Share this token:</p>
-              <p style={{ color: '#fff', fontFamily: 'monospace', fontSize: 16, fontWeight: 700, letterSpacing: 1, margin: '0 0 12px' }}>{createdOrgToken}</p>
-              <button className="login-btn" style={{ width: 'auto', padding: '8px 24px', fontSize: 12 }} onClick={() => navigate('/dashboard')}>Continue to Dashboard</button>
-            </div>
-          )}
 
           <p className="login-footer-text">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

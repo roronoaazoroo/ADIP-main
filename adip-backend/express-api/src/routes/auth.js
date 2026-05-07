@@ -79,21 +79,30 @@ router.post('/auth/create-org', async (req, res) => {
   }
 })
 
+// GET /api/auth/organizations — public, returns org list for dropdown
+router.get('/auth/organizations', async (req, res) => {
+  try {
+    const organizations = []
+    for await (const entity of organizationsTable().listEntities()) {
+      if (entity.organizationName) organizations.push({ orgId: entity.partitionKey, organizationName: entity.organizationName })
+    }
+    res.json(organizations)
+  } catch (error) { res.status(500).json({ error: error.message }) }
+})
+
 // POST /api/auth/join-org
 router.post('/auth/join-org', async (req, res) => {
   console.log('[POST /auth/join-org] starts')
-  const { organizationToken, name, email, password } = req.body
+  const { orgId, name, email, password } = req.body
 
-  if (!organizationToken || !name || !email || !password) {
-    return res.status(400).json({ error: 'organizationToken, name, email, password required' })
+  if (!orgId || !name || !email || !password) {
+    return res.status(400).json({ error: 'orgId, name, email, password required' })
   }
 
   try {
     let organization = null
-    for await (const entity of organizationsTable().listEntities()) {
-      if (entity.organizationToken === organizationToken) { organization = entity; break }
-    }
-    if (!organization) return res.status(404).json({ error: 'Organization not found. Check your token.' })
+    try { organization = await organizationsTable().getEntity(orgId, orgId) } catch {}
+    if (!organization) return res.status(404).json({ error: 'Organization not found' })
 
     const orgId = organization.partitionKey
 

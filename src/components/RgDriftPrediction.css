@@ -340,7 +340,7 @@
   transition: opacity 0.15s;
 }
 
-.rgp-heat-row--active { }
+/* .rgp-heat-row--active { } */
 .rgp-heat-row--dim { opacity: 0.3; }
 
 .rgp-heat-label {

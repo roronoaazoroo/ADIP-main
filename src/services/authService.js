@@ -25,10 +25,10 @@ export async function createOrganization({ organizationName, name, email, passwo
   return data
 }
 
-export async function joinOrganization({ organizationToken, name, email, password }) {
+export async function joinOrganization({ orgId, name, email, password }) {
   const data = await authRequest('/auth/join-org', {
     method: 'POST',
-    body: JSON.stringify({ organizationToken, name, email, password }),
+    body: JSON.stringify({ orgId, name, email, password }),
   })
   sessionStorage.setItem('adip.token', data.token)
   sessionStorage.setItem('adip.user', JSON.stringify(data))
@@ -97,5 +97,11 @@ export async function markNotificationRead(rowKey) {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!response.ok) throw new Error((await response.json()).error || 'Failed')
+  return response.json()
+}
+
+export async function fetchOrganizations() {
+  const response = await fetch(`${API_BASE}/auth/organizations`)
+  if (!response.ok) throw new Error('Failed to load organizations')
   return response.json()
 }
