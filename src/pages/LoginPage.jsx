@@ -1,276 +1,199 @@
+// ============================================================
+// FILE: src/pages/LoginPage.jsx
+// ROLE: Authentication — Sign In / Join Org (invite code + OTP) / Create Org (OTP)
+// ============================================================
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ctMsLogo from '../assets/ct-logo-x-ms.png'
-import { loginUser, createOrganization, joinOrganization, fetchOrganizations } from '../services/authService'
+import { loginUser, createOrganization, joinOrganization, sendOtp, verifyOtp } from '../services/authService'
 import './LoginPage.css'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError]         = useState(null)
-  const [username, setUsername]   = useState('')
-  const [password, setPassword]   = useState('')
-  const [showPass, setShowPass]   = useState(false)
-  const [authMode, setAuthMode]   = useState('joinOrg') // 'login' | 'createOrg' | 'joinOrg'
-  const [name, setName]           = useState('')
-  const [email, setEmail]         = useState('')
+  const [error, setError] = useState(null)
+  const [authMode, setAuthMode] = useState('joinOrg') // 'login' | 'createOrg' | 'joinOrg'
+  const [step, setStep] = useState('form') // 'form' | 'otp' | 'orgConfig'
+
+  // Form fields
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [name, setName] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
+  const [otpCode, setOtpCode] = useState('')
+
+  // Org config fields (create org step 2)
   const [organizationName, setOrganizationName] = useState('')
-  const [selectedOrgId, setSelectedOrgId] = useState('')
-  const [organizationsList, setOrganizationsList] = useState([])
   const [subscriptionId, setSubscriptionId] = useState('')
   const [retentionDays, setRetentionDays] = useState(30)
   const [requiredApprovals, setRequiredApprovals] = useState(2)
-  const usernameRef = useRef(null)
-  const errorRef = useRef(null)
+  const [allowedDomain, setAllowedDomain] = useState('')
 
+  // Invite code shown after org creation
+  const [createdInviteCode, setCreatedInviteCode] = useState(null)
 
-  // Auto-focus username field on mount
-  useEffect(() => {
-    usernameRef.current?.focus()
-  }, [])
+  const emailRef = useRef(null)
+  const otpRef = useRef(null)
 
-  // Move focus to error message when it appears (screen reader announcement)
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.focus()
-    }
-  }, [error])
-
-  useEffect(() => { fetchOrganizations().then(setOrganizationsList).catch(() => {}) }, [])
-
-
-  /**
-   * Handle Microsoft Sign-In.
-
-   * When SSO is configured (VITE_AZURE_CLIENT_ID + VITE_AZURE_TENANT_ID set),
-   * this will use MSAL to authenticate via Azure AD popup.
-   
-   * In demo mode (no env vars), it navigates directly to dashboard.
-   
-   * To enable real SSO:
-   * 1. npm install @azure/msal-browser
-   * 2. Set VITE_AZURE_CLIENT_ID and VITE_AZURE_TENANT_ID in .env
-   * 3. Uncomment the MSAL code in services/api.js
-   * 4. Replace the demo branch below with:
-   
-   *    import { msalInstance, loginWithMicrosoft } from '../services/api'
-   *    const result = await loginWithMicrosoft()
-   *    // Store account info in context/state
-   *    navigate('/home')*/
-   
-  const handleLogin = async () => {
-    setError(null)
-    setIsLoading(true)
-    try {
-      if (authMode === 'createOrg') {
-        const userEmail = username.trim().toLowerCase()
-        if (!organizationName || !name || !userEmail || !password || !subscriptionId) { setError('All fields are required.'); setIsLoading(false); return }
-        const result = await createOrganization({ organizationName, name, email: userEmail, password, subscriptionId, retentionDays, requiredApprovals })
-        sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: userEmail, email: userEmail, role: result.role, orgId: result.orgId }))
-        navigate('/dashboard')
-      } else if (authMode === 'joinOrg') {
-        const userEmail = username.trim().toLowerCase()
-        if (!selectedOrgId || !userEmail || !password) { setError('All fields are required.'); setIsLoading(false); return }
-        const result = await joinOrganization({ orgId: selectedOrgId, name: userEmail.split('@')[0], email: userEmail, password })
-        sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: userEmail, email: userEmail, role: result.role, orgId: result.orgId }))
-        navigate('/dashboard')
-      }
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  useEffect(() => { if (step === 'form') emailRef.current?.focus() }, [step, authMode])
+  useEffect(() => { if (step === 'otp') otpRef.current?.focus() }, [step])
 
   const dismissError = () => setError(null)
 
+  // Step 1: Send OTP
+  const handleSendOtp = async () => {
+    setError(null)
+    if (!email.trim()) { setError('Please enter your email.'); return }
+    if (authMode !== 'login' && !password) { setError('Please enter a password.'); return }
+    if (authMode === 'joinOrg' && !inviteCode.trim()) { setError('Please enter the invite code.'); return }
+    if (authMode === 'createOrg' && !name.trim()) { setError('Please enter your name.'); return }
+
+    setIsLoading(true)
+    try {
+      await sendOtp(email.trim().toLowerCase())
+      setStep('otp')
+    } catch (err) { setError(err.message) }
+    finally { setIsLoading(false) }
+  }
+
+  // Step 2: Verify OTP then complete action
+  const handleVerifyAndComplete = async () => {
+    setError(null)
+    if (!otpCode || otpCode.length < 6) { setError('Please enter the 6-digit code.'); return }
+
+    setIsLoading(true)
+    try {
+      await verifyOtp(email.trim().toLowerCase(), otpCode)
+
+      if (authMode === 'joinOrg') {
+        const result = await joinOrganization({ inviteCode: inviteCode.trim().toUpperCase(), email: email.trim().toLowerCase(), password })
+        sessionStorage.setItem('user', JSON.stringify({ name: result.name, username: result.email || email, email: result.email || email, role: result.role, orgId: result.orgId }))
+        navigate('/dashboard')
+      } else if (authMode === 'createOrg') {
+        setStep('orgConfig')
+      }
+    } catch (err) { setError(err.message) }
+    finally { setIsLoading(false) }
+  }
+
+  // Step 3 (create org only): Complete org creation
+  const handleCreateOrg = async () => {
+    setError(null)
+    if (!organizationName || !subscriptionId) { setError('Organization name and subscription ID are required.'); return }
+
+    setIsLoading(true)
+    try {
+      const result = await createOrganization({
+        organizationName, name, email: email.trim().toLowerCase(), password,
+        subscriptionId, retentionDays, requiredApprovals, allowedDomain,
+      })
+      setCreatedInviteCode(result.inviteCode)
+      sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: email, email, role: result.role, orgId: result.orgId }))
+    } catch (err) { setError(err.message) }
+    finally { setIsLoading(false) }
+  }
+
+  // Login (no OTP needed for returning users)
+  const handleLogin = async () => {
+    setError(null)
+    if (!email.trim() || !password) { setError('Email and password required.'); return }
+    setIsLoading(true)
+    try {
+      const result = await loginUser({ email: email.trim().toLowerCase(), password })
+      sessionStorage.setItem('user', JSON.stringify({ name: result.name, username: result.email || email, email: result.email || email, role: result.role, orgId: result.orgId }))
+      navigate('/dashboard')
+    } catch (err) { setError(err.message) }
+    finally { setIsLoading(false) }
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (authMode === 'login') handleLogin()
+    else if (step === 'form') handleSendOtp()
+    else if (step === 'otp') handleVerifyAndComplete()
+    else if (step === 'orgConfig') handleCreateOrg()
+  }
+
+  // After org creation — show invite code
+  if (createdInviteCode) {
+    return (
+      <div className="login-page">
+        <div className="login-bg" aria-hidden="true"><div className="login-bg-gradient" /><div className="login-bg-grid" /></div>
+        <div className="login-content">
+          <div className="login-card" role="main">
+            <div className="login-card-header">
+              <h1 className="login-title">Organization Created!</h1>
+              <p className="login-subtitle">Share this invite code with your team members</p>
+            </div>
+            <div style={{ background: 'rgba(0,96,169,0.08)', border: '1px solid rgba(0,96,169,0.2)', borderRadius: 12, padding: '20px', textAlign: 'center', margin: '20px 0' }}>
+              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: 4, color: '#fff', fontFamily: 'monospace' }}>{createdInviteCode}</div>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 8 }}>Team members use this code to join your organization</p>
+            </div>
+            <button className="login-btn" onClick={() => navigate('/dashboard')}>Continue to Dashboard</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="login-page">
-      {/* Animated background */}
       <div className="login-bg" aria-hidden="true">
         <div className="login-bg-gradient" />
         <div className="login-bg-grid" />
-        {/* Floating particles */}
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="login-particle"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 4 + 2}px`,
-              height: `${Math.random() * 4 + 2}px`,
-              animationDelay: `${Math.random() * 8}s`,
-              animationDuration: `${Math.random() * 10 + 8}s`,
-            }}
-          />
-        ))}
-        {/* Floating cloud shapes */}
-        <div className="login-cloud login-cloud-1" />
-        <div className="login-cloud login-cloud-2" />
-        <div className="login-cloud login-cloud-3" />
       </div>
 
-      {/* Main content */}
       <div className="login-content">
-        {/* Logos bar */}
         <div className="login-logos-bar">
-          <img src={ctMsLogo} alt="CloudThat x Microsoft" style={{ height: 48, objectFit: 'contain' }} />
+          <img src={ctMsLogo} alt="CloudThat × Microsoft" style={{ height: 32 }} />
         </div>
 
-        {/* Login card */}
         <div className="login-card" role="main">
           <div className="login-card-glow" />
-          
-          {/* Card header */}
+
           <div className="login-card-header">
-            <div className="login-icon-ring">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                <path d="M2 17l10 5 10-5" />
-                <path d="M2 12l10 5 10-5" />
-              </svg>
-            </div>
-            <h1 className="login-title">{authMode === "createOrg" ? "Create Organization" : "Join Organization"}</h1>
-            <p className="login-subtitle">Configuration drift detection & monitoring platform</p>
+            <h1 className="login-title">
+              {authMode === 'login' ? 'Sign In' : authMode === 'createOrg' ? 'Create Organization' : 'Join Organization'}
+            </h1>
+            <p className="login-subtitle">
+              {step === 'otp' ? `Enter the verification code sent to ${email}` :
+               step === 'orgConfig' ? 'Configure your organization' :
+               authMode === 'login' ? 'Sign in with your credentials' :
+               authMode === 'joinOrg' ? 'Enter your invite code and email to get started' :
+               'Set up your organization on ADIP'}
+            </p>
           </div>
 
-          {/* Info badges */}
-          <div className="login-badges" aria-label="Platform features">
-            <div className="login-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
-              <span>Real-time Monitoring</span>
-            </div>
-            <div className="login-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <span>Enterprise Security</span>
-            </div>
-            <div className="login-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-              <span>Drift Analytics</span>
-            </div>
-          </div>
-
-          {/* Error message — with dismiss and screen reader announcement */}
           {error && (
-            <div
-              className="login-error"
-              role="alert"
-              aria-live="assertive"
-              ref={errorRef}
-              tabIndex={-1}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
+            <div className="login-error" role="alert">
               <span>{error}</span>
-              <button 
-                className="login-error-dismiss"
-                onClick={dismissError}
-                aria-label="Dismiss error"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
+              <button className="login-error-dismiss" onClick={dismissError} aria-label="Dismiss">✕</button>
             </div>
           )}
 
-          {/* Username & Password fields — proper form with labels */}
-          <form className="login-fields" onSubmit={(e) => { e.preventDefault(); handleLogin(); }} noValidate>
-
-            {/* Extra fields for Create/Join org modes */}
-            {authMode === 'createOrg' && (
+          <form className="login-fields" onSubmit={handleSubmit} noValidate>
+            {/* OTP Step */}
+            {step === 'otp' && (
               <div className="login-field-wrap">
-                <input type="text" className="login-input" placeholder="Your Full Name" value={name} onChange={e => setName(e.target.value)} disabled={isLoading} />
-              </div>
-            )}
-            {authMode === 'createOrg' && (
-              <div className="login-field-wrap">
-                <input type="text" className="login-input" placeholder="Organization Name" value={organizationName} onChange={e => setOrganizationName(e.target.value)} disabled={isLoading} />
-              </div>
-            )}
-            {authMode === 'joinOrg' && (
-              <div className="login-field-wrap">
-                <select className="login-input" value={selectedOrgId} onChange={e => setSelectedOrgId(e.target.value)} disabled={isLoading}>
-                  <option value="">Select your organization</option>
-                  {organizationsList.map(org => <option key={org.orgId} value={org.orgId}>{org.organizationName}</option>)}
-                </select>
+                <input ref={otpRef} type="text" className="login-input" placeholder="Enter 6-digit code"
+                  value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  maxLength={6} autoComplete="one-time-code" disabled={isLoading}
+                  style={{ textAlign: 'center', fontSize: 20, letterSpacing: 8, fontWeight: 700 }} />
               </div>
             )}
 
-            <div className="login-field-wrap">
-              <label htmlFor="login-username" className="sr-only">Email</label>
-              <div className="login-input-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </div>
-              <input
-                id="login-username"
-                ref={usernameRef}
-                type="text"
-                className="login-input login-input--with-icon"
-                placeholder={authMode === "login" ? "Email" : "Email"}
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                autoComplete="username"
-                aria-required="true"
-                aria-invalid={error && !username ? 'true' : undefined}
-                disabled={isLoading}
-              />
-            </div>
-            <div className="login-field-wrap">
-              <label htmlFor="login-password" className="sr-only">Password</label>
-              <div className="login-input-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </div>
-              <input
-                id="login-password"
-                type={showPass ? 'text' : 'password'}
-                className="login-input login-input--with-icon login-input--password"
-                placeholder="Password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                autoComplete="current-password"
-                aria-required="true"
-                aria-invalid={error && !password ? 'true' : undefined}
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                className="login-pass-toggle"
-                onClick={() => setShowPass(p => !p)}
-                aria-label={showPass ? 'Hide password' : 'Show password'}
-                tabIndex={0}
-              >
-                {showPass
-                  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                }
-              </button>
-            </div>
-
-
-            {/* Subscription & settings for Create Org */}
-            {authMode === 'createOrg' && (
+            {/* Org Config Step */}
+            {step === 'orgConfig' && (
               <>
                 <div className="login-field-wrap">
+                  <input type="text" className="login-input" placeholder="Organization Name" value={organizationName} onChange={e => setOrganizationName(e.target.value)} disabled={isLoading} />
+                </div>
+                <div className="login-field-wrap">
                   <input type="text" className="login-input" placeholder="Azure Subscription ID" value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} disabled={isLoading} />
+                </div>
+                <div className="login-field-wrap">
+                  <input type="text" className="login-input" placeholder="Allowed email domain (optional, e.g. cloudthat.com)" value={allowedDomain} onChange={e => setAllowedDomain(e.target.value)} disabled={isLoading} />
                 </div>
                 <div className="login-field-wrap" style={{ display: 'flex', gap: 8 }}>
                   <select className="login-input" value={retentionDays} onChange={e => setRetentionDays(Number(e.target.value))} disabled={isLoading}>
@@ -288,59 +211,78 @@ export default function LoginPage() {
               </>
             )}
 
-            {/* Submit button */}
-            <button
-              type="submit"
-              className={`login-btn ${isLoading ? 'login-btn-loading' : ''}`}
-              disabled={isLoading}
-              id="login-button"
-              aria-busy={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <div className="login-btn-spinner" aria-hidden="true" />
-                  <span>Authenticating...</span>
-                </>
-              ) : (
-                <>
-                  <svg width="20" height="20" viewBox="0 0 21 21" fill="none" aria-hidden="true">
-                    <rect x="0" y="0" width="10" height="10" fill="#f25022" />
-                    <rect x="11" y="0" width="10" height="10" fill="#7fba00" />
-                    <rect x="0" y="11" width="10" height="10" fill="#00a4ef" />
-                    <rect x="11" y="11" width="10" height="10" fill="#ffb900" />
-                  </svg>
-                  <span>{authMode === "createOrg" ? "Create Organization" : "Sign Up"}</span>
-                  <svg className="login-btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                </>
+            {/* Main Form Step */}
+            {step === 'form' && (
+              <>
+                {authMode === 'createOrg' && (
+                  <div className="login-field-wrap">
+                    <input type="text" className="login-input" placeholder="Your Full Name" value={name} onChange={e => setName(e.target.value)} disabled={isLoading} />
+                  </div>
+                )}
+                {authMode === 'joinOrg' && (
+                  <div className="login-field-wrap">
+                    <input type="text" className="login-input" placeholder="Invite Code (e.g. ADIP-7F3A)" value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} disabled={isLoading} />
+                  </div>
+                )}
+                <div className="login-field-wrap">
+                  <input ref={emailRef} type="email" className="login-input" placeholder="Work Email" value={email} onChange={e => setEmail(e.target.value)} disabled={isLoading} autoComplete="email" />
+                </div>
+                <div className="login-field-wrap">
+                  <input type={showPass ? 'text' : 'password'} className="login-input" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} disabled={isLoading} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} />
+                </div>
+              </>
+            )}
+
+            <button type="submit" className={`login-btn ${isLoading ? 'login-btn-loading' : ''}`} disabled={isLoading}>
+              {isLoading ? <><div className="login-btn-spinner" /><span>Please wait...</span></> : (
+                step === 'otp' ? 'Verify Code' :
+                step === 'orgConfig' ? 'Create Organization' :
+                authMode === 'login' ? 'Sign In' :
+                'Send Verification Code'
               )}
             </button>
           </form>
 
+          {/* Resend OTP */}
+          {step === 'otp' && (
+            <button type="button" className="login-btn-secondary" onClick={() => { setOtpCode(''); handleSendOtp() }} disabled={isLoading}>
+              Resend Code
+            </button>
+          )}
 
-          {/* Mode switcher */}
-          <div style={{ display: 'flex', gap: 16, marginTop: 16, width: '100%' }}>
-            {authMode === 'joinOrg' && (
-              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('createOrg'); setError(null) }}>Create Organization</button>
-            )}
-            {authMode === 'createOrg' && (
-              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>← Back to Join</button>
-            )}
-          </div>
+          {/* Mode switcher — only on form step */}
+          {step === 'form' && (
+            <div style={{ display: 'flex', gap: 12, marginTop: 16, width: '100%', justifyContent: 'center' }}>
+              {authMode === 'joinOrg' && (
+                <>
+                  <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('login'); setError(null) }}>Already a member? Sign In</button>
+                  <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('createOrg'); setError(null) }}>Create Organization</button>
+                </>
+              )}
+              {authMode === 'login' && (
+                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>← Back</button>
+              )}
+              {authMode === 'createOrg' && (
+                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>← Back</button>
+              )}
+            </div>
+          )}
 
+          {/* Back from OTP/config */}
+          {step !== 'form' && (
+            <button type="button" className="login-btn-secondary" style={{ marginTop: 12 }}
+              onClick={() => { setStep('form'); setOtpCode(''); setError(null) }}>
+              ← Back
+            </button>
+          )}
 
           <p className="login-footer-text">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            Secured by Azure Active Directory
+            Secured by Azure Communication Services
           </p>
         </div>
-
-       
-      
-       
       </div>
     </div>
   )

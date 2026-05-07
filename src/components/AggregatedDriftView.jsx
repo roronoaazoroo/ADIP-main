@@ -66,7 +66,7 @@ export default function AggregatedDriftView({ subscriptionId, resourceGroupId, r
         {INTENT_OPTIONS.map(option => (
           <button key={option.key} onClick={() => setIntent(option.key)}
             style={{
-              padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600,
               background: intent === option.key ? `${option.color}20` : 'rgba(255,255,255,0.04)',
               color: intent === option.key ? option.color : 'rgba(255,255,255,0.5)',
               border: `1px solid ${intent === option.key ? option.color + '40' : 'rgba(255,255,255,0.08)'}`,

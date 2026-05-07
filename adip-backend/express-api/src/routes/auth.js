@@ -1,11 +1,13 @@
 // ============================================================
 // FILE: adip-backend/express-api/src/routes/auth.js
-// ROLE: Authentication & organization management endpoints
+// ROLE: Authentication with OTP verification
 //
-// POST /api/auth/create-org   — create organization + admin user
-// POST /api/auth/join-org     — join existing org as member
-// POST /api/auth/login        — sign in, returns JWT
-// GET  /api/auth/me           — returns current user + org info
+// POST /api/auth/send-otp        — sends OTP to email
+// POST /api/auth/verify-otp      — verifies OTP code
+// POST /api/auth/create-org      — create org (requires verified email)
+// POST /api/auth/join-org        — join org via invite code (requires verified email)
+// POST /api/auth/login           — sign in with email + password
+// GET  /api/auth/organizations   — public, returns org list (for display only)
 // ============================================================
 'use strict'
 const router  = require('express').Router()
@@ -13,6 +15,7 @@ const bcrypt  = require('bcryptjs')
 const jwt     = require('jsonwebtoken')
 const crypto  = require('crypto')
 const { TableClient } = require('@azure/data-tables')
+const { generateOtp, verifyOtp } = require('../services/otpService')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'adip-dev-secret-change-in-production'
 const JWT_EXPIRY = '24h'
@@ -20,7 +23,6 @@ const JWT_EXPIRY = '24h'
 function organizationsTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'organizations')
 }
-
 function orgMembersTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'orgMembers')
 }
@@ -28,23 +30,60 @@ function orgMembersTable() {
 function generateAuthToken(user) {
   return jwt.sign(
     { userId: user.userId, orgId: user.orgId, role: user.role, email: user.email, name: user.name },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRY }
+    JWT_SECRET, { expiresIn: JWT_EXPIRY }
   )
+}
+
+// Verified emails cache (in-memory, cleared on restart) — stores emails that passed OTP
+const verifiedEmails = new Map() // email → expiresAt (10 min window to complete signup)
+
+// POST /api/auth/send-otp
+router.post('/auth/send-otp', async (req, res) => {
+  const { email } = req.body
+  if (!email) return res.status(400).json({ error: 'email required' })
+  try {
+    await generateOtp(email.toLowerCase())
+    res.json({ sent: true, message: 'Verification code sent to your email' })
+  } catch (error) {
+    res.status(429).json({ error: error.message })
+  }
+})
+
+// POST /api/auth/verify-otp
+router.post('/auth/verify-otp', async (req, res) => {
+  const { email, code } = req.body
+  if (!email || !code) return res.status(400).json({ error: 'email and code required' })
+  try {
+    await verifyOtp(email.toLowerCase(), code)
+    // Mark email as verified for 10 minutes
+    verifiedEmails.set(email.toLowerCase(), Date.now() + 10 * 60 * 1000)
+    res.json({ verified: true })
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+
+function isEmailVerified(email) {
+  const expiry = verifiedEmails.get(email.toLowerCase())
+  if (!expiry || expiry < Date.now()) return false
+  return true
 }
 
 // POST /api/auth/create-org
 router.post('/auth/create-org', async (req, res) => {
   console.log('[POST /auth/create-org] starts')
-  const { organizationName, name, email, password, subscriptionId, retentionDays = 30, requiredApprovals = 2 } = req.body
+  const { organizationName, name, email, password, subscriptionId, retentionDays = 30, requiredApprovals = 2, allowedDomain = '' } = req.body
 
   if (!organizationName || !name || !email || !password || !subscriptionId) {
-    return res.status(400).json({ error: 'organizationName, name, email, password, subscriptionId required' })
+    return res.status(400).json({ error: 'All fields required' })
+  }
+  if (!isEmailVerified(email)) {
+    return res.status(403).json({ error: 'Email not verified. Please complete OTP verification first.' })
   }
 
   try {
     const orgId = crypto.randomUUID().slice(0, 8)
-    const organizationToken = `ADIP-${orgId.toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+    const inviteCode = `ADIP-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
     const userId = crypto.randomUUID().slice(0, 12)
     const passwordHash = await bcrypt.hash(password, 10)
 
@@ -52,11 +91,12 @@ router.post('/auth/create-org', async (req, res) => {
       partitionKey: orgId,
       rowKey: orgId,
       organizationName,
-      organizationToken,
+      inviteCode,
       adminUserId: userId,
       subscriptionId,
       retentionDays,
       requiredApprovals,
+      allowedDomain: allowedDomain ? allowedDomain.toLowerCase().replace('@', '') : email.toLowerCase().split('@')[1] || '',
       createdAt: new Date().toISOString(),
     }, 'Replace')
 
@@ -70,42 +110,47 @@ router.post('/auth/create-org', async (req, res) => {
       joinedAt: new Date().toISOString(),
     }, 'Replace')
 
+    verifiedEmails.delete(email.toLowerCase())
     const token = generateAuthToken({ userId, orgId, role: 'admin', email, name })
-    res.status(201).json({ token, organizationToken, orgId, userId, role: 'admin', organizationName, subscriptionId })
-    console.log('[POST /auth/create-org] ends — orgId:', orgId)
+    res.status(201).json({ token, inviteCode, orgId, userId, role: 'admin', organizationName, subscriptionId })
+    console.log('[POST /auth/create-org] ends — orgId:', orgId, 'inviteCode:', inviteCode)
   } catch (error) {
     console.log('[POST /auth/create-org] error:', error.message)
     res.status(500).json({ error: error.message })
   }
 })
 
-// GET /api/auth/organizations — public, returns org list for dropdown
-router.get('/auth/organizations', async (req, res) => {
-  try {
-    const organizations = []
-    for await (const entity of organizationsTable().listEntities()) {
-      if (entity.organizationName) organizations.push({ orgId: entity.partitionKey, organizationName: entity.organizationName })
-    }
-    res.json(organizations)
-  } catch (error) { res.status(500).json({ error: error.message }) }
-})
-
 // POST /api/auth/join-org
 router.post('/auth/join-org', async (req, res) => {
   console.log('[POST /auth/join-org] starts')
-  const { orgId, name, email, password } = req.body
+  const { inviteCode, email, password } = req.body
 
-  if (!orgId || !name || !email || !password) {
-    return res.status(400).json({ error: 'orgId, name, email, password required' })
+  if (!inviteCode || !email || !password) {
+    return res.status(400).json({ error: 'inviteCode, email, password required' })
+  }
+  if (!isEmailVerified(email)) {
+    return res.status(403).json({ error: 'Email not verified. Please complete OTP verification first.' })
   }
 
   try {
+    // Find org by invite code
     let organization = null
-    try { organization = await organizationsTable().getEntity(orgId, orgId) } catch {}
-    if (!organization) return res.status(404).json({ error: 'Organization not found' })
+    for await (const entity of organizationsTable().listEntities()) {
+      if (entity.inviteCode === inviteCode.toUpperCase()) { organization = entity; break }
+    }
+    if (!organization) return res.status(404).json({ error: 'Invalid invite code' })
 
     const orgId = organization.partitionKey
 
+    // Check domain lock if configured
+    if (organization.allowedDomain) {
+      const emailDomain = email.toLowerCase().split('@')[1]
+      if (emailDomain !== organization.allowedDomain) {
+        return res.status(403).json({ error: `Only @${organization.allowedDomain} emails can join this organization` })
+      }
+    }
+
+    // Check if email already exists
     for await (const entity of orgMembersTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${orgId}'` } })) {
       if (entity.email === email.toLowerCase()) {
         return res.status(409).json({ error: 'Email already registered in this organization' })
@@ -114,6 +159,7 @@ router.post('/auth/join-org', async (req, res) => {
 
     const userId = crypto.randomUUID().slice(0, 12)
     const passwordHash = await bcrypt.hash(password, 10)
+    const name = email.split('@')[0]
 
     await orgMembersTable().upsertEntity({
       partitionKey: orgId,
@@ -125,6 +171,15 @@ router.post('/auth/join-org', async (req, res) => {
       joinedAt: new Date().toISOString(),
     }, 'Replace')
 
+    // Notify admin
+    try {
+      const { createNotification } = require('./orgManagement')
+      if (createNotification && organization.adminUserId) {
+        await createNotification(orgId, organization.adminUserId, `New member joined: ${name} (${email})`, 'member_joined')
+      }
+    } catch {}
+
+    verifiedEmails.delete(email.toLowerCase())
     const token = generateAuthToken({ userId, orgId, role: 'requestor', email, name })
     res.status(201).json({ token, orgId, userId, role: 'requestor', organizationName: organization.organizationName, subscriptionId: organization.subscriptionId })
     console.log('[POST /auth/join-org] ends — userId:', userId)
@@ -138,10 +193,7 @@ router.post('/auth/join-org', async (req, res) => {
 router.post('/auth/login', async (req, res) => {
   console.log('[POST /auth/login] starts')
   const { email, password } = req.body
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'email and password required' })
-  }
+  if (!email || !password) return res.status(400).json({ error: 'email and password required' })
 
   try {
     let member = null
@@ -159,9 +211,8 @@ router.post('/auth/login', async (req, res) => {
 
     const token = generateAuthToken({ userId: member.rowKey, orgId, role: member.role, email: member.email, name: member.name })
     res.json({ token, userId: member.rowKey, orgId, role: member.role, name: member.name, organizationName: organization?.organizationName || '', subscriptionId: organization?.subscriptionId || '' })
-    console.log('[POST /auth/login] ends — userId:', member.rowKey)
+    console.log('[POST /auth/login] ends')
   } catch (error) {
-    console.log('[POST /auth/login] error:', error.message)
     res.status(500).json({ error: error.message })
   }
 })
@@ -173,9 +224,7 @@ router.get('/auth/me', (req, res) => {
   try {
     const decoded = jwt.verify(authHeader.slice(7), JWT_SECRET)
     res.json(decoded)
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token' })
-  }
+  } catch { res.status(401).json({ error: 'Invalid or expired token' }) }
 })
 
 module.exports = router
