@@ -1,12 +1,11 @@
-// ============================================================
 // FILE: src/components/CostImpactDashboard.jsx
 // ROLE: Feature A — Cost Impact tab on Analytics page
-//
+
 // Shows:
 //   - Total monthly savings from remediations (last 30/90 days)
 //   - Per-remediation savings breakdown
 //   - "Potential savings if all drift remediated" (from driftIndex)
-// ============================================================
+
 import React, { useState, useEffect } from 'react'
 import { fetchCostSavings } from '../services/api'
 

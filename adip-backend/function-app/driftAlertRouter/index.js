@@ -49,7 +49,7 @@ module.exports = async function (context, req) {
   const incomingSeverity = driftEventPayload.severity || ''
   console.log('[driftAlertRouter] received severity:', incomingSeverity, '| resourceId:', driftEventPayload.resourceId)
 
-  // ── Severity filter ───────────────────────────────────────────────────────
+  //  Severity filter 
   // Only send alert emails for critical and high severity.
   // Low and medium are either auto-remediated or handled without email approval.
   if (!ALERT_SEVERITY_LEVELS.includes(incomingSeverity)) {
@@ -59,7 +59,7 @@ module.exports = async function (context, req) {
     return
   }
 
-  // ── Call sendAlert Function ───────────────────────────────────────────────
+  //  Call sendAlert Function 
   // sendAlert builds the HTML email with a diff table and Approve/Reject links,
   // then sends it via Azure Communication Services
   console.log('[driftAlertRouter] calling sendAlert Function for severity:', incomingSeverity)

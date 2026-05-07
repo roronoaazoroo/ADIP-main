@@ -1,10 +1,10 @@
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
    DARK THEME OVERRIDES — All Pages & Components
    Applied when: <html data-theme="dark">
    Toggled via: Settings → Appearance → Dark
-   ═══════════════════════════════════════════════════════════════════════════ */
+*/
 
-/* ── Shared Color Token Reference ────────────────────────────────────────────
+/*Shared Color Token Reference
    Dark BG Base:     #0a0e1a
    Dark BG Surface:  #0f1525
    Dark BG Elevated: #161d2f
@@ -18,12 +18,12 @@
    Dark Accent:      #1995ff
    Dark Accent Deep: #38bdf8
    Dark Brand:       #38bdf8  (replaces #003359 brand in dark)
-   ──────────────────────────────────────────────────────────────────────── */
+*/
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
    1. NAVBAR (NavBar.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+*/
 [data-theme="dark"] .dh-nav {
   background: rgba(10,14,26,0.85);
   backdrop-filter: blur(24px);
@@ -48,9 +48,9 @@
 [data-theme="dark"] .dh-mobile-nav-item--active { color: #38bdf8; background: rgba(25,149,255,0.1); }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    2. DASHBOARD HOME (DashboardHome.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+*/
 [data-theme="dark"] .dh-root { background: #0a0e1a; color: #f1f5f9; }
 [data-theme="dark"] .dh-headline { color: #38bdf8; }
 [data-theme="dark"] .dh-subline { color: #94a3b8; }
@@ -164,9 +164,9 @@
 [data-theme="dark"] .dh-fab { background: linear-gradient(135deg, #1995ff, #38bdf8); box-shadow: 0 8px 24px rgba(25,149,255,0.3); }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
    3. DRIFT SCANNER (DriftScanner.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+*/
 [data-theme="dark"] .ds-root { background: #0a0e1a; color: #f1f5f9; }
 
 /* Sidebar */
@@ -251,9 +251,9 @@
 [data-theme="dark"] .ds-feed-inner { background: #161d2f; }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
    4. COMPARISON PAGE (ComparisonPage.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+*/
 [data-theme="dark"] .cp-root { background: #0a0e1a; color: #f1f5f9; }
 [data-theme="dark"] .cp-headline { color: #38bdf8; }
 [data-theme="dark"] .cp-breadcrumb { color: #94a3b8; }
@@ -306,9 +306,9 @@
 [data-theme="dark"] .cp-empty-state { color: #94a3b8; }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
    5. GENOME PAGE (GenomePage.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+*/
 [data-theme="dark"] .gp-root { background: #0a0e1a; color: #f1f5f9; }
 [data-theme="dark"] .gp-headline { color: #38bdf8; }
 [data-theme="dark"] .gp-subline { color: #94a3b8; }
@@ -380,9 +380,9 @@
 [data-theme="dark"] .gp-timeline-empty p { color: #64748b; }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
    6. SETTINGS PAGE (SettingsPage.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+*/
 [data-theme="dark"] .sp-root { background: #0a0e1a; color: #f1f5f9; }
 [data-theme="dark"] .sp-sidebar-title { color: #38bdf8; }
 [data-theme="dark"] .sp-nav-item { color: #94a3b8; }
@@ -462,9 +462,9 @@
 [data-theme="dark"] .sp-inline-success { color: #6ee7b7; }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*  
    7. LIVE ACTIVITY FEED (LiveActivityFeed.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+     */
 [data-theme="dark"] .panel-badge { background: rgba(25,149,255,0.12); color: #38bdf8; }
 [data-theme="dark"] .feed-user-filter {
   background: #0f1525;
@@ -515,9 +515,9 @@
 [data-theme="dark"] .drift-operation-name { color: #38bdf8; }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*  
    8. CHATBOT (AzureChatbot.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+     */
 [data-theme="dark"] .chatbot-window {
   background: #161d2f;
   border-color: rgba(255,255,255,0.08);
@@ -552,9 +552,9 @@
 [data-theme="dark"] .chatbot-subtitle { color: rgba(255,255,255,0.4); }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*  
    9. JSON TREE (JsonTree.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+     */
 [data-theme="dark"] .json-tree { color: #e6edf3; }
 [data-theme="dark"] .json-key { color: #79c0ff; }
 [data-theme="dark"] .json-string { color: #a5d6ff; }
@@ -571,9 +571,9 @@
 [data-theme="dark"] .json-entry:hover { background: rgba(255,255,255,0.03); }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*  
    10. ANALYTICS PAGE (AnalyticsPage.css)
-   ═══════════════════════════════════════════════════════════════════════════ */
+     */
 [data-theme="dark"] .an-root { background: #0a0e1a; color: #f1f5f9; }
 [data-theme="dark"] .an-headline { color: #38bdf8; }
 [data-theme="dark"] .an-subline { color: #94a3b8; }

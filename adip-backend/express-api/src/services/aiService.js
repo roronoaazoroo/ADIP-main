@@ -15,7 +15,7 @@ const fetch = require('node-fetch')
 // API_VERSION is pinned here; update when Azure OpenAI releases a new stable version
 const OPENAI_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'
 
-// ── callAzureOpenAI START ────────────────────────────────────────────────────
+//  callAzureOpenAI START 
 // Sends a single-turn chat completion to Azure OpenAI and returns the response text
 async function callAzureOpenAI(systemPrompt, userMessageContent, maxTokens = 400) {
   console.log('[callAzureOpenAI] starts')
@@ -48,9 +48,9 @@ async function callAzureOpenAI(systemPrompt, userMessageContent, maxTokens = 400
   console.log('[callAzureOpenAI] ends')
   return responseText
 }
-// ── callAzureOpenAI END ───────────────────────────────────────────────────────
+//  callAzureOpenAI END 
 
-// ── withAiGuard START ─────────────────────────────────────────────────────────
+//  withAiGuard START 
 // Shared guard for all AI functions:
 //   - Validates driftRecord is a non-null object
 //   - Checks AZURE_OPENAI_ENDPOINT is configured
@@ -73,10 +73,10 @@ async function withAiGuard(fnName, driftRecord, fallback, aiCallFn) {
     return fallback
   }
 }
-// ── withAiGuard END ───────────────────────────────────────────────────────────
+//  withAiGuard END 
 
 
-// ── explainDrift START ───────────────────────────────────────────────────────
+//  explainDrift START 
 // Feature 1: Natural Language Drift Explanation
 // Sends drift changes to Azure OpenAI and returns a plain-English security explanation
 async function explainDrift(driftRecord) {
@@ -94,10 +94,10 @@ async function explainDrift(driftRecord) {
     return explanationText
   })
 }
-// ── explainDrift END ─────────────────────────────────────────────────────────
+//  explainDrift END 
 
 
-// ── reclassifySeverity START ─────────────────────────────────────────────────
+//  reclassifySeverity START 
 // Feature 2: AI Severity Re-classification
 // Sends changes to Azure OpenAI to get a severity rating that may override rule-based classification
 async function reclassifySeverity(driftRecord) {
@@ -117,10 +117,10 @@ async function reclassifySeverity(driftRecord) {
     return parsedSeverity
   })
 }
-// ── reclassifySeverity END ───────────────────────────────────────────────────
+//  reclassifySeverity END 
 
 
-// ── getRemediationRecommendation START ───────────────────────────────────────
+//  getRemediationRecommendation START 
 // Feature 3: Remediation Recommendation
 // Returns an AI-generated explanation of what reverting to baseline will do and if it is safe
 async function getRemediationRecommendation(driftRecord) {
@@ -138,6 +138,6 @@ async function getRemediationRecommendation(driftRecord) {
     return recommendationText
   })
 }
-// ── getRemediationRecommendation END ─────────────────────────────────────────
+//  getRemediationRecommendation END 
 
 module.exports = { explainDrift, reclassifySeverity, getRemediationRecommendation }

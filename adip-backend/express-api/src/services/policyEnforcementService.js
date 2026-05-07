@@ -1,13 +1,12 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/policyEnforcementService.js
 // ROLE: Creates Azure Policy assignments after drift remediation
-//
-// findMatchingPolicies(changes) — maps diff paths to built-in policy IDs
-// enforcePolicesForDrift(subscriptionId, resourceGroupId, changes)
-//   — creates Policy Assignments via ARM SDK, records in Table Storage
-//   — idempotent: skips if assignment already exists for this RG
-//   — non-fatal: errors are logged but never block remediation
-// ============================================================
+
+//findMatchingPolicies(changes) — maps diff paths to built-in policy IDs
+//enforcePolicesForDrift(subscriptionId, resourceGroupId, changes)
+//creates Policy Assignments via ARM SDK, records in Table Storage
+//idempotent: skips if assignment already exists for this RG
+//non-fatal: errors are logged but never block remediation
+
 'use strict'
 const { PolicyClient }           = require('@azure/arm-policy')
 const { DefaultAzureCredential } = require('@azure/identity')

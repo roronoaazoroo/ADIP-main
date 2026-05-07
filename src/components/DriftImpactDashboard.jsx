@@ -1,16 +1,15 @@
-// ============================================================
 // FILE: src/components/DriftImpactDashboard.jsx
 // ROLE: Drift Impact Analysis tab — real data from driftIndex Table
-//
+
 // Shows:
 //   - Daily drift volume bar chart (last 7/14/30 days)
 //   - Severity distribution (critical/high/medium/low counts)
 //   - Top drifted resources ranked list
 //   - Risk by resource group
-//
+
 // Props: subscriptionId
 // No new dependencies — uses inline SVG for charts (same pattern as DashboardHome BarChart)
-// ============================================================
+
 import React, { useState, useEffect } from 'react'
 import { fetchDriftImpact, fetchResourceDriftEvents } from '../services/api'
 

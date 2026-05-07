@@ -13,7 +13,7 @@ function getChangesIndexTable() {
   return TableClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING, 'changesIndex')
 }
 
-// ── Main handler START ────────────────────────────────────────────────────────
+//  Main handler START 
 // Called by Event Grid WebHook for every ARM ResourceWriteSuccess / ResourceDeleteSuccess
 // Writes directly to all-changes blob + changesIndex Table — no Express dependency
 module.exports = async function (context, req) {
@@ -57,7 +57,7 @@ module.exports = async function (context, req) {
         continue
       }
 
-      // ── Resource ID normalisation START ──────────────────────────────────
+      //  Resource ID normalisation START 
       // Normalise resource ID: strip child resource paths (> 9 parts) to get the parent resource
       // e.g. /subscriptions/.../storageAccounts/foo/blobServices/default → /subscriptions/.../storageAccounts/foo
       console.log('[recordChange resourceIdNormalisation] starts — raw resourceUri:', eventPayload.resourceUri)
@@ -68,14 +68,14 @@ module.exports = async function (context, req) {
       const subscriptionId  = normalizedParts[2] || eventPayload.subscriptionId || ''
       const resourceGroup   = normalizedParts.length >= 5 ? normalizedParts[4] : (eventPayload.resourceGroupName || '')
       console.log('[recordChange resourceIdNormalisation] ends — resourceId:', resourceId, 'subscriptionId:', subscriptionId, 'resourceGroup:', resourceGroup)
-      // ── Resource ID normalisation END ────────────────────────────────────
+      //  Resource ID normalisation END 
 
       if (!subscriptionId) {
         console.log('[recordChange mainHandler] skipping event — no subscriptionId extractable')
         continue
       }
 
-      // ── Caller identity extraction START ──────────────────────────────────
+      //  Caller identity extraction START 
       // Extract the human-readable caller identity from Azure AD claims
       // ARM events include a 'claims' object with various identity fields — try them in priority order
       console.log('[recordChange callerExtraction] starts')
@@ -86,7 +86,7 @@ module.exports = async function (context, req) {
                               (callerFirstName && callerLastName ? `${callerFirstName} ${callerLastName}` : '') ||
                               eventPayload.caller || 'System'
       console.log('[recordChange callerExtraction] ends — caller:', callerIdentity)
-      // ── Caller identity extraction END ────────────────────────────────────
+      //  Caller identity extraction END 
 
       const detectedAt = event.eventTime || new Date().toISOString()
       // Determine if this was a delete or a write/update
@@ -105,7 +105,7 @@ module.exports = async function (context, req) {
         source:        'event-grid-direct',  // distinguishes from queue-poller path
       }
 
-      // ── Blob write START ──────────────────────────────────────────────────
+      //  Blob write START 
       // Generate a unique blob filename: timestamp + base64url(resourceId)
       // base64url is used because resourceId contains '/' which is a path separator in blob storage
       console.log('[recordChange blobWrite] starts — changeType:', changeType, 'resource:', resourceId)
@@ -114,9 +114,9 @@ module.exports = async function (context, req) {
       await allChangesContainer.getBlockBlobClient(blobFileName)
         .upload(blobContent, Buffer.byteLength(blobContent), { blobHTTPHeaders: { blobContentType: 'application/json' } })
       console.log('[recordChange blobWrite] ends — blob saved:', blobFileName)
-      // ── Blob write END ────────────────────────────────────────────────────
+      //  Blob write END 
 
-      // ── changesIndex Table write START ────────────────────────────────────
+      //  changesIndex Table write START 
       // Write a lightweight index row to Table Storage so DashboardHome can query changes
       // without scanning every blob (Table query is O(matches), blob scan is O(total))
       console.log('[recordChange changesIndexWrite] starts — blobFileName:', blobFileName)
@@ -134,7 +134,7 @@ module.exports = async function (context, req) {
         changeCount:   0,
       }, 'Replace')
       console.log('[recordChange changesIndexWrite] ends — changesIndex entity upserted')
-      // ── changesIndex Table write END ──────────────────────────────────────
+      //  changesIndex Table write END 
 
       recorded++
     } catch (eventProcessingError) {
@@ -147,4 +147,4 @@ module.exports = async function (context, req) {
   context.log(`[recordChange] recorded ${recorded} of ${events.length} events`)
   console.log('[recordChange mainHandler] ends — recorded:', recorded, 'of', events.length, 'events')
 }
-// ── Main handler END ──────────────────────────────────────────────────────────
+//  Main handler END 

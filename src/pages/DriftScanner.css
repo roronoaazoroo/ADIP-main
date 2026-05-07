@@ -1,8 +1,8 @@
-/* ===========================
+/*
    DriftScanner — Light Enterprise (matches reference)
-   =========================== */
+*/
 
-/* ── Layout ──────────────────────────────────────────────────────────────── */
+/*  Layout  */
 .ds-root {
   flex-direction: column;
   display: flex;
@@ -13,7 +13,7 @@
   overflow: hidden;
 }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/*  Sidebar  */
 .ds-sidebar {
   width: 256px;
   flex-shrink: 0;
@@ -134,7 +134,7 @@
 .ds-sidebar-link:hover { color: #1a1c1e; }
 .ds-sidebar-link .material-symbols-outlined { font-size: 20px; }
 
-/* ── Top Nav ─────────────────────────────────────────────────────────────── */
+/*  Top Nav  */
 .ds-topnav {
   position: fixed;
   top: 0;
@@ -212,7 +212,7 @@
   cursor: pointer;
 }
 
-/* ── Main Content ────────────────────────────────────────────────────────── */
+/*  Main Content  */
 .ds-main {
   flex: 1;
 
@@ -231,7 +231,7 @@
   gap: 24px;
 }
 
-/* ── Header ──────────────────────────────────────────────────────────────── */
+/*  Header  */
 .ds-header {
   display: flex;
   justify-content: space-between;
@@ -282,7 +282,7 @@
   color: #003359;
 }
 
-/* ── Filter Section ──────────────────────────────────────────────────────── */
+/*  Filter Section  */
 .ds-filter-section {
   background: #f3f3f6;
   border-radius: 24px;
@@ -376,7 +376,7 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Stats pills ─────────────────────────────────────────────────────────── */
+/*  Stats pills ─ */
 .ds-stats-row {
   display: flex;
   gap: 10px;
@@ -398,7 +398,7 @@
 .ds-stat-pill--ok    .ds-stat-val { color: #059669; }
 .ds-stat-pill--region .ds-stat-val { color: #374151; font-size: 11px; }
 
-/* ── Progress bar ────────────────────────────────────────────────────────── */
+/*  Progress bar  */
 .ds-progress {
   height: 3px;
   background: #e8e8eb;
@@ -413,7 +413,7 @@
   transition: width 0.4s ease;
 }
 
-/* ── Viewer card ─────────────────────────────────────────────────────────── */
+/*  Viewer card ─ */
 .ds-viewer-card {
   background: #fff;
   border-radius: 28px;
@@ -508,7 +508,7 @@
 }
 @keyframes pulse-green { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-/* ── Code viewer (dark) ──────────────────────────────────────────────────── */
+/*  Code viewer (dark)  */
 .ds-code-viewer {
   flex: 1;
   background: #0d1117;
@@ -553,7 +553,7 @@
 .ds-code-inner .json-toggle:hover { background: rgba(255,255,255,0.06); color: #79c0ff; }
 .ds-code-inner .json-entry:hover { background: rgba(255,255,255,0.03); }
 
-/* ── Empty / scanning states ─────────────────────────────────────────────── */
+/*  Empty / scanning states  */
 .ds-empty {
   display: flex;
   flex-direction: column;
@@ -585,7 +585,7 @@
   animation: spin 1.2s linear infinite;
 }
 
-/* ── Activity feed inside viewer ─────────────────────────────────────────── */
+/*  Activity feed inside viewer  */
 .ds-feed-inner {
   flex: 1;
   overflow-y: auto;
@@ -593,7 +593,7 @@
   background: #fff;
 }
 
-/* ── Demo badge ──────────────────────────────────────────────────────────── */
+/*  Demo badge  */
 .ds-demo-badge {
   padding: 4px 12px;
   background: rgba(245,158,11,0.1);
@@ -604,7 +604,7 @@
   color: #92400e;
 }
 
-/* ── AI Anomalies ────────────────────────────────────────────────────────── */
+/*  AI Anomalies  */
 .ds-anomalies {
   display: flex;
   align-items: center;
@@ -623,7 +623,7 @@
 .ds-anomaly-title { font-size: 11px; font-weight: 600; color: #dc2626; margin-bottom: 2px; }
 .ds-anomaly-desc { font-size: 10px; color: #64748b; line-height: 1.4; }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/*  Responsive  */
 @media (max-width: 1024px) {
   .ds-sidebar { display: none; }
   .ds-main { margin-left: 0; }
@@ -637,7 +637,7 @@
   .ds-headline { font-size: 26px; }
 }
 
-/* ── Recent Changes Tab ──────────────────────────────────────────────────── */
+/*  Recent Changes Tab  */
 .ds-recent-changes {
   display: flex;
   flex-direction: column;

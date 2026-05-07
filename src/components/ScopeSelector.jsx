@@ -1,16 +1,15 @@
-// ============================================================
 // FILE: src/components/ScopeSelector.jsx
 // ROLE: Searchable multi-scope selector for DriftScanner
-//
+
 // Single subscription → searchable multi-select RGs (with name + location filter)
 // → optional specific resource when exactly 1 RG selected
-//
+
 // Output: scopes[] = [{ id, subscriptionId, resourceGroupId, resourceId }]
 // Props:
 //   scopes        — current scopes array
 //   subscriptions — available subscriptions
 //   onChange(scopes) — called when selection changes
-// ============================================================
+
 import React, { useState, useEffect, useMemo } from 'react'
 import { fetchResourceGroups, fetchResources } from '../services/api'
 import MultiSelectDropdown from './MultiSelectDropdown'

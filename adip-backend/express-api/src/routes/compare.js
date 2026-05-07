@@ -56,7 +56,7 @@ function buildSessionRowKey(subscriptionId, resourceGroupId, resourceId) {
 }
 
 
-// ── runDriftCheck START ──────────────────────────────────────────────────────
+//  runDriftCheck START 
 // Full drift check pipeline: fetches live + baseline, diffs, classifies, runs AI, saves record, alerts
 async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller = '', persist = false) {
   console.log('[runDriftCheck] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupId, 'resourceId:', resourceId)
@@ -97,7 +97,7 @@ async function runDriftCheck(subscriptionId, resourceGroupId, resourceId, caller
   console.log('[runDriftCheck] ends — severity:', driftRecord.severity, 'changes:', detectedChanges.length)
   return driftRecord
 }
-// ── runDriftCheck END ────────────────────────────────────────────────────────
+//  runDriftCheck END 
 
 router.post('/compare', async (req, res) => {
   console.log('[POST /compare] starts')

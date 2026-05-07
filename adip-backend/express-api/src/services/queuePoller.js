@@ -30,7 +30,7 @@ function getBlobServiceModule() {
   return _blobService
 }
 
-// ── Queue client ──────────────────────────────────────────────────────────────
+//  Queue client 
 let _queueClient = null
 function getQueueClient() {
   if (!_queueClient) {
@@ -40,10 +40,10 @@ function getQueueClient() {
   }
   return _queueClient
 }
-// ── getQueueClient END ───────────────────────────────────────────────────────
+//  getQueueClient END 
 
 
-// ── Persistent state cache (Azure Table Storage + in-memory L1) ───────────────
+//  Persistent state cache (Azure Table Storage + in-memory L1) 
 const _mem = {}
 let _tableClient = null
 function getTableClient() {
@@ -85,7 +85,7 @@ const liveStateCache = new Proxy(_mem, {
   get(t, k)    { return t[k] },
 })
 
-// ── Message parser ────────────────────────────────────────────────────────────
+//  Message parser 
 function parseMessage(msg) {
   console.log('[parseMessage] starts')
   try {
@@ -134,10 +134,10 @@ function parseMessage(msg) {
     return null
   }
 }
-// ── parseMessage END ─────────────────────────────────────────────────────────
+//  parseMessage END 
 
 
-// ── Deduplication: same resource+operation within 0.1s = same event ────────────
+//  Deduplication: same resource+operation within 0.1s = same event 
 const _dedup = new Map()
 function isDuplicate(event) {
   const bucket = Math.floor(new Date(event.eventTime).getTime() / 100)
@@ -148,9 +148,9 @@ function isDuplicate(event) {
   for (const [k, ts] of _dedup) if (ts < cutoff) _dedup.delete(k)
   return false
 }
-// ── isDuplicate END ──────────────────────────────────────────────────────────
+//  isDuplicate END 
 
-// ── Enrich event with diff and resolved identity ──────────────────────────────
+//  Enrich event with diff and resolved identity 
 async function enrichWithDiff(event) {
   if (!event.resourceId || !event.subscriptionId || !event.resourceGroup) return event
 
@@ -182,7 +182,7 @@ async function enrichWithDiff(event) {
   }
 }
 
-// ── Poller ────────────────────────────────────────────────────────────────────
+//  Poller 
 function startQueuePoller() {
   console.log('[startQueuePoller] starts')
   const interval = parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '5000', 10)
@@ -212,6 +212,37 @@ function startQueuePoller() {
               caller:         enriched.caller,
               detectedAt:     enriched.eventTime,
               changeCount:    enriched.changeCount || 0,
+              changeSummary:  (enriched.changes || []).slice(0, 5).filter(ch => {
+                const p = (ch.path || '').toLowerCase()
+                // Skip internal/volatile fields that produce noisy summaries
+                if (p.includes('_childconfig') || p.includes('storagetables') || p.includes('storagequeues') || p.includes('storagecontainers') || p.includes('fileshares')) return false
+                return true
+              }).map(ch => {
+                const field = (ch.path || '').split(' \u2192 ').pop() || ch.path || ''
+                const resourceName = (enriched.resourceId || '').split('/').pop() || 'resource'
+                // Tag-specific handling first
+                if ((ch.path || '').toLowerCase().includes('tag')) {
+                  if (ch.type === 'removed') return `removed tag "${field}" from ${resourceName}`
+                  if (ch.type === 'added') return `added tag ${field}: ${typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue).slice(0,20) : String(ch.newValue ?? '').slice(0,20)} on ${resourceName}`
+                  return `updated tag ${field} to ${typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue).slice(0,20) : String(ch.newValue ?? '').slice(0,20)} on ${resourceName}`
+                }
+                if (ch.type === 'removed') return `removed ${field} from ${resourceName}`
+                const valStr = (v) => typeof v === 'object' ? JSON.stringify(v).slice(0,25) : String(v ?? '').slice(0,25)
+                if (ch.type === 'added') return `added ${field}: ${valStr(ch.newValue)} to ${resourceName}`
+                const oldStr = typeof ch.oldValue === 'object' ? JSON.stringify(ch.oldValue).slice(0,20) : String(ch.oldValue ?? '')
+                const newStr = typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue).slice(0,20) : String(ch.newValue ?? '')
+                if (field.toLowerCase().includes('httpstraffic') || field.toLowerCase().includes('https'))
+                  return newStr === 'true' ? `enabled HTTPS enforcement on ${resourceName}` : `disabled HTTPS enforcement on ${resourceName}`
+                if (field.toLowerCase().includes('publicaccess') || field.toLowerCase().includes('blobaccesspublic'))
+                  return newStr === 'true' ? `enabled public blob access on ${resourceName}` : `disabled public blob access on ${resourceName}`
+                if (field.toLowerCase().includes('accesstier'))
+                  return `changed access tier from ${oldStr} to ${newStr} on ${resourceName}`
+                if (field.toLowerCase().includes('defaultaction'))
+                  return `changed network default action from ${oldStr} to ${newStr} on ${resourceName}`
+                if (field.toLowerCase().includes('tls'))
+                  return `changed minimum TLS version to ${newStr} on ${resourceName}`
+                return `changed ${field} from "${oldStr.slice(0,15)}" to "${newStr.slice(0,15)}" on ${resourceName}`
+              }).join('. ') || '',
               source:         'queue-poller',
             })
           } catch { /* non-fatal */ }
@@ -237,6 +268,30 @@ function startQueuePoller() {
             }
           }
 
+          // Mark resource as deleted in driftIndex if delete event
+          if ((enriched.eventType || '').includes('Delete') && enriched.resourceId) {
+            try {
+              await getBlobServiceModule().saveDriftRecord({
+                subscriptionId: enriched.subscriptionId,
+                resourceId:     enriched.resourceId,
+                resourceGroup:  enriched.resourceGroup,
+                differences:    [{ type: 'removed', path: 'resource', oldValue: 'exists', newValue: 'deleted' }],
+                severity:       'critical',
+                changeCount:    1,
+                caller:         enriched.caller || 'System',
+                detectedAt:     enriched.eventTime || new Date().toISOString(),
+                eventType:      'deleted',
+              })
+            } catch { /* non-fatal */ }
+          }
+
+          // Auto-save genome snapshot on every change (Feature 2: change-triggered genome)
+          if (enriched.liveState && enriched.resourceId) {
+            const changeLabel = `change-${(enriched.eventTime || new Date().toISOString()).replace(/[:.]/g, '-')}`
+            getBlobServiceModule().saveGenomeSnapshot(enriched.subscriptionId, enriched.resourceId, enriched.liveState, changeLabel)
+              .catch(genomeErr => console.log('[queuePoller] genome save failed (non-fatal):', genomeErr.message))
+          }
+
           if (global.io) {
             const rgRoom = enriched.resourceGroup ? `${enriched.subscriptionId}:${enriched.resourceGroup}`.toLowerCase() : null
             const resName = enriched.resourceId?.split('/').pop()?.toLowerCase()
@@ -257,6 +312,6 @@ function startQueuePoller() {
 
   console.log(`[ADIP] Queue poller started — interval ${interval}ms`)
 }
-// ── startQueuePoller END ─────────────────────────────────────────────────────
+//  startQueuePoller END 
 
 module.exports = { startQueuePoller, liveStateCache, cacheSet }

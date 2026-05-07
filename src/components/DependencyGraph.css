@@ -1,9 +1,9 @@
-/* ============================================================
+/*
    DependencyGraph — React Flow custom styles
    Matches the light enterprise design of DriftScanner
-   ============================================================ */
+*/
 
-/* ── Container ──────────────────────────────────────────────── */
+/*  Container  */
 .dg-container {
   width: 100%;
   height: 100%;
@@ -16,7 +16,7 @@
   cursor: grab;
 }
 
-/* ── Custom Node ────────────────────────────────────────────── */
+/*  Custom Node  */
 .dg-node {
   display: flex;
   flex-direction: column;
@@ -48,7 +48,7 @@
   50%      { box-shadow: 0 4px 20px rgba(239,68,68,0.15); }
 }
 
-/* ── Drift Badge (top-right corner) ─────────────────────────── */
+/*  Drift Badge (top-right corner)  */
 .dg-drift-badge {
   position: absolute;
   top: -8px;
@@ -67,7 +67,7 @@
   border: 2px solid #fff;
 }
 
-/* ── Node Icon ──────────────────────────────────────────────── */
+/*  Node Icon  */
 .dg-node-icon {
   width: 36px;
   height: 36px;
@@ -82,7 +82,7 @@
   font-size: 20px;
 }
 
-/* ── Node Info ──────────────────────────────────────────────── */
+/*  Node Info  */
 .dg-node-info {
   display: flex;
   flex-direction: column;
@@ -108,7 +108,7 @@
   letter-spacing: 0.05em;
 }
 
-/* ── Severity indicator ─────────────────────────────────────── */
+/*  Severity indicator  */
 .dg-node-severity {
   display: flex;
   align-items: center;
@@ -119,7 +119,7 @@
   margin-top: 2px;
 }
 
-/* ── Handles (connection points) ────────────────────────────── */
+/*  Handles (connection points)  */
 .dg-handle {
   width: 8px !important;
   height: 8px !important;
@@ -134,7 +134,7 @@
   opacity: 1;
 }
 
-/* ── Click Hint ─────────────────────────────────────────────── */
+/*  Click Hint  */
 .dg-click-hint {
   position: absolute;
   bottom: 14px;
@@ -164,7 +164,7 @@
   100% { opacity: 0; }
 }
 
-/* ── Legend ──────────────────────────────────────────────────── */
+/*  Legend  */
 .dg-legend {
   position: absolute;
   top: 14px;
@@ -227,7 +227,7 @@
   margin: 10px 0;
 }
 
-/* ── Controls override ──────────────────────────────────────── */
+/*  Controls override  */
 .dg-controls {
   border-radius: 12px !important;
   border: 1px solid rgba(0,0,0,0.06) !important;
@@ -257,7 +257,7 @@
   fill: currentColor !important;
 }
 
-/* ── Minimap override ───────────────────────────────────────── */
+/*  Minimap override  */
 .dg-minimap {
   border-radius: 12px !important;
   border: 1px solid rgba(0,0,0,0.06) !important;
@@ -266,7 +266,7 @@
   background: rgba(255,255,255,0.9) !important;
 }
 
-/* ── Edge labels ────────────────────────────────────────────── */
+/*  Edge labels  */
 .react-flow__edge-textbg {
   fill: rgba(255,255,255,0.9) !important;
   rx: 4;
@@ -279,7 +279,7 @@
   font-family: 'Inter', sans-serif !important;
 }
 
-/* ── Loading / Error states ─────────────────────────────────── */
+/*  Loading / Error states  */
 .dg-status {
   display: flex;
   flex-direction: column;
@@ -314,13 +314,13 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── Selected node ──────────────────────────────────────────── */
+/*  Selected node  */
 .react-flow__node.selected .dg-node {
   border-color: #004a7d !important;
   box-shadow: 0 0 0 3px rgba(0,74,125,0.15), 0 4px 16px rgba(0,0,0,0.1) !important;
 }
 
-/* ── Edge hover ─────────────────────────────────────────────── */
+/*  Edge hover  */
 .react-flow__edge:hover .react-flow__edge-path {
   stroke: #004a7d !important;
   stroke-width: 2 !important;
@@ -331,7 +331,7 @@
    RESOURCE DETAIL PANEL — Slide-out overlay
    ============================================================ */
 
-/* ── Overlay backdrop ───────────────────────────────────────── */
+/*  Overlay backdrop  */
 .dg-detail-overlay {
   position: absolute;
   inset: 0;
@@ -348,7 +348,7 @@
   to   { opacity: 1; }
 }
 
-/* ── Panel ──────────────────────────────────────────────────── */
+/*  Panel  */
 .dg-detail-panel {
   width: 420px;
   max-width: 90%;
@@ -367,7 +367,7 @@
   to   { transform: translateX(0);    opacity: 1; }
 }
 
-/* ── Header ─────────────────────────────────────────────────── */
+/*  Header  */
 .dg-detail-header {
   padding: 24px 24px 20px;
   border-bottom: 1px solid rgba(0,0,0,0.06);
@@ -448,7 +448,7 @@
   border-radius: 999px;
 }
 
-/* ── Drift alert inside header ──────────────────────────────── */
+/*  Drift alert inside header  */
 .dg-detail-drift-alert {
   display: flex;
   align-items: center;
@@ -460,7 +460,7 @@
   font-size: 12px;
 }
 
-/* ── Body — scrollable sections ─────────────────────────────── */
+/*  Body — scrollable sections  */
 .dg-detail-body {
   flex: 1;
   overflow-y: auto;
@@ -498,7 +498,7 @@
   font-size: 13px;
 }
 
-/* ── Sections ───────────────────────────────────────────────── */
+/*  Sections  */
 .dg-detail-section {
   margin-bottom: 20px;
 }
@@ -521,7 +521,7 @@
   color: #0060a9;
 }
 
-/* ── Key-value grid ─────────────────────────────────────────── */
+/*  Key-value grid  */
 .dg-detail-grid {
   display: flex;
   flex-direction: column;
@@ -564,7 +564,7 @@
   max-width: 220px;
 }
 
-/* ── Footer ─────────────────────────────────────────────────── */
+/*  Footer  */
 .dg-detail-footer {
   padding: 16px 24px;
   border-top: 1px solid rgba(0,0,0,0.06);
@@ -609,7 +609,7 @@
   box-shadow: 0 4px 14px rgba(0,51,89,0.2);
 }
 
-/* ── Responsive ─────────────────────────────────────────────── */
+/*  Responsive  */
 @media (max-width: 640px) {
   .dg-detail-panel {
     width: 100%;

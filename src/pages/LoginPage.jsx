@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ctMsLogo from '../assets/ct-logo-x-ms.png'
-import { isSSOConfigured, getDemoUser } from '../services/auth'
+import { loginUser, createOrganization, joinOrganization, fetchOrganizations } from '../services/authService'
 import './LoginPage.css'
 
 export default function LoginPage() {
@@ -11,16 +11,18 @@ export default function LoginPage() {
   const [username, setUsername]   = useState('')
   const [password, setPassword]   = useState('')
   const [showPass, setShowPass]   = useState(false)
+  const [authMode, setAuthMode]   = useState('joinOrg') // 'login' | 'createOrg' | 'joinOrg'
+  const [name, setName]           = useState('')
+  const [email, setEmail]         = useState('')
+  const [organizationName, setOrganizationName] = useState('')
+  const [selectedOrgId, setSelectedOrgId] = useState('')
+  const [organizationsList, setOrganizationsList] = useState([])
+  const [subscriptionId, setSubscriptionId] = useState('')
+  const [retentionDays, setRetentionDays] = useState(30)
+  const [requiredApprovals, setRequiredApprovals] = useState(2)
   const usernameRef = useRef(null)
   const errorRef = useRef(null)
 
-
-// Dummy credentials — replace with real auth in production
-const DUMMY_USERS = [
-  { username: 'saksham', password: 'Admin@123', name: 'Saksham Midha',      email: 'saksham@cloudthat.com' },
-  { username: 'rounak',  password: 'Admin@123', name: 'Rounak Chandrakar',  email: 'rounak@cloudthat.com' },
-  { username: 'ravi',    password: 'Admin@123', name: 'Ravi Davadra',       email: 'ravi@cloudthat.com' },
-]
 
   // Auto-focus username field on mount
   useEffect(() => {
@@ -33,6 +35,8 @@ const DUMMY_USERS = [
       errorRef.current.focus()
     }
   }, [error])
+
+  useEffect(() => { fetchOrganizations().then(setOrganizationsList).catch(() => {}) }, [])
 
 
   /**
@@ -54,24 +58,34 @@ const DUMMY_USERS = [
    *    // Store account info in context/state
    *    navigate('/home')*/
    
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError(null)
-    if (!username.trim()) { setError('Please enter your username.'); return }
-    if (!password) { setError('Please enter your password.'); return }
-    
     setIsLoading(true)
-    
-    // Simulate network delay for perceived performance
-    setTimeout(() => {
-      const user = DUMMY_USERS.find(u => u.username === username.trim().toLowerCase() && u.password === password)
-      if (!user) {
-        setError('Invalid username or password. Please try again.')
-        setIsLoading(false)
-        return
+    try {
+      if (authMode === 'login') {
+        if (!username.trim()) { setError('Please enter your email.'); setIsLoading(false); return }
+        if (!password) { setError('Please enter your password.'); setIsLoading(false); return }
+        const result = await loginUser({ email: username.trim().toLowerCase(), password })
+        sessionStorage.setItem('user', JSON.stringify({ name: result.name, username: result.email, email: result.email, role: result.role, orgId: result.orgId }))
+        navigate('/dashboard')
+      } else if (authMode === 'createOrg') {
+        const userEmail = username.trim().toLowerCase()
+        if (!organizationName || !name || !userEmail || !password || !subscriptionId) { setError('All fields are required.'); setIsLoading(false); return }
+        const result = await createOrganization({ organizationName, name, email: userEmail, password, subscriptionId, retentionDays, requiredApprovals })
+        sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: userEmail, email: userEmail, role: result.role, orgId: result.orgId }))
+        navigate('/dashboard')
+      } else if (authMode === 'joinOrg') {
+        const userEmail = username.trim().toLowerCase()
+        if (!selectedOrgId || !name || !userEmail || !password) { setError('All fields are required.'); setIsLoading(false); return }
+        const result = await joinOrganization({ orgId: selectedOrgId, name, email: userEmail, password })
+        sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: userEmail, email: userEmail, role: result.role, orgId: result.orgId }))
+        navigate('/dashboard')
       }
-      sessionStorage.setItem('user', JSON.stringify(user))
-      navigate('/dashboard')
-    }, 600)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const dismissError = () => setError(null)
@@ -123,7 +137,7 @@ const DUMMY_USERS = [
                 <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
-            <h1 className="login-title">Azure Drift Intelligence</h1>
+            <h1 className="login-title">{authMode === "login" ? "Azure Drift Intelligence" : authMode === "createOrg" ? "Create Organization" : "Join Organization"}</h1>
             <p className="login-subtitle">Configuration drift detection & monitoring platform</p>
           </div>
 
@@ -180,8 +194,25 @@ const DUMMY_USERS = [
 
           {/* Username & Password fields — proper form with labels */}
           <form className="login-fields" onSubmit={(e) => { e.preventDefault(); handleLogin(); }} noValidate>
+
+            {/* Extra fields for Create/Join org modes */}
+            
+            {authMode === 'createOrg' && (
+              <div className="login-field-wrap">
+                <input type="text" className="login-input" placeholder="Organization Name" value={organizationName} onChange={e => setOrganizationName(e.target.value)} disabled={isLoading} />
+              </div>
+            )}
+            {authMode === 'joinOrg' && (
+              <div className="login-field-wrap">
+                <select className="login-input" value={selectedOrgId} onChange={e => setSelectedOrgId(e.target.value)} disabled={isLoading}>
+                  <option value="">Select your organization</option>
+                  {organizationsList.map(org => <option key={org.orgId} value={org.orgId}>{org.organizationName}</option>)}
+                </select>
+              </div>
+            )}
+
             <div className="login-field-wrap">
-              <label htmlFor="login-username" className="sr-only">Username</label>
+              <label htmlFor="login-username" className="sr-only">Email</label>
               <div className="login-input-icon" aria-hidden="true">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -193,7 +224,7 @@ const DUMMY_USERS = [
                 ref={usernameRef}
                 type="text"
                 className="login-input login-input--with-icon"
-                placeholder="Username"
+                placeholder={authMode === "login" ? "Email" : "Email"}
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 autoComplete="username"
@@ -236,7 +267,30 @@ const DUMMY_USERS = [
               </button>
             </div>
 
-            {/* Login button */}
+
+            {/* Subscription & settings for Create Org */}
+            {authMode === 'createOrg' && (
+              <>
+                <div className="login-field-wrap">
+                  <input type="text" className="login-input" placeholder="Azure Subscription ID" value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} disabled={isLoading} />
+                </div>
+                <div className="login-field-wrap" style={{ display: 'flex', gap: 8 }}>
+                  <select className="login-input" value={retentionDays} onChange={e => setRetentionDays(Number(e.target.value))} disabled={isLoading}>
+                    <option value={30}>30 days retention</option>
+                    <option value={60}>60 days retention</option>
+                    <option value={90}>90 days retention</option>
+                    <option value={365}>365 days retention</option>
+                  </select>
+                  <select className="login-input" value={requiredApprovals} onChange={e => setRequiredApprovals(Number(e.target.value))} disabled={isLoading}>
+                    <option value={1}>1 approval</option>
+                    <option value={2}>2 approvals</option>
+                    <option value={3}>3 approvals</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Submit button */}
             <button
               type="submit"
               className={`login-btn ${isLoading ? 'login-btn-loading' : ''}`}
@@ -257,7 +311,7 @@ const DUMMY_USERS = [
                     <rect x="0" y="11" width="10" height="10" fill="#00a4ef" />
                     <rect x="11" y="11" width="10" height="10" fill="#ffb900" />
                   </svg>
-                  <span>Sign In</span>
+                  <span>{authMode === "login" ? "Sign In" : authMode === "createOrg" ? "Create Organization" : "Join Organization"}</span>
                   <svg className="login-btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
@@ -265,6 +319,24 @@ const DUMMY_USERS = [
               )}
             </button>
           </form>
+
+
+          {/* Mode switcher */}
+          <div style={{ display: 'flex', gap: 16, marginTop: 16, width: '100%' }}>
+            {authMode === 'joinOrg' && (
+              <>
+                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('login'); setError(null) }}>Already have an account? Sign In</button>
+                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('createOrg'); setError(null) }}>Create Organization</button>
+              </>
+            )}
+            {authMode === 'login' && (
+              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>Don't have an account? Sign Up</button>
+            )}
+            {authMode === 'createOrg' && (
+              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>← Back</button>
+            )}
+          </div>
+
 
           <p className="login-footer-text">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

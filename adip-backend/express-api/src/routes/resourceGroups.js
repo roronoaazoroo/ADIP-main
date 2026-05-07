@@ -1,11 +1,11 @@
-'use strict'
 // FILE: routes/resourceGroups.js
 // ROLE: GET /api/subscriptions/:id/resource-groups — lists all RGs in a subscription
 
+'use strict'
 const router_resourceGroups = require('express').Router()
 const { listResourceGroups } = require('../services/azureResourceService')
  
-// ── GET /api/subscriptions/:id/resource-groups START ─────────────────────────
+//  GET /api/subscriptions/:id/resource-groups START 
 // Lists all resource groups in the given subscription
 router_resourceGroups.get('/subscriptions/:subscriptionId/resource-groups', async (req, res) => {
   console.log('[GET /subscriptions/:id/resource-groups] starts — subscriptionId:', req.params.subscriptionId)
@@ -18,7 +18,7 @@ router_resourceGroups.get('/subscriptions/:subscriptionId/resource-groups', asyn
     res.status(500).json({ error: fetchError.message })
   }
 })
-// ── GET /api/subscriptions/:id/resource-groups END ───────────────────────────
+//  GET /api/subscriptions/:id/resource-groups END 
  
 module.exports = router_resourceGroups
  

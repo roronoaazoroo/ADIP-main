@@ -1,14 +1,13 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/routes/suppressionRules.js
 // ROLE: CRUD endpoints for drift suppression rules
-//
+
 // GET    /api/suppression-rules?subscriptionId=   — list all rules
 // POST   /api/suppression-rules                   — create a rule
 // DELETE /api/suppression-rules/:rowKey           — delete a rule
-//
+
 // Rules are stored in Azure Table Storage (suppressionRules table).
 // PartitionKey = subscriptionId, RowKey = nanoid-style timestamp key
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const { TableClient } = require('@azure/data-tables')

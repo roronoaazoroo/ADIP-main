@@ -1,13 +1,12 @@
-// ============================================================
 // FILE: src/components/MultiSelectDropdown.jsx
 // ROLE: Reusable searchable checkbox dropdown
-//
+
 // Props:
 //   options    — [{ value, label }]
 //   selected   — string[] of selected values
 //   onChange   — (selected: string[]) => void
 //   placeholder — string
-// ============================================================
+
 import React, { useState, useRef, useEffect } from 'react'
 
 export default function MultiSelectDropdown({ options, selected, onChange, placeholder = 'Select...', singleSelect = false }) {

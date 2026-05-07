@@ -1,11 +1,10 @@
-// ============================================================
 // FILE: src/services/socketSingleton.js
 // ROLE: Global Socket.IO singleton — persists across page navigation.
-//
+
 // The socket connects once and stays connected for the app lifetime.
 // Components subscribe to events via callbacks registered here.
 // This prevents events being lost when navigating between pages.
-// ============================================================
+
 import { io } from 'socket.io-client'
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001'

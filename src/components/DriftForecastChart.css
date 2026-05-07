@@ -4,7 +4,7 @@
   width: 100%;
 }
 
-/* ── Controls ── */
+/*  Controls  */
 .dfc-controls {
   display: flex;
   align-items: center;
@@ -43,7 +43,7 @@
 }
 .dfc-sev-btn--active { opacity: 1; }
 
-/* ── Chart container ── */
+/*  Chart container  */
 .dfc-chart-area {
   position: relative;
   width: 100%;

@@ -1,4 +1,4 @@
-/* ── Nav ─────────────────────────────────────────────────────────────────── */
+/*  Nav  */
 .dh-nav {
   display: flex;
   justify-content: space-between;
@@ -28,7 +28,7 @@
 .dh-nav-left { display: flex; align-items: center; gap: 28px; }
 .dh-nav-right { display: flex; align-items: center; gap: 6px; }
 
-/* ── Nav Links ───────────────────────────────────────────────────────────── */
+/*  Nav Links  */
 .dh-nav-links { display: flex; gap: 4px; }
 
 .dh-nav-link {
@@ -78,7 +78,7 @@
   to   { width: 20px; opacity: 1; }
 }
 
-/* ── Icon Buttons ────────────────────────────────────────────────────────── */
+/*  Icon Buttons  */
 .dh-icon-btn {
   width: 36px;
   height: 36px;
@@ -112,7 +112,7 @@
   color: #ef4444;
 }
 
-/* ── Avatar ──────────────────────────────────────────────────────────────── */
+/*  Avatar  */
 .dh-avatar {
   width: 34px;
   height: 34px;
@@ -135,7 +135,7 @@
   transform: scale(1.05);
 }
 
-/* ── Logo ────────────────────────────────────────────────────────────────── */
+/*  Logo  */
 .ct-logo {
   height: 28px;
   -webkit-user-drag: none;
@@ -143,7 +143,7 @@
   flex-shrink: 0;
 }
 
-/* ── Mobile Menu Toggle ──────────────────────────────────────────────────── */
+/*  Mobile Menu Toggle  */
 .dh-mobile-toggle {
   display: none;
   width: 36px;
@@ -167,7 +167,7 @@
   font-size: 22px;
 }
 
-/* ── Mobile Menu Overlay ─────────────────────────────────────────────────── */
+/*  Mobile Menu Overlay  */
 .dh-mobile-menu {
   position: fixed;
   top: 64px;
@@ -229,7 +229,7 @@
   opacity: 1;
 }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/*  Responsive  */
 @media (max-width: 1024px) {
   .dh-nav-links { display: none; }
   .dh-mobile-toggle { display: flex; }

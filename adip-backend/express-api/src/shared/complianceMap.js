@@ -1,13 +1,11 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/shared/complianceMap.js
 // ROLE: Static mapping of ARM property paths to compliance controls
-//
+
 // Maps field path patterns (from diffObjects output) to violated
 // controls across CIS Azure, NIST SP 800-53, and ISO 27001.
-//
+
 // Pattern matching: a diff path "matches" a rule if the path
 // contains the rule's pathFragment (case-insensitive).
-// ============================================================
 'use strict'
 
 // Each rule: { pathFragment, controls: [{ framework, controlId, title }] }

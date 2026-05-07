@@ -19,11 +19,12 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useDashboard } from '../context/DashboardContext'
+import { useViewMode } from '../context/ViewModeContext'
 import NavBar from '../components/NavBar'
-import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats } from '../services/api'
+import { fetchSubscriptions, fetchResourceGroups, fetchResources, fetchStatsToday, fetchResourceConfiguration, fetchRecentChanges, fetchChartStats, fetchChangeDetails } from '../services/api'
 import './DashboardHome.css'
 
-// ── Filter dropdown component ─────────────────────────────────────────────────
+//  Filter dropdown component 
 function FilterDropdown({ filterKey, config, selected, onToggle, isOpen, onOpenToggle }) {
   const ref = useRef(null)
   useEffect(() => {
@@ -177,6 +178,8 @@ function BarChart({ subscriptionId }) {
 
 export default function DashboardHome() {
   const { subscription: ctxSub, resourceGroup, resource, configData } = useDashboard()
+  const { viewMode } = useViewMode()
+  const [changeDetailsCache, setChangeDetailsCache] = useState({})
 
   // List of Azure subscriptions the user has access to (fetched from /api/subscriptions)
   const [subscriptionList,    setSubscriptionList]    = useState([])
@@ -259,7 +262,7 @@ export default function DashboardHome() {
   // Called on mount, every 30 seconds, and whenever appliedFilters changes
   // Fetches: subscriptions → resource groups → resource count → today's stats → recent change events
   const loadDashboardData = useCallback(async () => {
-    setIsLoadingData(true)
+    if (!recentChangeEvents.length) setIsLoadingData(true)
     try {
       // Step 1: Fetch all Azure subscriptions the user has access to
       const subscriptionsResponse = await fetchSubscriptions()
@@ -367,6 +370,17 @@ export default function DashboardHome() {
   }
   // The final list of events shown in the table after all filters are applied
   const filteredChangeEvents = applyClientSideFilters(recentChangeEvents)
+  // Fetch change details for CTO mode
+  useEffect(() => {
+    if (viewMode !== 'cto' || !recentChangeEvents.length) return
+    const eventsNeedingDetails = recentChangeEvents.slice(0, 20).filter(e => e._blobKey && !e.changeSummary && !changeDetailsCache[e._blobKey])
+    eventsNeedingDetails.forEach(event => {
+      fetchChangeDetails(event._blobKey)
+        .then(details => { if (details?.changes?.length) setChangeDetailsCache(prev => ({ ...prev, [event._blobKey]: details.changes.join('. ') })) })
+        .catch(() => {})
+    })
+  }, [viewMode, recentChangeEvents])
+
   // Derived values for KPI cards — prefer stats from API, fall back to counting loaded events
   const kpiTotalChangesAllTime  = todayStats?.totalChanges ?? recentChangeEvents.length
   const kpiResourcesChangedToday = todayStats?.totalDrifted ?? new Set(recentChangeEvents.map(e => e.resourceId)).size
@@ -442,7 +456,7 @@ export default function DashboardHome() {
                   </tr>
                 </thead>
                 <tbody>
-                  {isLoadingData ? (
+                  {isLoadingData && !recentChangeEvents.length ? (
                     <TableSkeletonRows count={8} />
                   ) : filteredChangeEvents.length === 0 ? (
                     <tr>
@@ -463,16 +477,48 @@ export default function DashboardHome() {
                       const resourceShortName = changeEvent.resourceId?.split('/').pop() || '—'
                       const shortOperationName = (changeEvent.operationName || changeEvent.eventType || '').split('/').slice(-2).join('/')
                       const isDeleteEvent = changeEvent.changeType === 'deleted'
-                      return (
+                      const timeString = changeEvent.detectedAt ? new Date(changeEvent.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+                      return viewMode === 'cto' ? (
+                        <tr key={changeEvent._blobKey || rowIndex} className="dh-tr">
+                          <td colSpan={6} style={{ padding: '12px 16px', fontSize: 13, lineHeight: 1.8 }}>
+                            <span style={{ color: '#6b7280', marginRight: 10, fontSize: 11 }}>{timeString}</span>
+                            {(() => {
+                              const summary = changeEvent.changeSummary || changeDetailsCache[changeEvent._blobKey]
+                              return summary ? (
+                                <span><strong>{changeEvent.caller?.split('@')[0] || 'Someone'}</strong>{' '}{summary}</span>
+                              ) : (
+                                <span><strong>{changeEvent.caller?.split('@')[0] || 'Someone'}</strong>{' '}
+                                {(() => {
+                                  const op = (changeEvent.operationName || changeEvent.eventType || '').toLowerCase()
+                                  if (isDeleteEvent) return <>deleted <strong>{resourceShortName}</strong></>
+                                  if (op.includes('tags/write')) return <>updated tags on <strong>{resourceShortName}</strong></>
+                                  if (op.includes('storageaccounts/write')) return <>modified storage account <strong>{resourceShortName}</strong></>
+                                  if (op.includes('vaults/write')) return <>modified key vault <strong>{resourceShortName}</strong></>
+                                  if (op.includes('virtualmachines/write')) return <>modified virtual machine <strong>{resourceShortName}</strong></>
+                                  if (op.includes('sites/write')) return <>modified web app <strong>{resourceShortName}</strong></>
+                                  if (op.includes('networkinterfaces/write')) return <>modified network interface <strong>{resourceShortName}</strong></>
+                                  if (op.includes('/write')) return <>modified <strong>{resourceShortName}</strong></>
+                                  return <>{changeEvent.changeCount > 1 ? `made ${changeEvent.changeCount} changes to` : 'modified'} <strong>{resourceShortName}</strong></>
+                                })()}
+                                {changeEvent.resourceGroup && <span style={{ color: '#64748b' }}> in {changeEvent.resourceGroup}</span>}
+                              </span>
+                              )
+                            })()}
+                            {changeEvent.severity && changeEvent.severity !== 'low' && (
+                              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: changeEvent.severity === 'critical' ? 'rgba(239,68,68,0.15)' : changeEvent.severity === 'high' ? 'rgba(249,115,22,0.15)' : 'rgba(245,158,11,0.15)', color: changeEvent.severity === 'critical' ? '#ef4444' : changeEvent.severity === 'high' ? '#f97316' : '#f59e0b' }}>
+                                {changeEvent.severity}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ) : (
                         <tr key={changeEvent._blobKey || rowIndex}
                           className="dh-tr"
                           role={!isDeleteEvent ? 'link' : undefined}
                           tabIndex={!isDeleteEvent ? 0 : undefined}
                           aria-label={!isDeleteEvent ? `Compare ${resourceShortName} against baseline` : undefined}
                         >
-                          <td className="dh-td-time">
-                            {changeEvent.detectedAt ? new Date(changeEvent.detectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                          </td>
+                          <td className="dh-td-time">{timeString}</td>
                           <td className="dh-td-user">{changeEvent.caller || '—'}</td>
                           <td className="dh-td-resource" title={changeEvent.resourceId}>{resourceShortName}</td>
                           <td className="dh-td-rg">{changeEvent.resourceGroup || '—'}</td>

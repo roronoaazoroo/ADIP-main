@@ -1,6 +1,6 @@
-'use strict'
 // FILE: routes/remediateDecision.js
 
+'use strict'
 const router_remediateDecision = require('express').Router()
 const { getBaseline, saveBaseline } = require('../services/blobService')
 const { reconcileStorageChildren } = require('../services/storageChildService')
@@ -10,7 +10,7 @@ const { DefaultAzureCredential }   = require('@azure/identity')
 const { stripVolatileFields } = require('../shared/armUtils')
  
  
-// ── html START ───────────────────────────────────────────────────────────────
+//  html START 
 // Generates a styled HTML confirmation page shown to the admin after approve/reject
 function html(title, message, color) {
   console.log('[html] starts — title:', title)
@@ -30,10 +30,10 @@ a{display:inline-block;margin-top:20px;padding:10px 24px;background:#1d4ed8;colo
   console.log('[html] ends')
   return result
 }
-// ── html END ─────────────────────────────────────────────────────────────────
+//  html END 
  
  
-// ── GET /api/remediate-decision START ────────────────────────────────────────
+//  GET /api/remediate-decision START 
 // Called when an admin clicks Approve or Reject in the drift alert email
 // Approve: applies baseline via ARM PUT — Reject: promotes current state as new baseline
 router_remediateDecision.get('/remediate-decision', async (req, res) => {
@@ -62,7 +62,7 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
  
   try {
     if (action === 'approve') {
-      // ── Approve: revert live resource to golden baseline ───────────────────
+      //  Approve: revert live resource to golden baseline 
       const baseline = await getBaseline(subscriptionId, resourceId)
       if (!baseline?.resourceState) {
         console.log('[GET /remediate-decision] ends — no baseline for approve')
@@ -161,7 +161,7 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
         `<strong>${resourceName}</strong> has been successfully reverted to its golden baseline.`, '#16a34a'))
  
     } else {
-      // ── Reject: promote current live state as new baseline ─────────────────
+      //  Reject: promote current live state as new baseline 
       const liveState = await getResourceConfig(subscriptionId, resourceGroup, resourceId)
       // await saveBaseline(subscriptionId, resourceGroup, resourceId, liveState)
  
@@ -174,6 +174,6 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
     return res.status(500).send(html('Error', `Operation failed: ${err.message}`, '#dc2626'))
   }
 })
-// ── GET /api/remediate-decision END ──────────────────────────────────────────
+//  GET /api/remediate-decision END 
  
 module.exports = router_remediateDecision

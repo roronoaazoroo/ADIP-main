@@ -1,17 +1,15 @@
-// ============================================================
 // FILE: src/components/SuppressionRules.jsx
 // ROLE: Drift Suppression Rules manager for SettingsPage
-//
+
 // Form fields:
 //   1. Subscription (auto-filled from context/env)
 //   2. Resource Group dropdown (loaded from API)
 //   3. Resource dropdown (optional, loaded after RG selected)
 //   4. Field Path (what to suppress, e.g. "tags") — auto-assigns changeTypes: ['all']
 //   5. Reason
-//
+
 // Rules stored in Azure Table Storage (suppressionRules table).
 // Applied server-side in compare.js before severity classification.
-// ============================================================
 import React, { useState, useEffect } from 'react'
 import {
   fetchSuppressionRules, createSuppressionRule, deleteSuppressionRule,

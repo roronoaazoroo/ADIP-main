@@ -1,11 +1,10 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/routes/reports.js
 // ROLE: HTTP endpoints for drift analysis reports
-//
+
 // POST /api/reports/generate  — generate report, save to blob, optionally email
 // GET  /api/reports           — list saved reports for a subscription
 // GET  /api/reports/view      — return HTML content of a specific report
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const { generateAndSaveReport, listSavedReports } = require('../services/reportService')

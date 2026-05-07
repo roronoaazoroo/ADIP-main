@@ -45,7 +45,7 @@ async function setCurrentBaseline(subscriptionId, resourceId, blobKey) {
   }
 }
 
-// ── GET /api/genome START ────────────────────────────────────────────────────
+//  GET /api/genome START 
 // Returns all versioned configuration snapshots for a resource, sorted newest-first
 router.get('/genome', async (req, res) => {
   console.log('[GET /genome] starts')
@@ -58,7 +58,7 @@ router.get('/genome', async (req, res) => {
     res.json(await listGenomeSnapshots(subscriptionId, resourceId, Number(limit) || 50))
   } catch (routeError) { res.status(500).json({ error: routeError.message }) }
 })
-// ── GET /api/genome END ──────────────────────────────────────────────────────
+//  GET /api/genome END 
 
 // POST /api/genome/save
 router.post('/genome/save', async (req, res) => {
@@ -78,7 +78,7 @@ router.post('/genome/save', async (req, res) => {
     res.json(snapshot)
   } catch (routeError) { res.status(500).json({ error: routeError.message }) }
 })
-// ── POST /api/genome/save END ────────────────────────────────────────────────
+//  POST /api/genome/save END 
 
 // POST /api/genome/promote — make snapshot the golden baseline
 router.post('/genome/promote', async (req, res) => {
@@ -103,7 +103,7 @@ router.post('/genome/promote', async (req, res) => {
     res.json({ promoted: true, resourceId, blobKey })
   } catch (routeError) { res.status(500).json({ error: routeError.message }) }
 })
-// ── POST /api/genome/promote END ─────────────────────────────────────────────
+//  POST /api/genome/promote END 
 
 // POST /api/genome/rollback — revert resource to snapshot via ARM PUT
 router.post('/genome/rollback', async (req, res) => {
@@ -178,7 +178,7 @@ router.post('/genome/rollback', async (req, res) => {
     res.json({ rolledBack: true, resourceId, blobKey, savedAt: snapshot.savedAt })
   } catch (routeError) { res.status(500).json({ error: routeError.message }) }
 })
-// ── POST /api/genome/rollback END ────────────────────────────────────────────
+//  POST /api/genome/rollback END 
 
 // GET /api/genome/history — returns the full activity history for a resource's genomes
 // Includes: snapshots created, snapshots deleted (tracked via deletedAt), rollbacks, and baseline promotions

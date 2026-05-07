@@ -1,4 +1,3 @@
-'use strict'
 // FILE: services/azureResourceService.js
 // ROLE: All Azure Resource Manager (ARM) API calls — subscriptions, RGs, resources, API versions
 //
@@ -12,6 +11,7 @@
 //   fetchWithFallback(client, rg, provider, type, name, apiVersion)
 //     — ARM GET with automatic API version correction on 400 errors
 
+'use strict'
 const { ResourceManagementClient } = require('@azure/arm-resources')
 const { SubscriptionClient }       = require('@azure/arm-subscriptions')
 const { DefaultAzureCredential }   = require('@azure/identity')
@@ -69,7 +69,7 @@ const API_VERSION_MAP = {
 const providerApiVersionCache = {}
 
 
-// ── getApiVersion START ──────────────────────────────────────────────────────
+//  getApiVersion START 
 // Resolves the ARM API version for a resource type — checks static map first, then queries ARM
 async function getApiVersion(subscriptionId, provider, type) {
   console.log('[getApiVersion] starts — provider:', provider, 'type:', type)
@@ -107,10 +107,10 @@ async function getApiVersion(subscriptionId, provider, type) {
     return ARM_API_VERSION_FALLBACK
   }
 }
-// ── getApiVersion END ────────────────────────────────────────────────────────
+//  getApiVersion END 
 
 
-// ── resourceClient START ─────────────────────────────────────────────────────
+//  resourceClient START 
 // Returns a new ResourceManagementClient for the given subscription
 function resourceClient(subscriptionId) {
   console.log('[resourceClient] starts — subscriptionId:', subscriptionId)
@@ -118,10 +118,10 @@ function resourceClient(subscriptionId) {
   console.log('[resourceClient] ends')
   return client
 }
-// ── resourceClient END ───────────────────────────────────────────────────────
+//  resourceClient END 
 
 
-// ── listSubscriptions START ──────────────────────────────────────────────────
+//  listSubscriptions START 
 // Lists all Azure subscriptions accessible to the current credential
 async function listSubscriptions() {
   console.log('[listSubscriptions] starts')
@@ -131,10 +131,10 @@ async function listSubscriptions() {
   console.log('[listSubscriptions] ends — found:', subs.length, 'subscriptions')
   return subs
 }
-// ── listSubscriptions END ────────────────────────────────────────────────────
+//  listSubscriptions END 
 
 
-// ── listResourceGroups START ─────────────────────────────────────────────────
+//  listResourceGroups START 
 // Lists all resource groups in the given subscription
 async function listResourceGroups(subscriptionId) {
   console.log('[listResourceGroups] starts — subscriptionId:', subscriptionId)
@@ -144,10 +144,10 @@ async function listResourceGroups(subscriptionId) {
   console.log('[listResourceGroups] ends — found:', rgs.length, 'resource groups')
   return rgs
 }
-// ── listResourceGroups END ───────────────────────────────────────────────────
+//  listResourceGroups END 
 
 
-// ── listResources START ──────────────────────────────────────────────────────
+//  listResources START 
 // Lists all resources in the given resource group
 async function listResources(subscriptionId, resourceGroupName) {
   console.log('[listResources] starts — subscriptionId:', subscriptionId, 'rg:', resourceGroupName)
@@ -157,7 +157,7 @@ async function listResources(subscriptionId, resourceGroupName) {
   console.log('[listResources] ends — found:', resources.length, 'resources')
   return resources
 }
-// ── listResources END ────────────────────────────────────────────────────────
+//  listResources END 
 
 
 // Child resource paths to fetch and merge for each parent resource type
@@ -177,7 +177,7 @@ const CHILD_RESOURCES = {
 // Storage container/share/queue/table list API versions
 const STORAGE_LIST_API_VERSION = '2023-01-01'
 
-// ── fetchStorageChildItems START ─────────────────────────────────────────────
+//  fetchStorageChildItems START 
 // Lists the actual containers, file shares, queues, and tables inside a storage account
 // These are user-created resources that live under the service paths:
 //   blobServices/default/containers, fileServices/default/shares,
@@ -227,10 +227,10 @@ async function fetchStorageChildItems(subscriptionId, resourceGroupName, storage
     'shares:', fileShares.length, 'queues:', storageQueues.length, 'tables:', storageTables.length)
   return storageChildItems
 }
-// ── fetchStorageChildItems END ───────────────────────────────────────────────
+//  fetchStorageChildItems END 
 
 
-// ── fetchWithFallback START ──────────────────────────────────────────────────
+//  fetchWithFallback START 
 // Attempts an ARM GET and automatically retries with a corrected API version on 400 mismatch errors
 async function fetchWithFallback(client, rg, provider, type, name, apiVersion) {
   console.log('[fetchWithFallback] starts — type:', type, 'name:', name, 'apiVersion:', apiVersion)
@@ -253,9 +253,9 @@ async function fetchWithFallback(client, rg, provider, type, name, apiVersion) {
     throw err
   }
 }
-// ── fetchWithFallback END ────────────────────────────────────────────────────
+//  fetchWithFallback END 
 
-// ── getResourceConfig START ──────────────────────────────────────────────────
+//  getResourceConfig START 
 // Fetches the live ARM configuration for a specific resource or all resources in a resource group
 // Also fetches child resources (e.g. blobServices) and merges them into _childConfig
 async function getResourceConfig(subscriptionId, resourceGroupName, resourceId) {
@@ -309,6 +309,6 @@ async function getResourceConfig(subscriptionId, resourceGroupName, resourceId) 
   console.log('[getResourceConfig] ends — resource group with', resources.length, 'resources')
   return { resourceGroup: rg, resources }
 }
-// ── getResourceConfig END ────────────────────────────────────────────────────
+//  getResourceConfig END 
 
 module.exports = { listSubscriptions, listResourceGroups, listResources, getResourceConfig, getApiVersion }

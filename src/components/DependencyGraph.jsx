@@ -1,14 +1,13 @@
-// ============================================================
 // FILE: src/components/DependencyGraph.jsx
 // ROLE: Renders the resource dependency graph for a resource group.
-//
+
 // Uses React Flow for a clean flowchart-style layout with dagre
 // for automatic hierarchical positioning. Nodes show Azure service
 // type, name, location, and drift status with severity rings.
-//
+
 // FEATURE: Clicking a node opens a slide-out detail panel showing
 // the resource configuration in a clean, human-readable card format.
-// ============================================================
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import ReactFlow, {
   Background,
@@ -25,7 +24,7 @@ import { fetchDependencyGraph, fetchResourceConfiguration } from '../services/ap
 import 'reactflow/dist/style.css'
 import './DependencyGraph.css'
 
-// ── Azure type → icon + color mapping ────────────────────────────────────────
+//  Azure type → icon + color mapping 
 const TYPE_META = {
   'microsoft.storage':     { icon: 'database',         color: '#10b981', label: 'Storage' },
   'microsoft.compute':     { icon: 'memory',           color: '#f97316', label: 'Compute' },
@@ -48,7 +47,7 @@ function getTypeMeta(type) {
   return { icon: 'cloud', color: '#64748b', label: 'Resource' }
 }
 
-// ── Severity styling ─────────────────────────────────────────────────────────
+//  Severity styling 
 const SEVERITY_STYLE = {
   critical: { color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.5)', glow: '0 0 20px rgba(239,68,68,0.25)' },
   high:     { color: '#f97316', bg: 'rgba(249,115,22,0.06)', border: 'rgba(249,115,22,0.4)', glow: '0 0 16px rgba(249,115,22,0.2)' },
@@ -56,7 +55,7 @@ const SEVERITY_STYLE = {
   low:      { color: '#facc15', bg: 'rgba(250,204,21,0.04)', border: 'rgba(250,204,21,0.3)', glow: 'none' },
 }
 
-// ── Friendly property label mapping ──────────────────────────────────────────
+//  Friendly property label mapping 
 const FRIENDLY_LABELS = {
   provisioningState: 'Status',
   vmSize: 'VM Size',
@@ -123,7 +122,7 @@ function friendlyLabel(key) {
     .trim()
 }
 
-// ── Value formatter for human-readable display ───────────────────────────────
+//  Value formatter for human-readable display 
 function formatValue(val) {
   if (val === null || val === undefined) return '—'
   if (typeof val === 'boolean') return val ? '✅ Yes' : '❌ No'
@@ -152,7 +151,7 @@ function formatValue(val) {
 // Keys to skip in detail panel (too noisy / internal)
 const SKIP_KEYS = new Set(['id', 'etag', 'resourceGuid', 'uniqueId', 'tenantId', 'objectId'])
 
-// ── Resource Detail Panel Component ──────────────────────────────────────────
+//  Resource Detail Panel Component 
 function ResourceDetailPanel({ nodeData, configData, configLoading, configError, onClose, onCompare }) {
   const meta = getTypeMeta(nodeData.type)
   const sev = nodeData.isDrifted ? (SEVERITY_STYLE[nodeData.severity] || SEVERITY_STYLE.low) : null
@@ -316,7 +315,7 @@ function ResourceDetailPanel({ nodeData, configData, configLoading, configError,
   )
 }
 
-// ── Custom Node Component ────────────────────────────────────────────────────
+//  Custom Node Component 
 function ResourceNode({ data }) {
   const meta = getTypeMeta(data.type)
   const sev = data.isDrifted ? (SEVERITY_STYLE[data.severity] || SEVERITY_STYLE.low) : null
@@ -365,7 +364,7 @@ function ResourceNode({ data }) {
 
 const nodeTypes = { resource: ResourceNode }
 
-// ── Dagre layout ─────────────────────────────────────────────────────────────
+//  Dagre layout 
 const NODE_WIDTH = 200
 const NODE_HEIGHT = 90
 
@@ -392,7 +391,7 @@ function layoutGraph(nodes, edges) {
   })
 }
 
-// ── Main Component ───────────────────────────────────────────────────────────
+//  Main Component 
 export default function DependencyGraph({ subscriptionId, resourceGroupId, onNodeClick }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])

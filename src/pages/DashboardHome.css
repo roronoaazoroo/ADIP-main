@@ -10,7 +10,7 @@
 
 
 
-/* ── Main ────────────────────────────────────────────────────────────────── */
+/*  Main  */
 .dh-main {
   max-width: 1400px;
   margin: 0 auto;
@@ -28,7 +28,7 @@
 }
 .dh-subline { color: #64748b; margin-top: 10px; font-size: 15px; max-width: 520px; }
 
-/* ── KPI Grid ────────────────────────────────────────────────────────────── */
+/*  KPI Grid  */
 .dh-kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -83,7 +83,7 @@
 .kpi-trend--up   { color: #009ba7; background: rgba(0,155,167,0.1); }
 .kpi-trend--down { color: #ef4444; background: rgba(241,86,69,0.1); }
 
-/* ── Charts Row ──────────────────────────────────────────────────────────── */
+/*  Charts Row  */
 .dh-charts-row {
   display: grid;
   grid-template-columns: 1fr 2fr;
@@ -127,7 +127,7 @@
 .bar-inner { width: 100%; min-height: 4px; border-radius: 4px 4px 0 0; transition: height 0.3s; }
 .bar-label { font-size: 10px; color: #6b7280; margin-top: 8px; font-weight: 500; }
 
-/* ── Table ───────────────────────────────────────────────────────────────── */
+/*  Table ─ */
 .dh-table-section { width: 100%; }
 .dh-table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .dh-table-title-row { display: flex; align-items: center; gap: 12px; }
@@ -244,7 +244,7 @@
 }
 .dh-goto-btn:hover { opacity: 0.85; }
 
-/* ── Filter Bar ──────────────────────────────────────────────────────────── */
+/*  Filter Bar  */
 .dh-filter-bar {
   display: flex;
   align-items: center;
@@ -476,7 +476,7 @@
   background: rgba(239,68,68,0.04);
 }
 
-/* ── FAB ─────────────────────────────────────────────────────────────────── */
+/*  FAB ─ */
 .dh-fab {
   position: fixed;
   right: 24px; bottom: 24px;
@@ -493,7 +493,7 @@
 .dh-fab:hover { transform: scale(1.05); }
 .dh-fab .material-symbols-outlined { font-size: 28px; }
 
-/* ── Responsive ──────────────────────────────────────────────────────────── */
+/*  Responsive  */
 @media (max-width: 1024px) {
   .dh-kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .dh-charts-row { grid-template-columns: 1fr; }
@@ -520,25 +520,25 @@
 .bar-mode-btn:hover { background: #e8e8eb; color: #003359; }
 .bar-mode-btn--active { background: rgba(0,96,169,0.1); border-color: rgba(0,96,169,0.2); color: #0060a9; }
 
-/* ── Dashboard tabs ──────────────────────────────────────────────────────── */
+/*  Dashboard tabs  */
 .dh-tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
 .dh-tab-btn { background: none; border: none; color: #64748b; font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 6px 6px 0 0; cursor: pointer; }
 .dh-tab-btn--active { color: #1995ff; border-bottom: 2px solid #1995ff; }
 
-/* ── TopChangers widget ──────────────────────────────────────────────────── */
+/*  TopChangers widget  */
 .dh-top-changers { padding: 8px 0; }
 .dh-top-changers-empty { color: #64748b; font-size: 13px; padding: 16px 0; }
 .dh-top-changer-hero { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px; margin-bottom: 4px; }
 .dh-top-changer-name { font-size: 16px; font-weight: 700; color: #003359; }
 .dh-top-changer-stat { font-size: 13px; color: #94a3b8; margin-top: 2px; }
 
-/* ── KPI countUp animation ───────────────────────────────────────────── */
+/*  KPI countUp animation ─ */
 @keyframes countUp {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Skeleton loading ────────────────────────────────────────────────── */
+/*  Skeleton loading  */
 .skeleton {
   background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
   background-size: 200% 100%;

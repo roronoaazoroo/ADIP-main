@@ -1,10 +1,9 @@
-// ============================================================
 // FILE: adip-backend/function-app/afterHoursAlert/index.js
 // ROLE: Azure Function Timer Trigger — replaces setInterval in app.js
-//
+
 // Fires daily at 19:00. Sends a summary alert if critical drift
 // events were detected today and not yet remediated.
-// ============================================================
+
 'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { TableClient }  = require('@azure/data-tables')

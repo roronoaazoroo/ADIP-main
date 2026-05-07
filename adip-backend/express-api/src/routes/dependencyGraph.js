@@ -1,11 +1,10 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/routes/dependencyGraph.js
 // ROLE: HTTP endpoint for resource dependency graph
-//
+
 // GET /api/dependency-graph?subscriptionId=&resourceGroupId=
 //   Returns { nodes[], links[] } for react-force-graph-2d
 //   Cached 5 minutes per subscription+RG pair
-// ============================================================
+
 'use strict'
 const router = require('express').Router()
 const { buildDependencyGraph } = require('../services/dependencyGraphService')

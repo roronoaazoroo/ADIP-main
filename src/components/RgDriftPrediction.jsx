@@ -14,7 +14,7 @@ const SEV_COLOR = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low
 const SEV_SCORE = { critical: 4, high: 3, medium: 2, low: 1 }
 const LIKELIHOOD_COLOR = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#10b981' }
 
-// ── Severity mini-bar ─────────────────────────────────────────────────────────
+//  Severity mini-bar 
 function SeverityBar({ severities }) {
   const total = Object.values(severities).reduce((s, v) => s + v, 0)
   if (!total) return <span className="rgp-no-drift">—</span>
@@ -29,12 +29,12 @@ function SeverityBar({ severities }) {
   )
 }
 
-// ── Risk score for a resource ─────────────────────────────────────────────────
+//  Risk score for a resource 
 function riskScore(stat) {
   return Object.entries(stat.severities).reduce((acc, [sev, cnt]) => acc + (SEV_SCORE[sev] || 0) * cnt, 0)
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+//  Main Component 
 export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -88,7 +88,7 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
   return (
     <div className="rgp-root">
 
-      {/* ── KPI Summary ── */}
+      {/*  KPI Summary  */}
       <div className="rgp-kpis">
         <div className="rgp-kpi">
           <div className="rgp-kpi-val">{totalResources}</div>
@@ -112,7 +112,7 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
         </div>
       </div>
 
-      {/* ── Two-column layout ── */}
+      {/*  Two-column layout  */}
       <div className="rgp-columns">
 
         {/* Left — Resource Risk Table */}
@@ -234,7 +234,7 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
         </div>
       </div>
 
-      {/* ── Heatmap ── */}
+      {/*  Heatmap  */}
       {driftedCount > 0 && (
         <div className="rgp-panel rgp-panel--full">
           <div className="rgp-panel-head">

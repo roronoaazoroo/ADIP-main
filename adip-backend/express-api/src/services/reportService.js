@@ -1,15 +1,14 @@
-// ============================================================
 // FILE: adip-backend/express-api/src/services/reportService.js
 // ROLE: Business logic for generating drift analysis reports
-//
+
 // Queries changesIndex and driftIndex Tables to aggregate:
 //   - Total changes and drift events over a period
 //   - Severity breakdown
 //   - Top drifted resources
 //   - Remediation status
-//
+
 // Separate from infrastructure (routes/reports.js handles HTTP)
-// ============================================================
+
 'use strict'
 const { getDriftIndexTableClient, getChangesIndexTableClient } = require('./blobService')
 const { BlobServiceClient } = require('@azure/storage-blob')

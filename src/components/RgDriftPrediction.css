@@ -7,7 +7,7 @@
   gap: 20px;
 }
 
-/* ── KPI Row ───────────────────────────────────────────────── */
+/*  KPI Row  */
 .rgp-kpis {
   display: flex;
   gap: 1px;
@@ -41,7 +41,7 @@
   letter-spacing: 0.02em;
 }
 
-/* ── Two-column layout ─────────────────────────────────────── */
+/*  Two-column layout  */
 .rgp-columns {
   display: grid;
   grid-template-columns: 3fr 2fr;
@@ -49,7 +49,7 @@
   align-items: start;
 }
 
-/* ── Panel (shared card style) ─────────────────────────────── */
+/*  Panel (shared card style)  */
 .rgp-panel {
   background: #fff;
   border-radius: 16px;
@@ -111,7 +111,7 @@
 .rgp-expand-btn:hover { text-decoration: underline; }
 
 
-/* ── Resource Risk Table ───────────────────────────────────── */
+/*  Resource Risk Table  */
 .rgp-risk-table {
   display: flex;
   flex-direction: column;
@@ -213,7 +213,7 @@
 }
 
 
-/* ── AI Predictions ────────────────────────────────────────── */
+/*  AI Predictions  */
 .rgp-preds {
   display: flex;
   flex-direction: column;
@@ -326,7 +326,7 @@
 }
 
 
-/* ── 14-Day Heatmap ────────────────────────────────────────── */
+/*  14-Day Heatmap  */
 .rgp-heatmap {
   padding: 12px 20px 16px;
 }
@@ -340,7 +340,7 @@
   transition: opacity 0.15s;
 }
 
-.rgp-heat-row--active { }
+/* .rgp-heat-row--active { } */
 .rgp-heat-row--dim { opacity: 0.3; }
 
 .rgp-heat-label {
@@ -396,7 +396,7 @@
 }
 
 
-/* ── Loading / Empty ───────────────────────────────────────── */
+/*  Loading / Empty  */
 .rgp-loading {
   display: flex;
   align-items: center;
@@ -429,7 +429,7 @@
 }
 
 
-/* ── Responsive ────────────────────────────────────────────── */
+/*  Responsive  */
 @media (max-width: 900px) {
   .rgp-columns {
     grid-template-columns: 1fr;

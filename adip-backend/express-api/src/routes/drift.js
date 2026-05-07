@@ -1,10 +1,10 @@
 'use strict'
 const router_drift = require('express').Router()
-const { getDriftHistory: getDriftRecordsForRoute, getTotalChangesCount, getRecentChanges, getChangesIndexTableClient } = require('../services/blobService')
+const { getDriftHistory: getDriftRecordsForRoute, getTotalChangesCount, getRecentChanges, getChangesIndexTableClient, readBlob } = require('../services/blobService')
 
 // Table clients imported from blobService — infrastructure stays in the service layer
 
-// ── GET /api/drift-events ─────────────────────────────────────────────────────
+//  GET /api/drift-events 
 router_drift.get('/drift-events', async (req, res) => {
   const { subscriptionId, resourceGroup, severity, since, caller, limit = 50 } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
@@ -15,7 +15,7 @@ router_drift.get('/drift-events', async (req, res) => {
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
-// ── GET /api/changes/recent ───────────────────────────────────────────────────
+//  GET /api/changes/recent 
 // Returns all changes from all-changes blob in last 24h (or custom window)
 // Supports filters: subscriptionId, resourceGroup, caller, changeType, limit
 router_drift.get('/changes/recent', async (req, res) => {
@@ -28,7 +28,7 @@ router_drift.get('/changes/recent', async (req, res) => {
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
-// ── GET /api/changes/count ────────────────────────────────────────────────────
+//  GET /api/changes/count 
 // Returns total permanent change count (all time) from changesIndex Table
 router_drift.get('/changes/count', async (req, res) => {
   const { subscriptionId } = req.query
@@ -39,7 +39,7 @@ router_drift.get('/changes/count', async (req, res) => {
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
 })
 
-// ── GET /api/stats/today ──────────────────────────────────────────────────────
+//  GET /api/stats/today 
 router_drift.get('/stats/today', async (req, res) => {
   const { subscriptionId } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
@@ -73,7 +73,7 @@ router_drift.get('/stats/today', async (req, res) => {
   } catch (statsError) { res.status(500).json({ error: statsError.message }) }
 })
 
-// ── GET /api/stats/chart ──────────────────────────────────────────────────────
+//  GET /api/stats/chart 
 // Returns bucketed change counts from changesIndex for bar chart
 // mode=24h  → 24 hourly buckets (last 24 hours)
 // mode=7d   → 7 daily buckets  (last 7 days)
@@ -121,6 +121,53 @@ router_drift.get('/stats/chart', async (req, res) => {
     }
     res.json({ mode, buckets })
   } catch (chartError) { res.status(500).json({ error: chartError.message }) }
+})
+
+
+// GET /api/changes/details?blobKey=
+// Returns the full change record from blob storage (includes differences array)
+router_drift.get('/changes/details', async (req, res) => {
+  const { blobKey } = req.query
+  if (!blobKey) return res.status(400).json({ error: 'blobKey required' })
+  try {
+    const record = await readBlob('all-changes', blobKey)
+    if (!record) return res.status(404).json({ error: 'Change record not found' })
+    // Return a summary of changes as readable sentences
+    const changes = (record.changes || []).filter(ch => {
+      const p = (ch.path || '').toLowerCase()
+      if (p.includes('_childconfig') || p.includes('storagetables') || p.includes('storagequeues') || p.includes('storagecontainers') || p.includes('fileshares')) return false
+      return true
+    }).map(ch => {
+      const field = (ch.path || '').split(' \u2192 ').pop() || ch.path || ''
+      const resourceName = (record.resourceId || '').split('/').pop() || 'resource'
+      const valStr = (v) => typeof v === 'object' ? JSON.stringify(v).slice(0,25) : String(v ?? '').slice(0,25)
+      if (ch.type === 'removed') {
+        if ((ch.path || '').toLowerCase().includes('tag')) return `removed tag "${field}" from ${resourceName}`
+        return `removed ${field} from ${resourceName}`
+      }
+      if (ch.type === 'added') return `added ${field}: ${valStr(ch.newValue)} to ${resourceName}`
+      const oldStr = typeof ch.oldValue === 'object' ? JSON.stringify(ch.oldValue).slice(0,20) : String(ch.oldValue ?? '')
+      const newStr = typeof ch.newValue === 'object' ? JSON.stringify(ch.newValue).slice(0,20) : String(ch.newValue ?? '')
+      if (field.toLowerCase().includes('httpstraffic') || field.toLowerCase().includes('https'))
+        return newStr === 'true' ? `enabled HTTPS enforcement on ${resourceName}` : `disabled HTTPS enforcement on ${resourceName}`
+      if (field.toLowerCase().includes('publicaccess') || field.toLowerCase().includes('blobaccesspublic'))
+        return newStr === 'true' ? `enabled public blob access on ${resourceName}` : `disabled public blob access on ${resourceName}`
+      if (field.toLowerCase().includes('accesstier'))
+        return `changed access tier from ${oldStr} to ${newStr} on ${resourceName}`
+      if (field.toLowerCase().includes('defaultaction'))
+        return `changed network default action from ${oldStr} to ${newStr} on ${resourceName}`
+      if (field.toLowerCase().includes('tls'))
+        return `changed minimum TLS version to ${newStr} on ${resourceName}`
+      if (field.toLowerCase().includes('sku') || field.toLowerCase().includes('tier'))
+        return `changed SKU from ${oldStr} to ${newStr} on ${resourceName}`
+      if (field.toLowerCase().includes('tag'))
+        return ch.type === 'removed' ? `removed tag "${field}" from ${resourceName}` : `set tag "${field}" to "${newStr}" on ${resourceName}`
+      return `changed ${field} from "${oldStr.slice(0,20)}" to "${newStr.slice(0,20)}" on ${resourceName}`
+    })
+    res.json({ changes, changeCount: changes.length })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 module.exports = router_drift

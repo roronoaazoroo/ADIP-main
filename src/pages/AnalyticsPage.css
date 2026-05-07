@@ -606,6 +606,7 @@
   border-radius: 6px;
 }
 
+ an-card-body{ 
   align-items: flex-start;
   gap: 20px;
   padding: 28px 32px;

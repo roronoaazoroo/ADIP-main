@@ -1,12 +1,11 @@
-// ============================================================
 // FILE: adip-backend/function-app/processSchedules/index.js
 // ROLE: Azure Function Timer Trigger — replaces setInterval in app.js
-//
+
 // Runs every minute. Processes due remediation schedules:
 //   - Executes schedules whose scheduledAt has passed
 //   - Auto-approves after autoApprovalHours
 //   - Escalates medium severity to high after 48h
-// ============================================================
+
 'use strict'
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') })
 const { TableClient } = require('@azure/data-tables')

@@ -1,6 +1,6 @@
-'use strict'
 // FILE: routes/remediate.js
 
+'use strict'
 const router_remediate = require('express').Router()
 const fetch = require('node-fetch')
 const { ResourceManagementClient } = require('@azure/arm-resources')
@@ -21,7 +21,7 @@ const { stripVolatileFields } = require('../shared/armUtils')
 // stripVolatileFields() is now stripVolatileFields() from shared/armUtils.js
  
  
-// ── POST /api/remediate START ────────────────────────────────────────────────
+//  POST /api/remediate START 
 // Immediately reverts a resource to its golden baseline via ARM PUT (used for low severity)
 router_remediate.post('/remediate', async (req, res) => {
   console.log('[POST /remediate] starts')
@@ -130,7 +130,7 @@ router_remediate.post('/remediate', async (req, res) => {
     res.status(500).json({ error: remediateError.message })
   }
 })
-// ── POST /api/remediate END ──────────────────────────────────────────────────
+//  POST /api/remediate END 
  
 
 // GET /api/policy/assignments?subscriptionId=&resourceGroupId=

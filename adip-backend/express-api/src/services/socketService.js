@@ -6,7 +6,7 @@
 
 
 
-// ── broadcastDriftEvent START ────────────────────────────────────────────────
+//  broadcastDriftEvent START 
 // Emits a driftEvent to the correct Socket.IO room derived from subscriptionId + resourceGroup
 function broadcastDriftEvent(driftEvent) {
   console.log('[broadcastDriftEvent] starts — subscriptionId:', driftEvent?.subscriptionId)
@@ -28,6 +28,6 @@ function broadcastDriftEvent(driftEvent) {
   global.io.to(targetRoom).emit('resourceChange', driftEvent)
   console.log('[broadcastDriftEvent] ends — emitted to room:', targetRoom)
 }
-// ── broadcastDriftEvent END ──────────────────────────────────────────────────
+//  broadcastDriftEvent END 
 
 module.exports = { broadcastDriftEvent }
