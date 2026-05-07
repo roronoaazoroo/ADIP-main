@@ -90,6 +90,7 @@ const SECTIONS = [
   { key: 'notifications', label: 'Notifications',   icon: 'notifications' },
   { key: 'monitoring',    label: 'Monitoring',      icon: 'monitoring' },
   { key: 'appearance',    label: 'Appearance',      icon: 'palette' },
+  { key: 'org',            label: 'Organization',      icon: 'group' },
   { key: 'suppression',   label: 'Suppression Rules', icon: 'rule_folder' },
   { key: 'about',         label: 'About',           icon: 'info' },
 ]
@@ -120,6 +121,7 @@ export default function SettingsPage() {
   const [pollingInterval, setPollingInterval] = useState('30')
   const [autoRemediate,   setAutoRemediate]   = useState(false)
   const [retentionDays,   setRetentionDays]   = useState('90')
+  const [requiredApprovals, setRequiredApprovals] = useState('2')
 
   // Appearance                               
   const [theme, setTheme] = useState(
@@ -127,13 +129,14 @@ export default function SettingsPage() {
   )
 
   // Feedback   
+  const isAdmin = user?.role === 'admin'
   const [savedMessage, setSavedMessage] = useState(null)
   const [isDirty,      setIsDirty]      = useState(false)
 
   // Track changes to any setting   mark as dirty
   useEffect(() => { setIsDirty(true) }, [
     displayName, email, emailAlerts, criticalAlerts, highAlerts, mediumAlerts,
-    lowAlerts, digestFrequency, pollingInterval, autoRemediate, retentionDays, theme,
+    lowAlerts, digestFrequency, pollingInterval, autoRemediate, retentionDays, requiredApprovals, theme,
   ])
 
   // Load persisted preferences from backend on mount
@@ -151,6 +154,7 @@ export default function SettingsPage() {
       if (prefs.digestFrequency)  setDigestFrequency(prefs.digestFrequency)
       if (prefs.pollingInterval)  setPollingInterval(prefs.pollingInterval)
       if (prefs.autoRemediate   !== undefined) setAutoRemediate(prefs.autoRemediate)
+      if (prefs.requiredApprovals) setRequiredApprovals(prefs.requiredApprovals)
       if (prefs.retentionDays)    setRetentionDays(prefs.retentionDays)
       if (prefs.theme) {
         setTheme(prefs.theme)
@@ -182,7 +186,7 @@ export default function SettingsPage() {
       const prefs = {
         displayName, email, emailAlerts, criticalAlerts, highAlerts,
         mediumAlerts, lowAlerts, digestFrequency, pollingInterval,
-        autoRemediate, retentionDays, theme,
+        autoRemediate, retentionDays, requiredApprovals, theme,
       }
       await saveUserPreferences(username, prefs).catch(() => {})
     }
@@ -359,7 +363,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Monitoring Section*/}
-          <div id="sp-section-monitoring">
+          {isAdmin && <div id="sp-section-monitoring">
             <SectionCard icon="monitoring" title="Monitoring" badge="Scan">
               <SettingRow icon="update" label="Polling Interval" description="How frequently to check resources for drift">
                 <select
@@ -378,8 +382,8 @@ export default function SettingsPage() {
 
               <SettingRow
                 icon="auto_fix_high"
-                label="Auto-Remediation"
-                description="Automatically revert low-severity drift without approval"
+                label="Remediation Mode"
+                description="ON: Request approval for auto-remediation. OFF: Read-only mode (manual fix guide only)"
               >
                 <ToggleSwitch id="auto-remediate" checked={autoRemediate} onChange={setAutoRemediate} />
               </SettingRow>
@@ -387,7 +391,7 @@ export default function SettingsPage() {
               {autoRemediate && (
                 <div className="sp-warning-banner">
                   <span className="material-symbols-outlined" style={{ fontSize: 18 }}>warning</span>
-                  <span>Auto-remediation will automatically revert low-severity changes. Use with caution in production environments.</span>
+                  <span>Remediation mode is active. Users can request approval for auto-remediation on the Comparison page.</span>
                 </div>
               )}
 
@@ -406,8 +410,23 @@ export default function SettingsPage() {
                   <option value="365">1 year</option>
                 </select>
               </SettingRow>
+
+              {isAdmin && (
+                <>
+                  <div className="sp-setting-divider" />
+                  <SettingRow icon="approval" label="Required Approvals" description="Number of approvals needed before remediation executes">
+                    <select className="sp-select" value={requiredApprovals} onChange={e => setRequiredApprovals(e.target.value)}>
+                      <option value="1">1 approval</option>
+                      <option value="2">2 approvals</option>
+                      <option value="3">3 approvals</option>
+                      <option value="4">4 approvals</option>
+                      <option value="5">5 approvals</option>
+                    </select>
+                  </SettingRow>
+                </>
+              )}
             </SectionCard>
-          </div>
+          </div>}
 
           {/* Appearance Section*/}
           <div id="sp-section-appearance">

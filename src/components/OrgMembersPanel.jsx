@@ -4,6 +4,7 @@
 // ============================================================
 import React, { useState, useEffect } from 'react'
 import { fetchOrgMembers, updateMemberRole, getCurrentUser } from '../services/authService'
+import { getSocket } from '../services/socketSingleton'
 
 export default function OrgMembersPanel() {
   const [members, setMembers] = useState([])
@@ -13,11 +14,22 @@ export default function OrgMembersPanel() {
   const currentUser = getCurrentUser()
   const isAdmin = currentUser?.role === 'admin'
 
-  useEffect(() => {
+  const loadMembers = () => {
     fetchOrgMembers()
       .then(data => { setMembers(data.members || data); setOrganization(data.organization || null) })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { loadMembers() }, [])
+
+  // Auto-refresh on role change via Socket.IO
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+    const handleRoleChange = () => loadMembers()
+    socket.on('roleChange', handleRoleChange)
+    return () => socket.off('roleChange', handleRoleChange)
   }, [])
 
   const handleRoleChange = async (userId, newRole) => {

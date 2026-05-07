@@ -411,12 +411,6 @@ export default function GenomePage() {
                     title={configsMatch(snapshot.resourceState, liveConfig) ? 'Live config already matches this snapshot' : isResourceGroupLevel ? 'Rollback all resources' : 'Rollback resource'}>
                     {activeActionBlobKey === snapshot._blobKey ? '...' : configsMatch(snapshot.resourceState, liveConfig) ? 'Already Applied' : isResourceGroupLevel ? 'Rollback All' : 'Rollback'}
                   </button>
-                  <button className="gp-snap-btn gp-snap-btn--green"
-                    onClick={e => { e.stopPropagation(); handleRecover(snapshot) }}
-                    disabled={activeActionBlobKey === snapshot._blobKey}
-                    title="Recover this deleted resource from snapshot">
-                    {activeActionBlobKey === snapshot._blobKey ? '...' : 'Recover'}
-                  </button>
                   <button className="gp-snap-btn gp-snap-btn--grey"
                     onClick={e => { e.stopPropagation(); handleDelete(snapshot) }}
                     disabled={activeActionBlobKey === snapshot._blobKey}>

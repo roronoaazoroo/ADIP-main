@@ -107,6 +107,7 @@ export default function ComparisonPage() {
   const location = useLocation()
   const state = location.state ?? {}
   const { subscriptionId: initSubId, resourceGroupId: initRgId, resourceId: initResId, resourceName, liveState: passedLive, scopes: stateScopes } = state
+  const { subscription, resourceGroup, resource, configData, scopes: ctxScopes } = useDashboard()
   const passedScopes = stateScopes || (ctxScopes?.length ? ctxScopes : null)
 
   // Active scope — user can switch via dropdown when multiple scopes passed
@@ -118,8 +119,8 @@ export default function ComparisonPage() {
   const resourceGroupId = activeScope?.resourceGroupId || initRgId
   const resourceId      = activeScope?.resourceId      || initResId || null
   const effectiveId = resourceId || resourceGroupId
-  const { subscription, resourceGroup, resource, configData, scopes: ctxScopes } = useDashboard()
   const { viewMode } = useViewMode()
+  const [remediationMode, setRemediationMode] = useState(false)
   const [driftViewMode, setDriftViewMode] = useState('individual') // 'individual' | 'aggregated'
   const user = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}') } catch { return {} } })()
 
@@ -192,6 +193,28 @@ export default function ComparisonPage() {
   const liveTreeRef = useRef(null)
   const aiExplainedRef = useRef(false)  // prevents AI re-fetch on every 5s live refresh
 
+
+  // Load remediation mode from org admin's preferences — polls every 10s
+  useEffect(() => {
+    const loadRemediationMode = () => {
+      import('../services/authService').then(({ fetchOrgMembers }) => {
+        fetchOrgMembers().then(data => {
+          const members = data.members || data
+          const admin = members.find(m => m.role === 'admin')
+          if (admin) {
+            import('../services/api').then(({ fetchUserPreferences }) => {
+              fetchUserPreferences(admin.email || admin.userId).then(prefs => {
+                if (prefs?.autoRemediate !== undefined) setRemediationMode(prefs.autoRemediate)
+              }).catch(() => {})
+            })
+          }
+        }).catch(() => {})
+      })
+    }
+    loadRemediationMode()
+    const interval = setInterval(loadRemediationMode, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   // On mount: call POST /api/compare (server-side diff with suppression rules applied)
   // Suppression rules stored in Azure Table Storage are applied before returning diffs
@@ -418,11 +441,17 @@ export default function ComparisonPage() {
             </button>
             {fieldDifferences.length > 0 && !baselineNotFound && (
               <>
+                {remediationMode ? (
                 <button className={`cp-btn ${driftSeverity === 'low' ? 'cp-btn--green' : 'cp-btn--primary'}`} onClick={handleRemediate} disabled={isRemediating || remediationSucceeded}>
                   {isRemediating ? <><div className="cp-spinner" />{driftSeverity === 'low' ? 'Applying...' : 'Sending...'}</> :
                    remediationSucceeded ? (driftSeverity === 'low' ? '✓ Remediated!' : '✓ Request Sent!') :
                    driftSeverity === 'low' ? 'Apply Fix Now' : 'Request Approval'}
                 </button>
+                ) : (
+                <span className="cp-btn cp-btn--secondary" style={{ cursor: "default", opacity: 0.7 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>menu_book</span> Read-Only Mode
+                </span>
+                )}
                 {/* Feature 6: Schedule Remediation */}
                 {driftSeverity !== 'low' && !remediationSucceeded && (
                   <button className="cp-btn cp-btn--secondary" onClick={() => setShowScheduleModal(true)}>
@@ -455,6 +484,34 @@ export default function ComparisonPage() {
                 {isPolicyCreated ? 'Policy Created' : 'Policy Enforcement Active'}
               </button>
             )}
+          </div>
+        )}
+
+        {/* Manual Fix Guide — shown when remediation mode is OFF */}
+        {!remediationMode && fieldDifferences.length > 0 && baselineConfig && (
+          <div className="cp-card" style={{ marginTop: 16 }}>
+            <div className="cp-card-header">
+              <span className="material-symbols-outlined" style={{ color: '#f59e0b' }}>menu_book</span>
+              <h3>Manual Fix Guide (Read-Only Mode)</h3>
+            </div>
+            <div style={{ padding: '16px 20px', fontSize: 13, lineHeight: 1.8, color: 'var(--text-secondary)' }}>
+              <p style={{ marginBottom: 12, color: 'rgba(255,255,255,0.5)' }}>Auto-remediation is disabled. Follow these steps to manually revert:</p>
+              {fieldDifferences.map((diff, index) => {
+                const field = diff.path?.split(' → ').pop() || diff.path
+                const resourceName = displayName
+                return (
+                  <div key={index} style={{ padding: '10px 12px', marginBottom: 8, background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{index + 1}. Revert "{field}"</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+                      <strong>Portal:</strong> Azure Portal → {resourceName} → Settings → Find "{field}" → Change back to "{String(diff.oldValue ?? 'original value').slice(0, 30)}"
+                    </div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                      <strong>CLI:</strong> <code style={{ background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 3 }}>az resource update --ids {resourceId} --set properties.{field}={String(diff.oldValue ?? '').slice(0, 20)}</code>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 

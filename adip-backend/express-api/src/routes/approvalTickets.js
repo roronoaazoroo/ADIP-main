@@ -161,7 +161,13 @@ router.post('/tickets/:id/approve', async (req, res) => {
   console.log('[POST /tickets/:id/approve] starts')
   const user = getUser(req)
   if (!user) return res.status(401).json({ error: 'Authentication required' })
-  if (user.role === 'requestor') return res.status(403).json({ error: 'Only approvers can approve tickets' })
+  // Check live role from table (JWT may be stale after role change)
+  let liveRole = user.role
+  try {
+    const memberEntity = await membersTable().getEntity(user.orgId, user.userId).catch(() => null)
+    if (memberEntity) liveRole = memberEntity.role
+  } catch {}
+  if (liveRole === 'requestor') return res.status(403).json({ error: 'Only approvers can approve tickets' })
 
   try {
     const entity = await ticketsTable().getEntity(user.orgId, req.params.id)
@@ -222,7 +228,12 @@ router.post('/tickets/:id/reject', async (req, res) => {
   console.log('[POST /tickets/:id/reject] starts')
   const user = getUser(req)
   if (!user) return res.status(401).json({ error: 'Authentication required' })
-  if (user.role === 'requestor') return res.status(403).json({ error: 'Only approvers can reject tickets' })
+  let liveRoleReject = user.role
+  try {
+    const memberEntity = await membersTable().getEntity(user.orgId, user.userId).catch(() => null)
+    if (memberEntity) liveRoleReject = memberEntity.role
+  } catch {}
+  if (liveRoleReject === 'requestor') return res.status(403).json({ error: 'Only approvers can reject tickets' })
 
   const { reason } = req.body || {}
 

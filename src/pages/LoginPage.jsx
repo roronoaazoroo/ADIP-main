@@ -46,6 +46,7 @@ export default function LoginPage() {
     setError(null)
     if (!email.trim()) { setError('Please enter your email.'); return }
     if (authMode !== 'login' && !password) { setError('Please enter a password.'); return }
+    if (authMode !== 'login' && password.length < 6) { setError('Password must be at least 6 characters.'); return }
     if (authMode === 'joinOrg' && !inviteCode.trim()) { setError('Please enter the invite code.'); return }
     if (authMode === 'createOrg' && !name.trim()) { setError('Please enter your name.'); return }
 

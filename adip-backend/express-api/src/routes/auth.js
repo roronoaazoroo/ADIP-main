@@ -88,7 +88,7 @@ router.post('/auth/create-org', async (req, res) => {
     const orgId = crypto.randomUUID().slice(0, 8)
     const inviteCode = `ADIP-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
     const userId = crypto.randomUUID().slice(0, 12)
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = password
 
     await organizationsTable().upsertEntity({
       partitionKey: orgId,
@@ -179,7 +179,7 @@ router.post('/auth/join-org', async (req, res) => {
     }
 
     const userId = crypto.randomUUID().slice(0, 12)
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = password
     const name = email.split('@')[0]
 
     await orgMembersTable().upsertEntity({
@@ -233,8 +233,7 @@ router.post('/auth/login', async (req, res) => {
     }
     if (!member) return res.status(401).json({ error: 'Invalid email or password' })
 
-    const isValid = await bcrypt.compare(password, member.passwordHash)
-    if (!isValid) return res.status(401).json({ error: 'Invalid email or password' })
+    if (password !== member.passwordHash) return res.status(401).json({ error: 'Invalid email or password' })
 
     const orgId = member.partitionKey
     let organization = null

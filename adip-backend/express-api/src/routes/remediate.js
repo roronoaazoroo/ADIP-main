@@ -122,6 +122,11 @@ router_remediate.post('/remediate', async (req, res) => {
     // Record cost savings for Feature B
     const monthlySavings = await recordRemediationSavings(subscriptionId, rgName, resourceId, differences, liveRaw?.location || process.env.DEFAULT_AZURE_LOCATION || 'eastus', liveRaw?.type).catch(() => 0)
 
+    // Save genome snapshot after remediation
+    const { saveGenomeSnapshot } = require('../services/blobService')
+    saveGenomeSnapshot(subscriptionId, resourceId, baselineState, `remediated-${new Date().toISOString().replace(/[:.]/g, '-')}`)
+      .catch(genomeErr => console.log('[POST /remediate] genome save non-fatal:', genomeErr.message))
+
     res.json({ remediated: true, resourceId, changeCount: differences.length,
       policiesCreated, monthlySavings, appliedBaseline: baselineState, previousLiveState: liveState })
     console.log('[POST /remediate] ends — applied baseline, changes:', differences.length)
