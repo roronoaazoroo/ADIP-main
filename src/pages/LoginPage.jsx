@@ -62,13 +62,7 @@ export default function LoginPage() {
     setError(null)
     setIsLoading(true)
     try {
-      if (authMode === 'login') {
-        if (!username.trim()) { setError('Please enter your email.'); setIsLoading(false); return }
-        if (!password) { setError('Please enter your password.'); setIsLoading(false); return }
-        const result = await loginUser({ email: username.trim().toLowerCase(), password })
-        sessionStorage.setItem('user', JSON.stringify({ name: result.name, username: result.email, email: result.email, role: result.role, orgId: result.orgId }))
-        navigate('/dashboard')
-      } else if (authMode === 'createOrg') {
+      if (authMode === 'createOrg') {
         const userEmail = username.trim().toLowerCase()
         if (!organizationName || !name || !userEmail || !password || !subscriptionId) { setError('All fields are required.'); setIsLoading(false); return }
         const result = await createOrganization({ organizationName, name, email: userEmail, password, subscriptionId, retentionDays, requiredApprovals })
@@ -76,8 +70,8 @@ export default function LoginPage() {
         navigate('/dashboard')
       } else if (authMode === 'joinOrg') {
         const userEmail = username.trim().toLowerCase()
-        if (!selectedOrgId || !name || !userEmail || !password) { setError('All fields are required.'); setIsLoading(false); return }
-        const result = await joinOrganization({ orgId: selectedOrgId, name, email: userEmail, password })
+        if (!selectedOrgId || !userEmail || !password) { setError('All fields are required.'); setIsLoading(false); return }
+        const result = await joinOrganization({ orgId: selectedOrgId, name: userEmail.split('@')[0], email: userEmail, password })
         sessionStorage.setItem('user', JSON.stringify({ name: result.organizationName, username: userEmail, email: userEmail, role: result.role, orgId: result.orgId }))
         navigate('/dashboard')
       }
@@ -137,7 +131,7 @@ export default function LoginPage() {
                 <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
-            <h1 className="login-title">{authMode === "login" ? "Azure Drift Intelligence" : authMode === "createOrg" ? "Create Organization" : "Join Organization"}</h1>
+            <h1 className="login-title">{authMode === "createOrg" ? "Create Organization" : "Join Organization"}</h1>
             <p className="login-subtitle">Configuration drift detection & monitoring platform</p>
           </div>
 
@@ -196,7 +190,11 @@ export default function LoginPage() {
           <form className="login-fields" onSubmit={(e) => { e.preventDefault(); handleLogin(); }} noValidate>
 
             {/* Extra fields for Create/Join org modes */}
-            
+            {authMode === 'createOrg' && (
+              <div className="login-field-wrap">
+                <input type="text" className="login-input" placeholder="Your Full Name" value={name} onChange={e => setName(e.target.value)} disabled={isLoading} />
+              </div>
+            )}
             {authMode === 'createOrg' && (
               <div className="login-field-wrap">
                 <input type="text" className="login-input" placeholder="Organization Name" value={organizationName} onChange={e => setOrganizationName(e.target.value)} disabled={isLoading} />
@@ -311,7 +309,7 @@ export default function LoginPage() {
                     <rect x="0" y="11" width="10" height="10" fill="#00a4ef" />
                     <rect x="11" y="11" width="10" height="10" fill="#ffb900" />
                   </svg>
-                  <span>{authMode === "login" ? "Sign In" : authMode === "createOrg" ? "Create Organization" : "Join Organization"}</span>
+                  <span>{authMode === "createOrg" ? "Create Organization" : "Sign Up"}</span>
                   <svg className="login-btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
@@ -324,16 +322,10 @@ export default function LoginPage() {
           {/* Mode switcher */}
           <div style={{ display: 'flex', gap: 16, marginTop: 16, width: '100%' }}>
             {authMode === 'joinOrg' && (
-              <>
-                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('login'); setError(null) }}>Already have an account? Sign In</button>
-                <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('createOrg'); setError(null) }}>Create Organization</button>
-              </>
-            )}
-            {authMode === 'login' && (
-              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>Don't have an account? Sign Up</button>
+              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('createOrg'); setError(null) }}>Create Organization</button>
             )}
             {authMode === 'createOrg' && (
-              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>← Back</button>
+              <button type="button" className="login-btn-secondary" onClick={() => { setAuthMode('joinOrg'); setError(null) }}>← Back to Join</button>
             )}
           </div>
 
