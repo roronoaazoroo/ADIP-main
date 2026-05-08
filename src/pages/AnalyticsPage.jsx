@@ -74,14 +74,6 @@ export default function AnalyticsPage() {
         {/* ═══ Prediction & Forecasting ═══ */}
         {activeTab === 'prediction' && (
           <div className="an-tab-content" key="prediction">
-            {!resourceGroup ? (
-              <div className="pf-empty">
-                <span className="material-symbols-outlined pf-empty-icon">radar</span>
-                <p>Select a subscription and resource group on the <strong>Drift Scanner</strong>, then run a scan to see predictions here.</p>
-              </div>
-            ) : (
-              <>
-                {/* Main prediction dashboard */}
                 <RgDriftPrediction
                   subscriptionId={activeSubscriptionId}
                   resourceGroup={resourceGroup}
@@ -107,8 +99,6 @@ export default function AnalyticsPage() {
                     </div>
                   </div>
                 )}
-              </>
-            )}
           </div>
         )}
 

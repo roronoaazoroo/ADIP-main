@@ -71,8 +71,8 @@ function computeDriftProbability(stat, now) {
 
 router.get('/rg-prediction', async (req, res) => {
   const { subscriptionId, resourceGroup } = req.query
-  if (!subscriptionId || !resourceGroup) {
-    return res.status(400).json({ error: 'subscriptionId and resourceGroup required' })
+  if (!subscriptionId) {
+    return res.status(400).json({ error: 'subscriptionId required' })
   }
 
   const cacheKey = `${subscriptionId}|${resourceGroup}`
@@ -82,8 +82,12 @@ router.get('/rg-prediction', async (req, res) => {
   try {
     const armClient = getArmClient(subscriptionId)
     const allResources = []
-    for await (const r of armClient.resources.listByResourceGroup(resourceGroup)) {
-      allResources.push({ id: r.id, name: r.name, type: r.type, location: r.location })
+    if (resourceGroup) {
+      for await (const r of armClient.resources.listByResourceGroup(resourceGroup)) {
+        allResources.push({ id: r.id, name: r.name, type: r.type, location: r.location })
+      }
+    } else {
+      // No RG specified — get all resources from driftIndex (no ARM call needed)
     }
 
     // Aggregate from driftIndex + changesIndex
@@ -108,7 +112,18 @@ router.get('/rg-prediction', async (req, res) => {
     // Drift history
     for await (const entity of driftTc.listEntities({ queryOptions: { filter } })) {
       const resourceName = (entity.resourceId || '').split('/').pop()
-      if (!resourceName || !statsMap[resourceName]) continue
+      if (!resourceName) continue
+      // Auto-create entry for resources not in ARM list (when no RG filter)
+      if (!statsMap[resourceName]) {
+        if (resourceGroup) continue  // skip if RG-scoped and resource not in RG
+        statsMap[resourceName] = {
+          name: resourceName, resourceId: entity.resourceId || '', type: (entity.resourceId || '').split('/').slice(6,8).join('/'),
+          total: 0, last24h: 0, last7d: 0,
+          severities: { critical: 0, high: 0, medium: 0, low: 0 },
+          lastDriftAt: null, driftDates: [],
+          callers: {}, hourDistribution: new Array(24).fill(0), dayDistribution: new Array(7).fill(0),
+        }
+      }
       const s = statsMap[resourceName]
       s.total++
       const detectedAt = entity.detectedAt || entity.timestamp || ''
