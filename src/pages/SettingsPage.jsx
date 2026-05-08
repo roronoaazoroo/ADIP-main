@@ -87,7 +87,7 @@ function SettingsNavItem({ icon, label, active, onClick }) {
 
 const SECTIONS = [
   { key: 'profile',       label: 'Profile',        icon: 'person' },
-  { key: 'notifications', label: 'Notifications',   icon: 'notifications' },
+  // { key: 'notifications', label: 'Notifications',   icon: 'notifications' },
   { key: 'monitoring',    label: 'Monitoring',      icon: 'monitoring' },
   { key: 'appearance',    label: 'Appearance',      icon: 'palette' },
   { key: 'org',            label: 'Organization',      icon: 'group' },
@@ -352,7 +352,7 @@ export default function SettingsPage() {
             </SectionCard>
           </div>
 
-          {/* Notifications Section*/}
+          {/* Notifications Section
           <div id="sp-section-notifications">
             <SectionCard icon="notifications" title="Notifications" badge="Alerts">
               <SettingRow
@@ -402,7 +402,7 @@ export default function SettingsPage() {
                 </select>
               </SettingRow>
             </SectionCard>
-          </div>
+          </div> */}
 
           {/* Monitoring Section*/}
           {isAdmin && <div id="sp-section-monitoring">

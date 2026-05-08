@@ -402,7 +402,7 @@ export default function DashboardHome() {
 
         {/* Charts */}
         <div className="dh-charts-row">
-          <DonutChart changed={kpiResourcesChangedToday} total={Math.max(totalResourceCount, kpiResourcesChangedToday)} />
+          <DonutChart changed={totalResourceCount > 0 ? Math.min(kpiResourcesChangedToday, totalResourceCount) : 0} total={totalResourceCount || 20} />
           <BarChart subscriptionId={activeSubscriptionId} />
         </div>
 

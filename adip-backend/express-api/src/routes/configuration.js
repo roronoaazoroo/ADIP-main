@@ -20,7 +20,8 @@ router_configuration.get('/configuration', async (req, res) => {
     return res.status(400).json({ error: 'Invalid characters in subscriptionId or resourceGroupId' })
   }
   try {
-    const liveArmConfig = await getResourceConfig(subscriptionId, resourceGroupId, resourceId || null)
+    const effectiveResourceId = (resourceId && resourceId !== resourceGroupId) ? resourceId : null
+    const liveArmConfig = await getResourceConfig(subscriptionId, resourceGroupId, effectiveResourceId)
     res.json(liveArmConfig)
     console.log('[GET /configuration] ends')
   } catch (fetchError) {

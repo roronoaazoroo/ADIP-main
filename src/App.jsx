@@ -15,7 +15,7 @@ const AnalyticsPage  = lazy(() => import('./pages/AnalyticsPage'))
 
 const PageLoader = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'rgba(255,255,255,0.5)' }}>
-    <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}>progress_activity</span>
+    <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}></span>
   </div>
 )
 import AzureChatbot   from './components/AzureChatbot'
