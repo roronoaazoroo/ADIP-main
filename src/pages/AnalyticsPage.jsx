@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react'
 import RgDriftPrediction from '../components/RgDriftPrediction'
+import RgDriftRiskMap from '../components/RgDriftRiskMap'
 import DriftForecastChart from '../components/DriftForecastChart'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
@@ -74,45 +75,14 @@ export default function AnalyticsPage() {
         {/* ═══ Prediction & Forecasting ═══ */}
         {activeTab === 'prediction' && (
           <div className="an-tab-content" key="prediction">
-            {!resourceGroup ? (
-              <div className="pf-empty">
-                <span className="material-symbols-outlined pf-empty-icon">radar</span>
-                <p>Select a subscription and resource group on the <strong>Drift Scanner</strong>, then run a scan to see predictions here.</p>
+            <div className="an-card an-card--full">
+              <div className="an-card-body">
+                <RgDriftRiskMap subscriptionId={activeSubscriptionId} resourceGroup={resourceGroup || ''} />
               </div>
-            ) : (
-              <>
-                {/* Main prediction dashboard */}
-                <RgDriftPrediction
-                  subscriptionId={activeSubscriptionId}
-                  resourceGroup={resourceGroup}
-                />
-
-                {/* Drift timeline for selected resource */}
-                {resource && (
-                  <div className="an-card an-card--full" style={{ marginTop: 8 }}>
-                    <div className="an-card-header">
-                      <div className="an-card-title-row">
-                        <span className="material-symbols-outlined an-card-icon">bar_chart</span>
-                        <span className="an-card-title">Drift Timeline</span>
-                      </div>
-                      <span className="pf-scope-tag">
-                        {resource.split('/').pop()}
-                      </span>
-                    </div>
-                    <div className="an-card-body">
-                      <DriftForecastChart
-                        subscriptionId={activeSubscriptionId}
-                        resourceId={resource}
-                      />
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+            </div>
           </div>
         )}
 
-        {/* ═══ Cost Impact ═══ */}
         {activeTab === 'cost' && (
           <div className="an-tab-content" key="cost">
             <CostImpactDashboard subscriptionId={activeSubscriptionId} />
