@@ -58,7 +58,12 @@ router_drift.get('/stats/today', async (req, res) => {
 
     for await (const changeEntity of tc.listEntities({ queryOptions: { filter } })) {
       totalChangesToday++
-      if (changeEntity.resourceId)    uniqueResourceIds.add(changeEntity.resourceId)
+      if (changeEntity.resourceId) {
+        // Normalize to base resource (strip child paths like /extensions/...)
+        const parts = changeEntity.resourceId.split('/')
+        const baseId = parts.slice(0, 9).join('/')
+        uniqueResourceIds.add(baseId)
+      }
       if (changeEntity.resourceGroup) uniqueResourceGroups.add(changeEntity.resourceGroup)
       if (changeEntity.caller)        uniqueCallerNames.add(changeEntity.caller)
     }
