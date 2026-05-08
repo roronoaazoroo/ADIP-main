@@ -75,11 +75,39 @@ export default function AnalyticsPage() {
         {/* ═══ Prediction & Forecasting ═══ */}
         {activeTab === 'prediction' && (
           <div className="an-tab-content" key="prediction">
+<<<<<<< HEAD
             <div className="an-card an-card--full">
               <div className="an-card-body">
                 <RgDriftRiskMap subscriptionId={activeSubscriptionId} resourceGroup={resourceGroup || ''} />
               </div>
             </div>
+=======
+                <RgDriftPrediction
+                  subscriptionId={activeSubscriptionId}
+                  resourceGroup={resourceGroup}
+                />
+
+                {/* Drift timeline for selected resource */}
+                {resource && (
+                  <div className="an-card an-card--full" style={{ marginTop: 8 }}>
+                    <div className="an-card-header">
+                      <div className="an-card-title-row">
+                        <span className="material-symbols-outlined an-card-icon">bar_chart</span>
+                        <span className="an-card-title">Drift Timeline</span>
+                      </div>
+                      <span className="pf-scope-tag">
+                        {resource.split('/').pop()}
+                      </span>
+                    </div>
+                    <div className="an-card-body">
+                      <DriftForecastChart
+                        subscriptionId={activeSubscriptionId}
+                        resourceId={resource}
+                      />
+                    </div>
+                  </div>
+                )}
+>>>>>>> ee80f6b9daf92b970f27ab9d44cf71e3ac590128
           </div>
         )}
 

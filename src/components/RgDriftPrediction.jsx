@@ -43,11 +43,11 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
   const [heatmapExpanded, setHeatmapExpanded] = useState(false)
 
   useEffect(() => {
-    if (!subscriptionId || !resourceGroup) return
+    if (!subscriptionId) return
     setLoading(true)
     setData(null)
     setError(null)
-    fetchRgPrediction(subscriptionId, resourceGroup)
+    fetchRgPrediction(subscriptionId, resourceGroup || '')
       .then(d => setData(d))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -55,8 +55,8 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
 
   const handleSelect = useCallback(name => setSelected(prev => prev === name ? null : name), [])
 
-  if (!subscriptionId || !resourceGroup) {
-    return <div className="rgp-empty">Select a subscription and resource group on the Drift Scanner first.</div>
+  if (!subscriptionId) {
+    return <div className="rgp-empty">No subscription available.</div>
   }
 
   if (loading) return (
@@ -174,16 +174,21 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
             <span className="rgp-panel-tag">Next 7 days</span>
           </div>
 
-          {aiPredictions.length === 0 ? (
-            <div className="rgp-panel-empty">
-              {driftedCount === 0
-                ? 'No drift history — predictions will appear once drift is detected.'
-                : 'No high-risk predictions for the next 7 days.'
-              }
-            </div>
-          ) : (
+          {(() => {
+            const predictions = aiPredictions.length > 0 ? aiPredictions : driftedResources.map(s => ({
+              resourceName: s.name,
+              likelihood: (s.prediction?.probability || 0) >= 70 ? 'HIGH' : (s.prediction?.probability || 0) >= 40 ? 'MEDIUM' : 'LOW',
+              driftProbability: s.prediction?.probability || 0,
+              predictedDays: s.prediction?.nextDriftInDays != null ? s.prediction.nextDriftInDays : '?',
+              reason: `${s.total} drift events, ${s.last7d} in last 7d. Trend: ${s.prediction?.trend || 'stable'}${s.topCaller ? '. Top changer: ' + s.topCaller.name : ''}`,
+              fieldsAtRisk: [],
+              predictedCaller: s.topCaller?.name || null,
+              predictedTimeWindow: s.peakDay && s.peakHour ? `${s.peakDay} ${s.peakHour}` : null,
+            }))
+            if (!predictions.length) return <div className="rgp-panel-empty">No drift history yet.</div>
+            return (
             <div className="rgp-preds">
-              {aiPredictions.map((p, i) => {
+              {predictions.map((p, i) => {
                 const stat = resourceStats.find(s => s.name === p.resourceName)
                 const iconUrl = stat?.type ? getAzureIconUrl(stat.type, stat.name) : null
                 const isActive = selected === p.resourceName
@@ -230,7 +235,7 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
                 )
               })}
             </div>
-          )}
+          )})()}
         </div>
       </div>
 
