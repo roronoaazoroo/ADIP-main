@@ -1,3 +1,4 @@
+const { getCached, setCache, getArmClient } = require('../shared/armCache')
 // FILE: services/azureResourceService.js
 // ROLE: All Azure Resource Manager (ARM) API calls — subscriptions, RGs, resources, API versions
 //
@@ -318,8 +319,10 @@ async function getResourceConfig(subscriptionId, resourceGroupName, resourceId) 
     } catch { return r }
   }))
   const rg = await client.resourceGroups.get(resourceGroupName)
+  const _result = { resourceGroup: rg, resources }
+  setCache(subscriptionId, resourceGroupName, resourceId, _result)
   console.log('[getResourceConfig] ends — resource group with', resources.length, 'resources (full configs)')
-  return { resourceGroup: rg, resources }
+  return _result
 }
 //  getResourceConfig END 
 

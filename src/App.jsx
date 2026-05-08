@@ -1,13 +1,23 @@
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { DashboardProvider } from './context/DashboardContext'
 import { ViewModeProvider } from './context/ViewModeContext'
-import LoginPage      from './pages/LoginPage'
-import DashboardHome  from './pages/DashboardHome'
-import DriftScanner  from './pages/DriftScanner'
-import ComparisonPage from './pages/ComparisonPage'
-import GenomePage     from './pages/GenomePage'
-import SettingsPage   from './pages/SettingsPage'
-import AnalyticsPage  from './pages/AnalyticsPage'
+import { lazy, Suspense } from 'react'
+import ErrorBoundary from './components/ErrorBoundary'
+
+// Code-split pages — loaded on demand
+const LoginPage      = lazy(() => import('./pages/LoginPage'))
+const DashboardHome  = lazy(() => import('./pages/DashboardHome'))
+const DriftScanner   = lazy(() => import('./pages/DriftScanner'))
+const ComparisonPage = lazy(() => import('./pages/ComparisonPage'))
+const GenomePage     = lazy(() => import('./pages/GenomePage'))
+const SettingsPage   = lazy(() => import('./pages/SettingsPage'))
+const AnalyticsPage  = lazy(() => import('./pages/AnalyticsPage'))
+
+const PageLoader = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'rgba(255,255,255,0.5)' }}>
+    <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}>progress_activity</span>
+  </div>
+)
 import AzureChatbot   from './components/AzureChatbot'
 
 function ProtectedRoute({ children }) {
@@ -22,7 +32,7 @@ function App() {
   return (
       <ViewModeProvider>
       <DashboardProvider>
-        <Routes>
+        <ErrorBoundary><Suspense fallback={<PageLoader />}><Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
           <Route path="/scanner" element={<ProtectedRoute><DriftScanner /></ProtectedRoute>} />
@@ -30,7 +40,7 @@ function App() {
           <Route path="/genome" element={<ProtectedRoute><GenomePage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
-        </Routes>
+        </Routes></Suspense></ErrorBoundary>
         {showChat && <AzureChatbot />}
       </DashboardProvider>
       </ViewModeProvider>

@@ -43,7 +43,7 @@ async function generateOtp(email) {
   }, 'Replace')
 
   // Always log OTP to console for dev/testing
-  console.log(`[OTP] Code for ${email}: ${code}`)
+  console.log(`[OTP] Code sent to ${email}`)
 
   // Send via ACS email (non-fatal if it fails)
   const connectionString = process.env.COMMS_CONNECTION_STRING

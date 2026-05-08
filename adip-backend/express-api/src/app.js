@@ -29,7 +29,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 async function ensureTables() {
   const { TableServiceClient } = require('@azure/data-tables')
   const svc = TableServiceClient.fromConnectionString(process.env.STORAGE_CONNECTION_STRING)
-  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings','genomeDailyIndex','genomePreDeletionIndex','organizations','orgMembers','notifications','approvalTickets','otpCodes','orgAdmins']
+  const required = ['changesIndex','driftIndex','genomeIndex','monitorSessions','suppressionRules','remediationSchedules','policyAssignments','remediationSavings','genomeDailyIndex','genomePreDeletionIndex', 'idempotencyKeys', 'remediationAudit','organizations','orgMembers','notifications','approvalTickets','otpCodes','orgAdmins']
   for (const name of required) {
     await svc.createTable(name).catch(() => {})  // no-op if already exists
   }
@@ -38,6 +38,7 @@ async function ensureTables() {
 ensureTables().catch(err => console.log('[ensureTables] error:', err.message))
 
 const express = require('express')
+const { authMiddleware, optionalAuth } = require('./middleware/authMiddleware')
 const cors    = require('cors')
 const http    = require('http')
 const { Server }            = require('socket.io')
@@ -76,6 +77,16 @@ io.on('connection', (socket) => {
 // CORS: restrict to known frontend origin in production via CORS_ORIGIN env var
 const corsOrigin = process.env.CORS_ORIGIN || '*'
 if (corsOrigin === '*') console.warn('[app] WARNING: CORS_ORIGIN not set — allowing all origins. Set CORS_ORIGIN in production.')
+// Security headers
+const helmet = require('helmet')
+app.use(helmet({ contentSecurityPolicy: false }))
+
+// Rate limiting
+const rateLimit = require('express-rate-limit')
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 100, message: { error: 'Too many requests' } })
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many auth attempts' } })
+const remediateLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, message: { error: 'Remediation rate limit exceeded' } })
+
 app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 
@@ -217,3 +228,10 @@ scheduleGenomeAt7PM()
 
 })
 
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('[app] SIGTERM received — shutting down gracefully')
+  server.close(() => { console.log('[app] HTTP server closed'); process.exit(0) })
+  setTimeout(() => process.exit(1), 10000) // Force exit after 10s
+})

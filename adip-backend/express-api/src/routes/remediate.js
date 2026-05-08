@@ -1,6 +1,7 @@
 // FILE: routes/remediate.js
 
 'use strict'
+const { isDuplicate, markExecuted } = require('../shared/idempotency')
 const router_remediate = require('express').Router()
 const fetch = require('node-fetch')
 const { ResourceManagementClient } = require('@azure/arm-resources')
@@ -24,6 +25,11 @@ const { stripVolatileFields } = require('../shared/armUtils')
 //  POST /api/remediate START 
 // Immediately reverts a resource to its golden baseline via ARM PUT (used for low severity)
 router_remediate.post('/remediate', async (req, res) => {
+  // Idempotency check
+  const idemKey = req.headers['x-idempotency-key'] || req.body.ticketId
+  if (idemKey && await isDuplicate(idemKey)) {
+    return res.status(409).json({ error: 'Remediation already executed', idempotencyKey: idemKey })
+  }
   console.log('[POST /remediate] starts')
   const { subscriptionId, resourceGroupId, resourceId } = req.body
   if (!subscriptionId || !resourceGroupId) {
@@ -104,6 +110,7 @@ router_remediate.post('/remediate', async (req, res) => {
 
       const { saveGenomeSnapshot } = require('../services/blobService')
       saveGenomeSnapshot(subscriptionId, effectiveResourceId, baseline.resourceState, `remediated-${new Date().toISOString().replace(/[:.]/g, '-')}`).catch(() => {})
+      if (idemKey) await markExecuted(idemKey, { resourceId: effectiveResourceId, type: 'rg-remediation' })
       res.json({ remediated: true, resourceId: effectiveResourceId, changeCount: differences.length, deployment: deploymentResult, deletedResources })
       console.log('[POST /remediate] ends — RG-level deployment:', JSON.stringify(deploymentResult.summary), 'deleted:', deletedResources.length)
       return

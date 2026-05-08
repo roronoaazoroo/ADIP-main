@@ -15,6 +15,7 @@ const { getApiVersion } = require('./azureResourceService')
 const { stripVolatileFields } = require('../shared/armUtils')
 
 const credential = new DefaultAzureCredential()
+const { trackDeployment, trackArmCall } = require('../shared/telemetry')
 
 // ── Feature Flags ─────────────────────────────────────────────────────────────
 const FLAGS = {
@@ -163,6 +164,7 @@ function topologicalSort(resources, graph) {
 
 // ── Deployment Orchestrator ──────────────────────────────────────────────────
 async function deployResources(subscriptionId, resourceGroupId, resources, options = {}) {
+  const _startTime = Date.now()
   console.log('[deploymentEngine] starts — resources:', resources.length)
 
   const graph = buildDependencyGraph(resources)
@@ -250,6 +252,7 @@ async function deployResources(subscriptionId, resourceGroupId, resources, optio
     skipped: results.filter(r => r.status === 'skipped').length,
   }
 
+  trackDeployment({ subscriptionId, resourceGroup: resourceGroupId, resources: resources.length, successful: results.filter(r => r.status === 'success').length, failed: results.filter(r => r.status === 'failed').length, skipped: results.filter(r => r.status === 'skipped').length, duration: Date.now() - _startTime })
   console.log('[deploymentEngine] ends — success:', summary.successful, 'failed:', summary.failed, 'skipped:', summary.skipped)
   return { deploymentId: `deploy-${Date.now()}`, status: summary.failed === 0 && summary.skipped === 0 ? 'success' : 'partial_success', resources: results, summary }
 }

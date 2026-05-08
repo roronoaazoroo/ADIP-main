@@ -270,6 +270,14 @@ export default function ComparisonPage() {
       .finally(() => setIsLoadingBaseline(false))
   }, [subscriptionId, resourceId, resourceGroupId, activeScopeIdx])
 
+  // Pause polling when tab is hidden
+  const [isTabVisible, setIsTabVisible] = useState(true)
+  useEffect(() => {
+    const handler = () => setIsTabVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [])
+
   // Recalculate diff client-side when live config updates (5s poll)
   useEffect(() => {
     if (!baselineConfig || !currentLive) return

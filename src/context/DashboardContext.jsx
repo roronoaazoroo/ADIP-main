@@ -33,7 +33,7 @@
 
 // Used by: DriftScanner.jsx, DashboardHome.jsx, ComparisonPage.jsx, GenomePage.jsx, NavBar.jsx
 
-import { createContext, useContext, useState, useRef } from 'react'
+import { createContext, useContext, useState, useRef, useMemo } from 'react'
 
 const DashboardContext = createContext(null)
 

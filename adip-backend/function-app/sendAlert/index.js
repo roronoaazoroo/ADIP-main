@@ -56,15 +56,19 @@ module.exports = async function (context, req) {
   const changesForEmail   = (driftRecord.differences || driftRecord.changes || []).slice(0, 10)
 
   // ── Token generation START ────────────────────────────────────────────────
-  // Build the remediation token — base64url-encoded JSON with resource identifiers
-  // This token is decoded by /api/remediate-decision when the admin clicks Approve/Reject
+  // Build HMAC-signed remediation token (verified by /api/remediate-decision)
   console.log('[sendAlert tokenGeneration] starts')
-  const remediationToken = Buffer.from(JSON.stringify({
+  const crypto = require('crypto')
+  const APPROVAL_SECRET = process.env.APPROVAL_SECRET || process.env.JWT_SECRET || 'adip-approval-secret'
+  const tokenPayload = {
     resourceId:     driftRecord.resourceId,
     resourceGroup:  driftRecord.resourceGroup,
     subscriptionId: driftRecord.subscriptionId,
     detectedAt:     driftRecord.detectedAt,
-  })).toString('base64url')
+    exp:            Date.now() + 48 * 60 * 60 * 1000,
+  }
+  const signature = crypto.createHmac('sha256', APPROVAL_SECRET).update(JSON.stringify(tokenPayload)).digest('hex')
+  const remediationToken = Buffer.from(JSON.stringify({ ...tokenPayload, signature })).toString('base64url')
   const approveUrl = `${expressPublicUrl}/api/remediate-decision?action=approve&token=${remediationToken}`
   const rejectUrl  = `${expressPublicUrl}/api/remediate-decision?action=reject&token=${remediationToken}`
   console.log('[sendAlert tokenGeneration] ends — approveUrl constructed, expressPublicUrl:', expressPublicUrl)

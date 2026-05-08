@@ -17,7 +17,7 @@ const crypto  = require('crypto')
 const { TableClient } = require('@azure/data-tables')
 const { generateOtp, verifyOtp } = require('../services/otpService')
 
-const JWT_SECRET = process.env.JWT_SECRET || 'adip-dev-secret-change-in-production'
+const { SECRET: JWT_SECRET } = require('../middleware/authMiddleware')
 const JWT_EXPIRY = '24h'
 
 function organizationsTable() {
@@ -172,7 +172,7 @@ router.post('/auth/join-org', async (req, res) => {
     }
 
     // Check if email already exists
-    for await (const entity of orgMembersTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${orgId}'` } })) {
+    for await (const entity of orgMembersTable().listEntities({ queryOptions: { filter: `PartitionKey eq '${orgId.replace(/'/g, "''")}'` } })) {
       if (entity.email === email.toLowerCase()) {
         return res.status(409).json({ error: 'Email already registered in this organization' })
       }
@@ -264,4 +264,4 @@ router.get('/auth/me', (req, res) => {
 })
 
 module.exports = router
-module.exports.JWT_SECRET = JWT_SECRET
+

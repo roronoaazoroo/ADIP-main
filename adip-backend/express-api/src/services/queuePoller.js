@@ -224,7 +224,10 @@ function startQueuePoller() {
   const interval = parseInt(process.env.QUEUE_POLL_INTERVAL_MS || '5000', 10)
   const client   = getQueueClient()
 
+  let _processing = false
   setInterval(async () => {
+    if (_processing) return // backpressure: skip if previous batch still processing
+    _processing = true
     try {
       const { receivedMessageItems } = await client.receiveMessages({ numberOfMessages: 32, visibilityTimeout: 300 })
       for (const msg of receivedMessageItems) {
@@ -336,8 +339,9 @@ function startQueuePoller() {
             const changeLabel = `change-${(enriched.eventTime || new Date().toISOString()).replace(/[:.]/g, '-')}`
             let _changedFields = ''
             if (enriched.changes && enriched.changes.length > 0) {
-              const _rawPaths = enriched.changes.map(c => c.path || '').filter(Boolean).join('; ')
-              _changedFields = await categorizeChangeWithAI(_rawPaths).catch(() => 'Configuration')
+              // Deterministic categorization (replaces expensive OpenAI call per event)
+              const _rawPaths = enriched.changes.map(c => c.path || '').filter(Boolean)
+              _changedFields = categorizeChangeLocal(_rawPaths)
             }
             getBlobServiceModule().saveGenomeSnapshot(enriched.subscriptionId, enriched.resourceId, enriched.liveState, changeLabel, 30, 'change', enriched.caller || '', _changedFields)
               .catch(genomeErr => console.log('[queuePoller] genome save failed (non-fatal):', genomeErr.message))

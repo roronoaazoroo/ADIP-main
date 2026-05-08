@@ -2,6 +2,31 @@
 
 'use strict'
 const router_remediateDecision = require('express').Router()
+const crypto = require('crypto')
+
+const APPROVAL_SECRET = process.env.APPROVAL_SECRET || process.env.JWT_SECRET || 'adip-approval-secret'
+
+// Verify HMAC-signed approval token
+function verifyApprovalToken(token) {
+  const raw = Buffer.from(token, 'base64url').toString('utf-8')
+  const parsed = JSON.parse(raw)
+  const { signature, ...payload } = parsed
+  if (!signature) throw new Error('Token not signed')
+  const expected = crypto.createHmac('sha256', APPROVAL_SECRET).update(JSON.stringify(payload)).digest('hex')
+  if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
+    throw new Error('Invalid signature')
+  }
+  // Check expiry (48h)
+  if (payload.exp && Date.now() > payload.exp) throw new Error('Token expired')
+  return payload
+}
+
+// Generate signed approval token (exported for use by alertService)
+function generateApprovalToken(payload) {
+  const data = { ...payload, exp: Date.now() + 48 * 60 * 60 * 1000 }
+  const signature = crypto.createHmac('sha256', APPROVAL_SECRET).update(JSON.stringify(data)).digest('hex')
+  return Buffer.from(JSON.stringify({ ...data, signature })).toString('base64url')
+}
 const { getBaseline, saveBaseline } = require('../services/blobService')
 const { reconcileStorageChildren } = require('../services/storageChildService')
 const { getResourceConfig, getApiVersion } = require('../services/azureResourceService')
@@ -177,3 +202,4 @@ router_remediateDecision.get('/remediate-decision', async (req, res) => {
 //  GET /api/remediate-decision END 
  
 module.exports = router_remediateDecision
+module.exports.generateApprovalToken = generateApprovalToken
