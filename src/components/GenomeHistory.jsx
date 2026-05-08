@@ -4,6 +4,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { fetchCategorizedGenomeHistory, fetchGenomeConfig, fetchResourceConfiguration } from '../services/api'
 import GenomeBestConfigs from './GenomeBestConfigs'
+import GenomeCtoView from './GenomeCtoView'
+import { useViewMode } from '../context/ViewModeContext'
+import { useRef } from 'react'
 import JsonTree from './JsonTree'
 
 const EVENT_CONFIG = {
@@ -31,7 +34,7 @@ function categorizeFields(changedFields) {
   return categories.length > 0 ? categories : ['Configuration']
 }
 
-export default function GenomeHistory({ subscriptionId, resourceId }) {
+export default function GenomeHistory({ subscriptionId, resourceId, resourceGroupId }) {
   const [historyEvents, setHistoryEvents] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
@@ -39,24 +42,26 @@ export default function GenomeHistory({ subscriptionId, resourceId }) {
   const [configLoading, setConfigLoading] = useState(false)
   const [selectedBlobKey, setSelectedBlobKey] = useState(null)
   const [filterCategory, setFilterCategory] = useState('All')
+  const { viewMode } = useViewMode() || { viewMode: 'dev' }
+  const configTreeRef = useRef(null)
 
   const loadHistory = (showLoading = false) => {
-    if (!subscriptionId || !resourceId) return
+    if (!subscriptionId || !(resourceId || resourceGroupId)) return
     if (showLoading) setIsLoading(true)
-    fetchCategorizedGenomeHistory(subscriptionId, resourceId)
+    fetchCategorizedGenomeHistory(subscriptionId, resourceId || resourceGroupId)
       .then(events => { if (events?.length) setHistoryEvents(events) })
       .catch(() => {})
       .finally(() => setIsLoading(false))
   }
 
-  useEffect(() => { loadHistory(true) }, [subscriptionId, resourceId])
+  useEffect(() => { loadHistory(true) }, [subscriptionId, resourceId, resourceGroupId])
 
   // Silent auto-refresh every 10 seconds — no loading spinner, no flicker
   useEffect(() => {
-    if (!subscriptionId || !resourceId) return
+    if (!subscriptionId || !(resourceId || resourceGroupId)) return
     const interval = setInterval(() => loadHistory(false), 10000)
     return () => clearInterval(interval)
-  }, [subscriptionId, resourceId])
+  }, [subscriptionId, resourceId, resourceGroupId])
 
   // Enrich events with categories
   const enrichedEvents = useMemo(() => {
@@ -108,17 +113,15 @@ export default function GenomeHistory({ subscriptionId, resourceId }) {
     </div>
   )
 
+  if (viewMode === 'cto') {
+    return <GenomeBestConfigs subscriptionId={subscriptionId} resourceId={resourceId || resourceGroupId} />
+  }
+
   return (
     <div style={{ display: 'flex', gap: 16, minHeight: 400 }}>
       {/* Left: filter + event list */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* AI Best Configs */}
-        <GenomeBestConfigs
-          subscriptionId={subscriptionId}
-          resourceId={resourceId}
-          onViewConfig={(blobKey) => handleEventClick({ blobKey })}
-          onRollback={(blobKey) => handleEventClick({ blobKey })}
-        />
+
 
         {/* Category filter */}
         <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -184,8 +187,18 @@ export default function GenomeHistory({ subscriptionId, resourceId }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         {configLoading && <div className="gp-loading"><div className="gp-loading-ring" /><span>Loading configuration...</span></div>}
         {!configLoading && selectedConfig && (
-          <div style={{ background: '#1e293b', borderRadius: 8, padding: 16, maxHeight: 500, overflow: 'auto' }}>
-            <JsonTree data={selectedConfig} />
+          <div style={{ background: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', gap: 4, padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <button onClick={() => configTreeRef.current?.expandAll()} title="Expand all" style={{ fontSize: 10, padding: '2px 5px', borderRadius: 3, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#000' }}>unfold_more</span>
+              </button>
+              <button onClick={() => configTreeRef.current?.collapseAll()} title="Collapse all" style={{ fontSize: 10, padding: '2px 5px', borderRadius: 3, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#000' }}>unfold_less</span>
+              </button>
+            </div>
+            <div style={{ padding: 16, maxHeight: 450, overflow: 'auto' }}>
+              <JsonTree ref={configTreeRef} data={selectedConfig} />
+            </div>
           </div>
         )}
         {!configLoading && !selectedConfig && selectedBlobKey && (
