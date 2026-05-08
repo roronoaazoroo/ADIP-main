@@ -128,6 +128,8 @@ router.get('/tickets', async (req, res) => {
     for await (const entity of ticketsTable().listEntities({ queryOptions: { filter } })) {
       tickets.push({
         ticketId: entity.ticketId,
+        subscriptionId: entity.subscriptionId,
+        resourceGroupId: entity.resourceGroupId,
         resourceId: entity.resourceId,
         resourceName: entity.resourceName,
         severity: entity.severity,

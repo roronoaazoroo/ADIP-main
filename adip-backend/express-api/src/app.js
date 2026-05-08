@@ -107,6 +107,8 @@ app.use('/api', require('./routes/driftRiskTimeline'))
 app.use('/api', require('./routes/recover'))
 app.use('/api', require('./routes/recommendations'))
 app.use('/api', require('./routes/manualGuide'))
+app.use('/api', require('./routes/armAnalyzer'))
+app.use('/api', require('./routes/baselineValidation'))
 
 
 

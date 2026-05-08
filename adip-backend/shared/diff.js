@@ -51,6 +51,26 @@ function computeDiff(prev, curr, path, results) {
     return
   }
   if (Array.isArray(prev) && Array.isArray(curr)) {
+    // For resource arrays: match by name/id and diff individually
+    if (prev[0]?.name || prev[0]?.id) {
+      const getName = (item) => item.name || item.id?.split('/').pop() || ''
+      const prevMap = new Map(prev.map(p => [getName(p).toLowerCase(), p]))
+      const currMap = new Map(curr.map(c => [getName(c).toLowerCase(), c]))
+      for (const [name, currItem] of currMap) {
+        if (!prevMap.has(name)) {
+          results.push({ path: `${path} → ${getName(currItem)}`, type: 'added', oldValue: null, newValue: currItem.type || currItem.name, sentence: `added resource "${getName(currItem)}"` })
+        } else {
+          computeDiff(prevMap.get(name), currItem, `${path} → ${getName(currItem)}`, results)
+        }
+      }
+      for (const [name, prevItem] of prevMap) {
+        if (!currMap.has(name)) {
+          results.push({ path: `${path} → ${getName(prevItem)}`, type: 'removed', oldValue: prevItem.type || prevItem.name, newValue: null, sentence: `removed resource "${getName(prevItem)}"` })
+        }
+      }
+      return
+    }
+    // Generic array comparison
     const stableStr = (v) => JSON.stringify(v, Object.keys(v || {}).sort())
     const normArr   = (a) => JSON.stringify(a.map(i => typeof i === 'object' && i ? stableStr(i) : i).sort())
     if (normArr(prev) !== normArr(curr)) {

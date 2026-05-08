@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@azure/app-configuration": "^1.11.0",
+    "@azure/arm-compute": "^24.0.0",
+    "@azure/arm-network": "^36.0.0",
     "@azure/arm-policy": "^7.0.0",
     "@azure/arm-policyinsights": "^6.0.0",
     "@azure/arm-resourcegraph": "^4.2.1",

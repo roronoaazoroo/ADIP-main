@@ -15,6 +15,10 @@ const VOLATILE = [
   // NSG back-references
   'defaultSecurityRules',
   'azureFilesIdentityBasedAuthentication',
+  'macAddress', 'primary', 'virtualMachine', 'internalDomainNameSuffix',
+  'ipAddress', 'dnsSettings',
+  'LastOwnershipUpdateTime', 'uniqueId', 'creationData', 'timeCreated',
+  'diskSizeBytes', 'diskState', 'tier',
 ]
 
 const CRITICAL_PATHS = [

@@ -129,12 +129,6 @@ export default function OrgMembersPanel() {
                 </span>
               )}
 
-              {/* Joined date */}
-              <div className="omp-joined">
-                {member.joinedAt
-                  ? new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                  : ''}
-              </div>
             </div>
           )
         })}

@@ -1,0 +1,412 @@
+{
+  "startTime": "2026-05-08T09:14:30.551Z",
+  "endTime": "2026-05-08T09:15:26.081Z",
+  "phases": [
+    {
+      "time": "2026-05-08T09:14:30.551Z",
+      "phase": "baseline",
+      "msg": "Loading saved baseline from blob...",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:14:32.093Z",
+      "phase": "baseline",
+      "msg": "Baseline loaded: 9 resources",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:14:32.093Z",
+      "phase": "baseline",
+      "msg": "VM exists in baseline",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.093Z",
+      "phase": "baseline",
+      "msg": "NIC exists in baseline",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.093Z",
+      "phase": "baseline",
+      "msg": "NSG exists in baseline",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.093Z",
+      "phase": "baseline",
+      "msg": "Public IP exists in baseline",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.094Z",
+      "phase": "baseline",
+      "msg": "VNet exists in baseline",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.094Z",
+      "phase": "baseline",
+      "msg": "VM has NIC reference",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.094Z",
+      "phase": "baseline",
+      "msg": "VM NIC reference resolves",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.095Z",
+      "phase": "depgraph",
+      "msg": "Topological sort includes all 9 resources",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.095Z",
+      "phase": "depgraph",
+      "msg": "Deployment layers: \"L1:testing-vm-ip, L1:testing-vm-nsg, L2:testingsa1, L2:testing-vm-vnet, L3:testing-vm_key, L3:testing-vm798, L3:shutdown-computevm-testing-vm, L4:testing-vm_OsDisk_1_858e30f20fde40ab8b7eef2e355bfcef, L5:testing-vm\"",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:14:32.095Z",
+      "phase": "depgraph",
+      "msg": "VM deploys after NIC",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.095Z",
+      "phase": "depgraph",
+      "msg": "NIC deploys after VNet",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.095Z",
+      "phase": "depgraph",
+      "msg": "NIC deploys after NSG",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "depgraph",
+      "msg": "VM layer (5) > NIC layer (3)",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "sanitize",
+      "msg": "provisioningState removed",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "sanitize",
+      "msg": "vmId removed",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "sanitize",
+      "msg": "resourceGuid removed",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "sanitize",
+      "msg": "osDisk.createOption = FromImage",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "sanitize",
+      "msg": "stale managedDisk reference removed",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "sanitize",
+      "msg": "NIC reference preserved after sanitization",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:32.096Z",
+      "phase": "delete",
+      "msg": "Verifying VM is currently deleted...",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:14:33.979Z",
+      "phase": "delete",
+      "msg": "VM confirmed deleted — ready for recovery",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:14:34.556Z",
+      "phase": "remediate",
+      "msg": "Deploying 9 resources from baseline...",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:06.977Z",
+      "phase": "remediate",
+      "msg": "Deployment completed in 32.4s",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:06.977Z",
+      "phase": "remediate",
+      "msg": "Success: 7, Failed: 1, Skipped: 1",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:19.046Z",
+      "phase": "azure-validate",
+      "msg": "VM exists in Azure",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:19.047Z",
+      "phase": "azure-validate",
+      "msg": "VM provisioningState: Succeeded",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:19.047Z",
+      "phase": "azure-validate",
+      "msg": "VM power state: PowerState/running",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:20.988Z",
+      "phase": "azure-validate",
+      "msg": "NIC exists in Azure",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:20.988Z",
+      "phase": "azure-validate",
+      "msg": "NIC provisioningState: Succeeded",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:20.988Z",
+      "phase": "azure-validate",
+      "msg": "NIC subnet binding: default",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:20.988Z",
+      "phase": "azure-validate",
+      "msg": "NIC NSG association: testing-vm-nsg",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:21.483Z",
+      "phase": "azure-validate",
+      "msg": "NSG exists in Azure",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:21.483Z",
+      "phase": "azure-validate",
+      "msg": "NSG provisioningState: Succeeded",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:21.483Z",
+      "phase": "azure-validate",
+      "msg": "NSG rules: 1 custom rules",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:21.982Z",
+      "phase": "azure-validate",
+      "msg": "Public IP exists in Azure",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:21.982Z",
+      "phase": "azure-validate",
+      "msg": "Public IP provisioningState: Succeeded",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:21.982Z",
+      "phase": "azure-validate",
+      "msg": "Public IP address: 172.172.182.49",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:22.525Z",
+      "phase": "azure-validate",
+      "msg": "VNet exists in Azure",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:22.525Z",
+      "phase": "azure-validate",
+      "msg": "VNet provisioningState: Succeeded",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:22.526Z",
+      "phase": "azure-validate",
+      "msg": "Subnet \"default\" exists in VNet",
+      "status": "pass"
+    },
+    {
+      "time": "2026-05-08T09:15:26.080Z",
+      "phase": "drift",
+      "msg": "Baseline: 9 resources, Live: 8 resources",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:26.080Z",
+      "phase": "drift",
+      "msg": "Remaining diffs after remediation: 0",
+      "status": "info"
+    },
+    {
+      "time": "2026-05-08T09:15:26.081Z",
+      "phase": "drift",
+      "msg": "Drift within acceptable range (0 diffs)",
+      "status": "pass"
+    }
+  ],
+  "results": [
+    {
+      "test": "VM exists in baseline",
+      "pass": true
+    },
+    {
+      "test": "NIC exists in baseline",
+      "pass": true
+    },
+    {
+      "test": "NSG exists in baseline",
+      "pass": true
+    },
+    {
+      "test": "Public IP exists in baseline",
+      "pass": true
+    },
+    {
+      "test": "VNet exists in baseline",
+      "pass": true
+    },
+    {
+      "test": "VM has NIC reference",
+      "pass": true
+    },
+    {
+      "test": "VM NIC reference resolves",
+      "pass": true
+    },
+    {
+      "test": "Topological sort includes all 9 resources",
+      "pass": true
+    },
+    {
+      "test": "VM deploys after NIC",
+      "pass": true
+    },
+    {
+      "test": "NIC deploys after VNet",
+      "pass": true
+    },
+    {
+      "test": "NIC deploys after NSG",
+      "pass": true
+    },
+    {
+      "test": "VM layer (5) > NIC layer (3)",
+      "pass": true
+    },
+    {
+      "test": "provisioningState removed",
+      "pass": true
+    },
+    {
+      "test": "vmId removed",
+      "pass": true
+    },
+    {
+      "test": "resourceGuid removed",
+      "pass": true
+    },
+    {
+      "test": "osDisk.createOption = FromImage",
+      "pass": true
+    },
+    {
+      "test": "stale managedDisk reference removed",
+      "pass": true
+    },
+    {
+      "test": "NIC reference preserved after sanitization",
+      "pass": true
+    },
+    {
+      "test": "VM confirmed deleted — ready for recovery",
+      "pass": true
+    },
+    {
+      "test": "VM exists in Azure",
+      "pass": true
+    },
+    {
+      "test": "VM provisioningState: Succeeded",
+      "pass": true
+    },
+    {
+      "test": "NIC exists in Azure",
+      "pass": true
+    },
+    {
+      "test": "NIC provisioningState: Succeeded",
+      "pass": true
+    },
+    {
+      "test": "NIC subnet binding: default",
+      "pass": true
+    },
+    {
+      "test": "NIC NSG association: testing-vm-nsg",
+      "pass": true
+    },
+    {
+      "test": "NSG exists in Azure",
+      "pass": true
+    },
+    {
+      "test": "NSG provisioningState: Succeeded",
+      "pass": true
+    },
+    {
+      "test": "Public IP exists in Azure",
+      "pass": true
+    },
+    {
+      "test": "Public IP provisioningState: Succeeded",
+      "pass": true
+    },
+    {
+      "test": "VNet exists in Azure",
+      "pass": true
+    },
+    {
+      "test": "VNet provisioningState: Succeeded",
+      "pass": true
+    },
+    {
+      "test": "Subnet \"default\" exists in VNet",
+      "pass": true
+    },
+    {
+      "test": "Drift within acceptable range (0 diffs)",
+      "pass": true
+    }
+  ],
+  "confidence": 100,
+  "success": false
+}

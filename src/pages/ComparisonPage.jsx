@@ -47,6 +47,7 @@ import { useDashboard } from '../context/DashboardContext'
 import { useViewMode } from '../context/ViewModeContext'
 import AggregatedDriftView from '../components/AggregatedDriftView'
 import ManualFixGuide from '../components/ManualFixGuide'
+import ArmInfrastructureSummary from '../components/ArmInfrastructureSummary'
 import './ComparisonPage.css'
 
 const CRITICAL_PATHS = ['properties.networkAcls','properties.accessPolicies','properties.securityRules','sku','location','identity','properties.encryption']
@@ -148,6 +149,16 @@ export default function ComparisonPage() {
   // Each item: { path, type, label, oldValue, newValue }
   const [fieldDifferences, setFieldDifferences] = useState([])
 
+  // Filter out volatile/Azure-assigned fields that change on every recreation
+  const VOLATILE_PATHS = ['macAddress', 'dnsSettings', 'internalDomainNameSuffix', 'ipAddress', 'primary', 'virtualMachine', 'LastOwnershipUpdateTime', 'uniqueId', 'creationData', 'timeCreated', 'diskSizeBytes', 'diskState', 'tier']
+  const filterVolatile = (diffs) => diffs.filter(d => {
+    const path = d.path || ''
+    // Skip managed disk diffs (name changes on every recreation)
+    if (path.includes('Microsoft.Compute/disks') || (path.includes('OsDisk') || path.includes('_disk'))) return false
+    // Skip volatile field paths
+    return !VOLATILE_PATHS.some(v => path.includes(v))
+  })
+
   // Drift severity level: 'critical' | 'high' | 'medium' | 'low' | null
   const [driftSeverity, setDriftSeverity] = useState(null)
 
@@ -238,7 +249,7 @@ export default function ComparisonPage() {
 
         setBaselineConfig(normaliseState(result.baselineState))
         if (result.liveState) setCurrentLive(result.liveState)
-        const diffs = result.differences || []
+        const diffs = filterVolatile(result.differences || [])
         setFieldDifferences(diffs)
         setDriftSeverity(classifySeverity(diffs))
 
@@ -248,6 +259,7 @@ export default function ComparisonPage() {
           fetchAiExplanation({
             resourceId, resourceGroup: resourceGroupId, subscriptionId,
             severity: classifySeverity(diffs), differences: diffs, changes: diffs,
+            baselineState: result.baselineState, liveState: result.liveState,
           })
             .then(r => setAiDriftExplanation(r?.explanation || null))
             .catch(() => {})
@@ -261,7 +273,7 @@ export default function ComparisonPage() {
   // Recalculate diff client-side when live config updates (5s poll)
   useEffect(() => {
     if (!baselineConfig || !currentLive) return
-    const diffs = formatDifferences(deepDiff(baselineConfig, normaliseState(currentLive)) || [])
+    const diffs = filterVolatile(formatDifferences(deepDiff(baselineConfig, normaliseState(currentLive)) || []))
     setFieldDifferences(diffs)
     setDriftSeverity(classifySeverity(diffs))
   }, [currentLive, baselineConfig])
@@ -350,7 +362,7 @@ export default function ComparisonPage() {
           const recompare = await runCompare(subscriptionId, resourceGroupId, resourceId || null).catch(() => null)
           if (recompare?.baselineState) {
             setBaselineConfig(normaliseState(recompare.baselineState))
-            setFieldDifferences(recompare.differences || [])
+            setFieldDifferences(filterVolatile(recompare.differences || []))
             setDriftSeverity(classifySeverity(recompare.differences || []))
           }
           setBaselineNotFound(false)
@@ -444,7 +456,7 @@ export default function ComparisonPage() {
             {fieldDifferences.length > 0 && !baselineNotFound && (
               <>
                 {remediationMode ? (
-                <button className={`cp-btn ${driftSeverity === 'low' ? 'cp-btn--green' : 'cp-btn--primary'}`} onClick={handleRemediate} disabled={isRemediating || remediationSucceeded}>
+                <button className={`cp-btn ${driftSeverity === 'low' ? 'cp-btn--green' : 'cp-btn--primary'}`} onClick={handleRemediate} disabled={isRemediating || fieldDifferences.length === 0}>
                   {isRemediating ? <><div className="cp-spinner" />{driftSeverity === 'low' ? 'Applying...' : 'Sending...'}</> :
                    remediationSucceeded ? (driftSeverity === 'low' ? '✓ Remediated!' : '✓ Request Sent!') :
                    driftSeverity === 'low' ? 'Apply Fix Now' : 'Request Approval'}
@@ -522,7 +534,7 @@ export default function ComparisonPage() {
           <div className="cp-card cp-card--center">
             <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#c2c7d0' }}>layers</span>
             <p>No golden baseline found for <strong>{displayName}</strong>.</p>
-            <button className="cp-btn cp-btn--primary" onClick={handleRemediate} disabled={isRemediating || remediationSucceeded}>
+            <button className="cp-btn cp-btn--primary" onClick={handleRemediate} disabled={isRemediating || fieldDifferences.length === 0}>
               {isRemediating ? 'Seeding...' : remediationSucceeded ? '✓ Done!' : 'Promote Current State as Baseline'}
             </button>
           </div>
@@ -614,48 +626,22 @@ export default function ComparisonPage() {
           </div>
         )}
 
-        {/* CTO view — AI-powered plain English summary */}
-        {viewMode === 'cto' && !isLoadingBaseline && (
-          <div className="cp-card" style={{ marginTop: 16 }}>
-            <div className="cp-card-header">
-              <span className="material-symbols-outlined" style={{ color: '#0060a9' }}>summarize</span>
-              <h3>Executive Summary</h3>
-              {driftSeverity && <span className="cp-severity-badge" style={{ background: `${SEV_COLOR[driftSeverity]}18`, color: SEV_COLOR[driftSeverity], border: `1px solid ${SEV_COLOR[driftSeverity]}40`, marginLeft: 'auto' }}>{driftSeverity.toUpperCase()}</span>}
-            </div>
-            <div style={{ padding: '16px 20px', fontSize: 14, lineHeight: 1.8, color: 'var(--text-secondary)' }}>
-              {baselineNotFound && <p>No golden baseline has been set for <strong>{displayName}</strong>. Promote the current state to establish a reference point.</p>}
-              {baselineConfig && fieldDifferences.length === 0 && (
-                <p style={{ color: '#10b981', fontSize: 15 }}>✓ <strong>{displayName}</strong> is fully compliant — no configuration drift detected.</p>
-              )}
-              {baselineConfig && fieldDifferences.length > 0 && (
-                <>
-                  {isAiLoading && <p style={{ color: '#60a5fa' }}>⏳ Generating AI analysis with Azure OpenAI...</p>}
-                  {aiDriftExplanation && <p style={{ fontSize: 15, color: 'var(--text-primary)' }}>{aiDriftExplanation}</p>}
-                  {!isAiLoading && !aiDriftExplanation && <p><strong>{fieldDifferences.length}</strong> configuration change{fieldDifferences.length !== 1 ? 's' : ''} detected on <strong>{displayName}</strong>.</p>}
-                  <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {fieldDifferences.map((diff, index) => (
-                      <div key={index} style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: diff.type === 'removed' ? '#ef4444' : diff.type === 'added' ? '#10b981' : '#f59e0b' }} />
-                        <span style={{ flex: 1 }}>
-                          <strong>{diff.type === 'removed' ? 'Removed' : diff.type === 'added' ? 'Added' : 'Modified'}</strong>{' '}
-                          {diff.path?.toLowerCase().includes('tag') ? (
-                            <span>tag: <strong>{diff.path?.split(' → ').pop()}</strong>{diff.oldValue !== undefined ? `: ${String(diff.oldValue).slice(0,30)}` : ''}</span>
-                          ) : (
-                            <span>{diff.path?.split(' → ').pop() || diff.path}</span>
-                          )}
-                          {!diff.path?.toLowerCase().includes('tag') && diff.oldValue !== undefined && diff.newValue !== undefined && (
-                            <span style={{ color: '#6b7280' }}>{' '}({String(diff.oldValue).slice(0,20)} → {String(diff.newValue).slice(0,20)})</span>
-                          )}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+        {/* CTO view — AI Infrastructure Summary */}
+        {viewMode === 'cto' && !isLoadingBaseline && baselineConfig && currentLive && (
+          <ArmInfrastructureSummary
+            subscriptionId={subscriptionId}
+            resourceGroupId={resourceGroupId}
+            baselineState={baselineConfig}
+            liveState={currentLive}
+            differences={fieldDifferences}
+          />
+        )}
+        {viewMode === 'cto' && !isLoadingBaseline && baselineNotFound && (
+          <div className="cp-card" style={{ marginTop: 16, padding: 20 }}>
+            <p style={{ color: 'rgba(255,255,255,0.5)' }}>No golden baseline set for <strong>{displayName}</strong>. Promote the current state to establish a reference.</p>
           </div>
         )}
-
+        
         {/* RG-level resource details — CTO view */}
         {viewMode === 'cto' && currentLive?.resources && (
           <div className="cp-card" style={{ marginTop: 16 }}>

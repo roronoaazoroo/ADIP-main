@@ -26,28 +26,89 @@ const { stripVolatileFields } = require('../shared/armUtils')
 router_remediate.post('/remediate', async (req, res) => {
   console.log('[POST /remediate] starts')
   const { subscriptionId, resourceGroupId, resourceId } = req.body
-  if (!subscriptionId || !resourceGroupId || !resourceId) {
+  if (!subscriptionId || !resourceGroupId) {
     console.log('[POST /remediate] ends — missing required fields')
-    return res.status(400).json({ error: 'subscriptionId, resourceGroupId and resourceId required' })
+    return res.status(400).json({ error: 'subscriptionId and resourceGroupId required' })
   }
+  // For RG-level: resourceId is the RG name or missing
+  const isRgLevel = !resourceId || !resourceId.startsWith('/subscriptions/')
+  const effectiveResourceId = isRgLevel ? resourceGroupId : resourceId
  
   try {
-    const baseline = await getBaseline(subscriptionId, resourceId)
+    const baseline = await getBaseline(subscriptionId, effectiveResourceId)
     if (!baseline?.resourceState) {
       console.log('[POST /remediate] ends — no baseline found')
       return res.status(404).json({ error: 'No golden baseline found for this resource' })
     }
  
     const baselineState = stripVolatileFields(baseline.resourceState)
-    const liveRaw       = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+    const liveRaw       = await getResourceConfig(subscriptionId, resourceGroupId, isRgLevel ? null : resourceId)
     const liveState     = stripVolatileFields(liveRaw)
     const differences   = diffObjects(liveState, baselineState)
  
     const remSeverity = classifySeverity(differences)
-    // No alert email during remediation — user is actively fixing the drift
  
     const credential = new DefaultAzureCredential()
     const armClient  = new ResourceManagementClient(credential, subscriptionId)
+
+    // RG-level: use Dependency-Aware Deployment Engine
+    const rawBaselineResources = baseline.resourceState?.resources || []
+    if (isRgLevel && rawBaselineResources.length) {
+      const { deployResources } = require('../services/deploymentEngine')
+      const { getResourceConfig } = require('../services/azureResourceService')
+      const dryRun = req.body.dryRun === true
+      const deploymentResult = await deployResources(subscriptionId, resourceGroupId, rawBaselineResources, { dryRun })
+
+      // Delete resources that exist in live but NOT in baseline (enforce exact state)
+      const deletedResources = []
+      const liveConfig = await getResourceConfig(subscriptionId, resourceGroupId, null)
+      const liveResources = liveConfig.resources || []
+      const baselineNames = new Set(rawBaselineResources.map(r => (r.name || '').toLowerCase()))
+      const extraResources = liveResources.filter(r => {
+        const name = (r.name || '').toLowerCase()
+        // Skip managed disks (auto-created by VM)
+        if ((r.type || '').toLowerCase().includes('microsoft.compute/disks')) return false
+        return !baselineNames.has(name)
+      })
+
+      if (extraResources.length > 0 && !dryRun) {
+        // Delete in reverse dependency order (dependents first)
+        const deleteOrder = (r) => {
+          const t = (r.type || '').toLowerCase()
+          if (t.includes('virtualmachines')) return 1
+          if (t.includes('networkinterfaces')) return 2
+          if (t.includes('publicipaddresses')) return 3
+          if (t.includes('networksecuritygroups')) return 4
+          if (t.includes('virtualnetworks')) return 5
+          return 3
+        }
+        extraResources.sort((a, b) => deleteOrder(a) - deleteOrder(b))
+        for (const resource of extraResources) {
+          try {
+            const parts = resource.id.split('/')
+            const provider = parts[6]
+            const type = parts[7]
+            const name = parts[8]
+            const { getApiVersion } = require('../services/azureResourceService')
+            const apiVersion = await getApiVersion(subscriptionId, provider, type)
+            await armClient.resources.beginDeleteAndWait(resourceGroupId, provider, '', type, name, apiVersion)
+            deletedResources.push({ name, type: resource.type, status: 'deleted' })
+            console.log('[remediate] deleted extra resource:', name)
+          } catch (e) {
+            deletedResources.push({ name: resource.name, type: resource.type, status: 'delete-failed', reason: e.message?.slice(0, 100) })
+          }
+        }
+      } else if (extraResources.length > 0 && dryRun) {
+        extraResources.forEach(r => deletedResources.push({ name: r.name, type: r.type, status: 'dry-run-delete' }))
+      }
+
+      const { saveGenomeSnapshot } = require('../services/blobService')
+      saveGenomeSnapshot(subscriptionId, effectiveResourceId, baseline.resourceState, `remediated-${new Date().toISOString().replace(/[:.]/g, '-')}`).catch(() => {})
+      res.json({ remediated: true, resourceId: effectiveResourceId, changeCount: differences.length, deployment: deploymentResult, deletedResources })
+      console.log('[POST /remediate] ends — RG-level deployment:', JSON.stringify(deploymentResult.summary), 'deleted:', deletedResources.length)
+      return
+    }
+
     const parts      = resourceId.split('/')
     const provider   = parts[6]
     const type       = parts[7]
@@ -158,6 +219,13 @@ router_remediate.get('/policy/assignments', async (req, res) => {
     console.log('[GET /policy/assignments] error:', err.message)
     res.status(500).json({ error: err.message })
   }
+})
+
+
+// GET /api/remediation-audit — returns recent deployment audit log
+router_remediate.get('/remediation-audit', (req, res) => {
+  const { getAuditLog } = require('../services/deploymentEngine')
+  res.json(getAuditLog())
 })
 
 module.exports = router_remediate

@@ -38,19 +38,34 @@ router.post('/ai/explain', async (req, res) => {
     const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
     const apiKey = process.env.AZURE_OPENAI_KEY
     const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
-    if (!endpoint || !apiKey) return res.json(await forwardPostToAiFunction('explain', req.body))
+    if (!endpoint || !apiKey) return res.status(500).json({ error: 'OpenAI not configured' })
+
     const record = req.body
-    const changes = (record.differences || record.changes || []).map(c => c.sentence || `${c.type} ${c.path}`).slice(0, 15).join('\n')
+    const differences = record.differences || record.changes || []
+    const baselineState = record.baselineState
+    const liveState = record.liveState
+
+    // Build context: if full ARM configs provided, use them for richer explanation
+    let userContent = ''
+    if (baselineState && liveState) {
+      const baselineStr = JSON.stringify(baselineState, null, 2).slice(0, 3000)
+      const liveStr = JSON.stringify(liveState, null, 2).slice(0, 3000)
+      userContent = `Resource: ${record.resourceId?.split('/').pop() || record.resourceGroup || 'unknown'}\nResource Group: ${record.resourceGroup || ''}\n\nBASELINE (golden approved state):\n${baselineStr}\n\nCURRENT LIVE STATE:\n${liveStr}`
+    } else {
+      const changes = differences.map(c => c.sentence || `${c.type} ${c.path}: ${JSON.stringify(c.oldValue)?.slice(0,30)} → ${JSON.stringify(c.newValue)?.slice(0,30)}`).slice(0, 15).join('\n')
+      userContent = `Resource: ${record.resourceId?.split('/').pop() || 'unknown'}\nResource Group: ${record.resourceGroup || ''}\nChanges:\n${changes}`
+    }
+
     const fetch = require('node-fetch')
     const aiRes = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-15-preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
       body: JSON.stringify({
         messages: [
-          { role: 'system', content: 'You are an Azure security expert. Summarize what changed in bullet points. Be concise — no definitions, no filler. Each bullet: what field changed, from what to what, and the security/cost/compliance impact in one short phrase. No introductions or conclusions.' },
-          { role: 'user', content: `Resource: ${record.resourceId?.split('/').pop() || 'unknown'}\nResource Group: ${record.resourceGroup || ''}\nChanges:\n${changes}` }
+          { role: 'system', content: 'You are an Azure infrastructure expert. Compare the baseline and live state. Summarize EXACTLY what changed in bullet points. For new resources say "New [type] created: [name]". For deleted resources say "[name] was deleted". For modified resources list each changed field. Be concise — no definitions, no filler. Each bullet: what changed and the security/cost/compliance impact in one phrase.' },
+          { role: 'user', content: userContent }
         ],
-        max_tokens: 300, temperature: 0.3,
+        max_tokens: 500, temperature: 0.3,
       }),
     })
     if (!aiRes.ok) throw new Error(`OpenAI ${aiRes.status}`)
@@ -58,6 +73,7 @@ router.post('/ai/explain', async (req, res) => {
     res.json({ explanation: data.choices[0]?.message?.content?.trim() || '' })
   } catch (aiError) { res.status(500).json({ error: aiError.message }) }
 })
+
 router.post('/ai/severity',  async (req, res) => { try { res.json(await forwardPostToAiFunction('severity',  req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 router.post('/ai/recommend', async (req, res) => { try { res.json(await forwardPostToAiFunction('recommend', req.body))  } catch (aiError) { res.status(500).json({ error: aiError.message }) } })
 router.get('/ai/predict',    async (req, res) => { try { res.json(await forwardGetToAiFunction('predict',    req.query)) } catch (aiError) { res.status(500).json({ error: aiError.message }) } })

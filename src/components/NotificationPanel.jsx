@@ -84,7 +84,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
       state: {
         subscriptionId: ticket.subscriptionId,
         resourceGroupId: ticket.resourceGroupId,
-        resourceId: ticket.resourceId,
+        resourceId: ticket.resourceId?.startsWith('/subscriptions/') ? ticket.resourceId : null,
         resourceName: ticket.resourceName,
       },
     })

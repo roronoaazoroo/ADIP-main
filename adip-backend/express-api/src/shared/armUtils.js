@@ -16,7 +16,7 @@ const READONLY_FIELDS = [
   'resourceGuid',
   // VM: system-assigned, immutable after creation
   'vmId', 'timeCreated', 'instanceView', 'powerState', 'statuses',
-  'resources', 'latestModelApplied',
+  'latestModelApplied',
   // VM osProfile: immutable after provisioning
   'adminUsername', 'adminPassword', 'computerName',
   // VM linuxConfiguration / windowsConfiguration: immutable after provisioning
@@ -26,7 +26,7 @@ const READONLY_FIELDS = [
   'diskSizeGB', 'createOption',
   // VM networkProfile: NIC IDs are references, not settable via VM PUT
   // NSG: system-managed back-references
-  'defaultSecurityRules', 'networkInterfaces', 'subnets',
+  'defaultSecurityRules',
 ]
 
 
