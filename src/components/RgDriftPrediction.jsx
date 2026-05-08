@@ -43,11 +43,11 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
   const [heatmapExpanded, setHeatmapExpanded] = useState(false)
 
   useEffect(() => {
-    if (!subscriptionId || !resourceGroup) return
+    if (!subscriptionId) return
     setLoading(true)
     setData(null)
     setError(null)
-    fetchRgPrediction(subscriptionId, resourceGroup)
+    fetchRgPrediction(subscriptionId, resourceGroup || '')
       .then(d => setData(d))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -55,8 +55,8 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
 
   const handleSelect = useCallback(name => setSelected(prev => prev === name ? null : name), [])
 
-  if (!subscriptionId || !resourceGroup) {
-    return <div className="rgp-empty">Select a subscription and resource group on the Drift Scanner first.</div>
+  if (!subscriptionId) {
+    return <div className="rgp-empty">No subscription available.</div>
   }
 
   if (loading) return (
