@@ -213,6 +213,101 @@ router.get('/genome/config', async (req, res) => {
 
 
 
+
+// GET /api/genome/cto-summary?subscriptionId=&resourceId= — Executive summary for CTO view
+router.get('/genome/cto-summary', async (req, res) => {
+  const { subscriptionId, resourceId } = req.query
+  if (!subscriptionId || !resourceId) return res.status(400).json({ error: 'subscriptionId and resourceId required' })
+
+  try {
+    const fetch = require('node-fetch')
+    const { listGenomeSnapshots, getSnapshotConfig, getGenomeSnapshot } = require('../services/blobService')
+
+    const isRgLevel = !resourceId.startsWith('/subscriptions/')
+    let snapshots
+    if (isRgLevel) {
+      const all = await listGenomeSnapshots(subscriptionId, null, 200)
+      snapshots = all.filter(s => s.resourceId?.toLowerCase().includes('/resourcegroups/' + resourceId.toLowerCase() + '/')).slice(0, 20)
+    } else {
+      snapshots = await listGenomeSnapshots(subscriptionId, resourceId, 20)
+    }
+
+    if (!snapshots.length) return res.json({ healthScore: 0, summary: 'No configuration history available.', costTrend: [], risks: [], stability: {} })
+
+    // Extract config data from snapshots
+    const configs = []
+    for (const snap of snapshots.slice(0, 10)) {
+      const doc = snap.resourceState || (await getSnapshotConfig(snap._blobKey).catch(() => null))?.resourceState || (await getGenomeSnapshot(snap._blobKey).catch(() => null))?.resourceState
+      if (!doc) continue
+      const props = doc.properties || {}
+      configs.push({
+        savedAt: snap.savedAt,
+        sku: doc.sku?.name || '',
+        httpsOnly: props.supportsHttpsTrafficOnly ?? false,
+        tls: props.minimumTlsVersion || '',
+        publicAccess: props.allowBlobPublicAccess ?? true,
+        networkDefault: props.networkAcls?.defaultAction || 'Allow',
+        encryption: props.encryption?.keySource || '',
+        identity: doc.identity?.type || 'None',
+      })
+    }
+
+    // Compute health score (0-100)
+    const latest = configs[0] || {}
+    let healthScore = 50
+    if (latest.httpsOnly === true) healthScore += 10
+    if (latest.tls === 'TLS1_2') healthScore += 10
+    if (latest.publicAccess === false) healthScore += 10
+    if (latest.networkDefault === 'Deny') healthScore += 10
+    if (latest.encryption?.includes('Keyvault')) healthScore += 5
+    if (latest.identity !== 'None') healthScore += 5
+    healthScore = Math.min(healthScore, 100)
+
+    // Cost trend
+    const skuCost = { 'standard_lrs': 0.018, 'standard_grs': 0.036, 'standard_zrs': 0.023, 'standard_ragrs': 0.046, 'premium_lrs': 0.15 }
+    const costTrend = configs.map(c => ({ date: c.savedAt?.slice(0, 10), costPerGB: skuCost[(c.sku || '').toLowerCase()] || 0 }))
+
+    // Stability
+    const totalChanges = snapshots.length
+    const daySpan = Math.max(1, Math.round((new Date(snapshots[0]?.savedAt) - new Date(snapshots[snapshots.length - 1]?.savedAt)) / 86400000))
+    const changesPerDay = (totalChanges / daySpan).toFixed(1)
+
+    // Risks
+    const risks = []
+    if (latest.httpsOnly !== true) risks.push({ level: 'critical', message: 'HTTPS enforcement is disabled' })
+    if (latest.publicAccess !== false) risks.push({ level: 'high', message: 'Public blob access is enabled' })
+    if (latest.networkDefault !== 'Deny') risks.push({ level: 'high', message: 'Network default action is Allow (not restricted)' })
+    if (latest.tls !== 'TLS1_2') risks.push({ level: 'medium', message: 'TLS version is below 1.2' })
+
+    // AI executive summary
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
+    const apiKey = process.env.AZURE_OPENAI_KEY
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
+    let aiSummary = ''
+    if (endpoint && apiKey) {
+      try {
+        const aiResp = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
+          body: JSON.stringify({
+            messages: [
+              { role: 'system', content: 'You are a CTO advisor. Give a 2-3 sentence executive summary of this Azure resource configuration health. Mention cost, security posture, and stability. Be direct and actionable. No technical jargon.' },
+              { role: 'user', content: JSON.stringify({ healthScore, risks, changesPerDay, latestConfig: latest, totalSnapshots: totalChanges }) },
+            ],
+            max_tokens: 100, temperature: 0.3,
+          }),
+        })
+        if (aiResp.ok) {
+          const aiData = await aiResp.json()
+          aiSummary = aiData.choices?.[0]?.message?.content?.trim() || ''
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    res.json({ healthScore, summary: aiSummary, costTrend, risks, stability: { totalChanges, daySpan, changesPerDay }, latestConfig: latest })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 // GET /api/genome/best-configs?subscriptionId=&resourceId= — AI picks top 3 configs
 router.get('/genome/best-configs', async (req, res) => {
   const { subscriptionId, resourceId } = req.query
@@ -227,16 +322,30 @@ router.get('/genome/best-configs', async (req, res) => {
     const fetch = require('node-fetch')
     const { getSnapshotConfig, getGenomeSnapshot, listGenomeSnapshots } = require('../services/blobService')
 
-    // Get last 20 snapshots
-    const snapshots = await listGenomeSnapshots(subscriptionId, resourceId, 20)
+    // Get last 20 snapshots — RG-level gets all resources in the group
+    const isRgLevel = !resourceId.startsWith('/subscriptions/')
+    let snapshots
+    if (isRgLevel) {
+      const all = await listGenomeSnapshots(subscriptionId, null, 200)
+      snapshots = all.filter(s => s.resourceId?.toLowerCase().includes('/resourcegroups/' + resourceId.toLowerCase() + '/')).slice(0, 20)
+    } else {
+      snapshots = await listGenomeSnapshots(subscriptionId, resourceId, 20)
+    }
     if (!snapshots.length) return res.json([])
 
-    // Extract summary from each
+    // Extract summary from each + calculate duration between snapshots
     const summaries = []
-    for (const snap of snapshots) {
+    for (let i = 0; i < snapshots.length; i++) {
+      const snap = snapshots[i]
       const doc = snap.resourceState || (await getSnapshotConfig(snap._blobKey).catch(() => null))?.resourceState || (await getGenomeSnapshot(snap._blobKey).catch(() => null))?.resourceState
       if (!doc) continue
       const props = doc.properties || {}
+      // Duration: how long this config lasted (hours until next snapshot)
+      const nextSnap = snapshots[i + 1]
+      const durationHours = nextSnap ? Math.round((new Date(snap.savedAt) - new Date(nextSnap.savedAt)) / 3600000) : 0
+      // Cost estimate based on SKU
+      const skuCostMap = { 'standard_lrs': 0.018, 'standard_grs': 0.036, 'standard_zrs': 0.023, 'standard_ragrs': 0.046, 'premium_lrs': 0.15, 'premium_zrs': 0.18 }
+      const estimatedCostPerGB = skuCostMap[(doc.sku?.name || '').toLowerCase()] || 0
       summaries.push({
         index: summaries.length,
         savedAt: snap.savedAt,
@@ -253,19 +362,50 @@ router.get('/genome/best-configs', async (req, res) => {
         encryption_keySource: props.encryption?.keySource || '',
         identity: doc.identity?.type || 'None',
         tags: Object.keys(doc.tags || {}).length,
+        durationHours,
+        estimatedCostPerGB,
       })
     }
 
     if (!summaries.length) return res.json([])
 
-    const systemPrompt = `You are an Azure cloud architect. Analyze these configuration snapshots of the same resource at different times. Pick the BEST config for each category:
-1. cost_optimized — lowest cost (cheapest SKU/tier, no premium features, efficient access tier)
-2. most_secure — strongest security (HTTPS enforced, TLS 1.2, public access disabled, encryption, strict ACLs)
-3. best_networking — tightest network isolation (defaultAction Deny, VNet rules, no public access)
+    const systemPrompt = `You are a senior Azure cloud architect performing a configuration audit. You are given multiple snapshots of the same Azure resource captured at different points in time. Each snapshot represents the full configuration state at that moment.
 
-Respond ONLY with valid JSON array:
-[{"category":"cost_optimized","index":N,"reason":"one sentence"},{"category":"most_secure","index":N,"reason":"one sentence"},{"category":"best_networking","index":N,"reason":"one sentence"}]
-where index is the position in the configs array.`
+Your task: identify the TOP configuration for each of these 3 categories by comparing ALL snapshots against Azure Well-Architected Framework best practices.
+
+CATEGORIES AND SCORING CRITERIA:
+
+1. cost_optimized — Pick the config with the LOWEST monthly cost:
+   - Prefer Standard_LRS over GRS/ZRS/RAGRS (cheaper replication)
+   - Prefer Hot tier only if data is frequently accessed, otherwise Cool/Archive saves money
+   - Fewer premium features = lower cost
+   - No unnecessary CMK encryption (adds Key Vault cost)
+   - SystemAssigned identity is free, no cost impact
+
+2. most_secure — Pick the config with the STRONGEST security posture:
+   - supportsHttpsTrafficOnly MUST be true
+   - minimumTlsVersion MUST be TLS1_2
+   - allowBlobPublicAccess MUST be false
+   - encryption with Microsoft.Keyvault (CMK) is stronger than Microsoft.Storage
+   - networkAcls.defaultAction = Deny is more secure than Allow
+   - More ipRules/vnRules = more restricted = more secure
+   - SystemAssigned identity = better than None
+
+3. best_networking — Pick the config with the TIGHTEST network isolation:
+   - networkAcls_defaultAction = Deny is mandatory
+   - Higher networkAcls_vnRules count = better (VNet-restricted access)
+   - Higher networkAcls_ipRules count = more controlled access
+   - allowBlobPublicAccess = false required
+   - Private endpoint access preferred over public
+
+ADDITIONAL DATA PROVIDED:
+- durationHours: how long this config lasted before being changed. Higher = more stable/trusted.
+- estimatedCostPerGB: actual Azure price per GB/month for the SKU. Lower = cheaper.
+
+IMPORTANT: Prefer configs that lasted longer (higher durationHours) as they were validated in production. Different snapshots may win different categories. The cheapest config is rarely the most secure.
+
+Respond ONLY with valid JSON array (no markdown, no explanation):
+[{"category":"cost_optimized","index":N,"reason":"one specific sentence explaining why this config wins"},{"category":"most_secure","index":N,"reason":"one specific sentence citing the security settings"},{"category":"best_networking","index":N,"reason":"one specific sentence citing network rules"}]`
 
     const aiResp = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'}`, {
       method: 'POST',
@@ -305,12 +445,17 @@ router.get('/genome/categorize', async (req, res) => {
     const genomeTable = getGenomeIndexTable()
     const filter = `PartitionKey eq '${subscriptionId}'`
     const resourceIdLower = resourceId.toLowerCase()
+    const isRgLevel = !resourceId.startsWith('/subscriptions/')
     const categories = ['Network', 'Security', 'Tags', 'SKU', 'Identity', 'Configuration']
     const events = []
     const uncategorized = []
 
     for await (const entity of genomeTable.listEntities({ queryOptions: { filter } })) {
-      if (entity.resourceId?.toLowerCase() !== resourceIdLower) continue
+      if (isRgLevel) {
+        if (!entity.resourceId?.toLowerCase().includes('/resourcegroups/' + resourceIdLower + '/')) continue
+      } else {
+        if (entity.resourceId?.toLowerCase() !== resourceIdLower) continue
+      }
       const event = {
         eventType: 'created', eventAt: entity.savedAt, blobKey: entity.blobKey,
         snapshotLabel: entity.label || 'snapshot', snapshotType: entity.snapshotType || '',
@@ -425,9 +570,14 @@ router.get('/genome/history', async (req, res) => {
     const filter = `PartitionKey eq '${subscriptionId}'`
     const historyEvents = []
     const resourceIdLower = resourceId.toLowerCase()
+    const isRgLevel = !resourceId.startsWith('/subscriptions/')
 
     for await (const entity of genomeTable.listEntities({ queryOptions: { filter } })) {
-      if (entity.resourceId?.toLowerCase() !== resourceIdLower) continue
+      if (isRgLevel) {
+        if (!entity.resourceId?.toLowerCase().includes('/resourcegroups/' + resourceIdLower + '/')) continue
+      } else {
+        if (entity.resourceId?.toLowerCase() !== resourceIdLower) continue
+      }
       const snapshotLabel = entity.label || 'snapshot'
       const blobKey       = entity.blobKey
 

@@ -356,7 +356,7 @@ export default function GenomePage() {
           <RequestHistory />
         ) : activeTab === 'history' ? (
           <div className="gp-history-panel">
-            <GenomeHistory subscriptionId={subscriptionId} resourceId={resourceId} />
+            <GenomeHistory subscriptionId={subscriptionId} resourceId={resourceId} resourceGroupId={resourceGroupId} />
           </div>
         ) : (
           <div className="gp-body">

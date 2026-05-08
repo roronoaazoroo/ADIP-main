@@ -284,6 +284,10 @@ export async function deleteGenomeSnapshot(subscriptionId, blobKey) {
 // ── Genome Config Viewer ─────────────────────────────────────────────────────
 
 
+
+export async function fetchGenomeCtoSummary(subscriptionId, resourceId) {
+  return apiRequest(`/genome/cto-summary?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceId=${encodeURIComponent(resourceId)}`)
+}
 export async function fetchBestConfigs(subscriptionId, resourceId) {
   return apiRequest(`/genome/best-configs?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceId=${encodeURIComponent(resourceId)}`)
 }
