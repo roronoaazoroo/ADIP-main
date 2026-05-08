@@ -6,10 +6,10 @@ const { getDriftHistory: getDriftRecordsForRoute, getTotalChangesCount, getRecen
 
 //  GET /api/drift-events 
 router_drift.get('/drift-events', async (req, res) => {
-  const { subscriptionId, resourceGroup, severity, since, caller, limit = 50 } = req.query
+  const { subscriptionId, resourceGroup, resourceId, severity, since, caller, limit = 50 } = req.query
   if (!subscriptionId) return res.status(400).json({ error: 'subscriptionId required' })
   try {
-    const driftRecords          = await getDriftRecordsForRoute({ subscriptionId, resourceGroup, severity, startDate: since, limit })
+    const driftRecords          = await getDriftRecordsForRoute({ subscriptionId, resourceGroup, resourceId, severity, startDate: since, limit })
     const callerFilteredRecords = caller ? driftRecords.filter(record => record.caller === caller) : driftRecords
     res.json(callerFilteredRecords)
   } catch (fetchError) { res.status(500).json({ error: fetchError.message }) }
