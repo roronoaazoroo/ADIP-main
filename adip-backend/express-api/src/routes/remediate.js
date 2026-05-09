@@ -121,8 +121,14 @@ router_remediate.post('/remediate', async (req, res) => {
         extraResources.forEach(r => deletedResources.push({ name: r.name, type: r.type, status: 'dry-run-delete' }))
       }
 
-      const { saveGenomeSnapshot } = require('../services/blobService')
+      const { saveGenomeSnapshot, saveBaseline } = require('../services/blobService')
       saveGenomeSnapshot(subscriptionId, effectiveResourceId, baseline.resourceState, `remediated-${new Date().toISOString().replace(/[:.]/g, '-')}`).catch(() => {})
+      // Re-save baseline from fresh live state after successful remediation
+      // This prevents false-positive drift from runtime metadata (new disk names, IPs, MACs)
+      try {
+        const freshLive = await getResourceConfig(subscriptionId, resourceGroupId, null)
+        await saveBaseline(subscriptionId, resourceGroupId, effectiveResourceId, freshLive)
+      } catch {}
       if (idemKey) await markExecuted(idemKey, { resourceId: effectiveResourceId, type: 'rg-remediation' })
       res.json({ remediated: true, resourceId: effectiveResourceId, changeCount: differences.length, deployment: deploymentResult, deletedResources })
       console.log('[POST /remediate] ends — RG-level deployment:', JSON.stringify(deploymentResult.summary), 'deleted:', deletedResources.length)
@@ -204,9 +210,14 @@ router_remediate.post('/remediate', async (req, res) => {
     const monthlySavings = await recordRemediationSavings(subscriptionId, rgName, resourceId, differences, liveRaw?.location || process.env.DEFAULT_AZURE_LOCATION || 'eastus', liveRaw?.type).catch(() => 0)
 
     // Save genome snapshot after remediation
-    const { saveGenomeSnapshot } = require('../services/blobService')
+    const { saveGenomeSnapshot, saveBaseline } = require('../services/blobService')
     saveGenomeSnapshot(subscriptionId, resourceId, baselineState, `remediated-${new Date().toISOString().replace(/[:.]/g, '-')}`)
       .catch(genomeErr => console.log('[POST /remediate] genome save non-fatal:', genomeErr.message))
+    // Re-save baseline from fresh live state to prevent false-positive drift
+    try {
+      const freshLive = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+      await saveBaseline(subscriptionId, resourceGroupId, resourceId, freshLive)
+    } catch {}
 
     res.json({ remediated: true, resourceId, changeCount: differences.length,
       policiesCreated, monthlySavings, appliedBaseline: baselineState, previousLiveState: liveState })
