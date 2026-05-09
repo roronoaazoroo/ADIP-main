@@ -24,6 +24,15 @@ export function getSocket() {
     socket.on('resourceChange', (event) => {
       listeners.forEach(cb => { try { cb(event) } catch {} })
     })
+
+    // Re-subscribe to all active scopes on reconnect
+    socket.on('connect', () => {
+      if (activeScopes.size > 0) {
+        activeScopes.forEach(key => {
+          socket.emit('subscribe', JSON.parse(key))
+        })
+      }
+    })
   }
   return socket
 }
@@ -35,15 +44,23 @@ export function onResourceChange(callback) {
 }
 
 // Join a scope room on the server
+// Track active subscriptions for reconnect re-subscription
+const activeScopes = new Set()
+
 export function subscribeScope({ subscriptionId, resourceGroup, resourceId }) {
+  const key = JSON.stringify({ subscriptionId, resourceGroup: resourceGroup || null, resourceId: resourceId || null })
+  activeScopes.add(key)
   const s = getSocket()
+  const payload = { subscriptionId, resourceGroup: resourceGroup || null, resourceId: resourceId || null }
   if (s.connected) {
-    s.emit('subscribe', { subscriptionId, resourceGroup: resourceGroup || null, resourceId: resourceId || null })
+    s.emit('subscribe', payload)
   } else {
-    s.once('connect', () => {
-      s.emit('subscribe', { subscriptionId, resourceGroup: resourceGroup || null, resourceId: resourceId || null })
-    })
+    s.once('connect', () => s.emit('subscribe', payload))
   }
+}
+
+export function unsubscribeAllScopes() {
+  activeScopes.clear()
 }
 
 export function isConnected() {

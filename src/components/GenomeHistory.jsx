@@ -108,7 +108,7 @@ export default function GenomeHistory({ subscriptionId, resourceId, resourceGrou
   if (errorMessage) return <div className="gp-alert gp-alert--error">{errorMessage}</div>
   if (historyEvents.length === 0) return (
     <div className="gp-timeline-empty">
-      <span className="material-symbols-outlined" style={{ fontSize: 36, color: '#c2c7d0' }}>manage_history</span>
+      
       <p>No genome activity recorded for this resource yet.</p>
     </div>
   )
@@ -152,7 +152,7 @@ export default function GenomeHistory({ subscriptionId, resourceId, resourceGrou
                 <div className="gp-rollback-dot" style={{ background: config.color }} />
                 <div className="gp-rollback-event-content">
                   <div className="gp-rollback-event-header">
-                    <span className="material-symbols-outlined" style={{ fontSize: 14, color: config.color }}>{config.icon}</span>
+                    
                     <span className="gp-rollback-event-time">{new Date(historyEvent.eventAt).toLocaleString()}</span>
                     {historyEvent.isCurrentBaseline && historyEvent.eventType !== 'deleted' && (
                       <span className="gp-rollback-badge gp-rollback-badge--active">Current Baseline</span>
@@ -190,10 +190,10 @@ export default function GenomeHistory({ subscriptionId, resourceId, resourceGrou
           <div style={{ background: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
             <div style={{ display: 'flex', gap: 4, padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
               <button onClick={() => configTreeRef.current?.expandAll()} title="Expand all" style={{ fontSize: 10, padding: '2px 5px', borderRadius: 3, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#000' }}>unfold_more</span>
+                
               </button>
               <button onClick={() => configTreeRef.current?.collapseAll()} title="Collapse all" style={{ fontSize: 10, padding: '2px 5px', borderRadius: 3, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 2 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#000' }}>unfold_less</span>
+                
               </button>
             </div>
             <div style={{ padding: 16, maxHeight: 450, overflow: 'auto' }}>
@@ -206,7 +206,7 @@ export default function GenomeHistory({ subscriptionId, resourceId, resourceGrou
         )}
         {!selectedBlobKey && (
           <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 36, display: 'block', marginBottom: 8 }}>arrow_back</span>
+            
             Click an event to view its stored configuration
           </div>
         )}

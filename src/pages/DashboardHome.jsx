@@ -60,10 +60,10 @@ function FilterDropdown({ filterKey, config, selected, onToggle, isOpen, onOpenT
 }
 
 const SEVERITY_COLOR = {
-  critical: { dot: '#ef4444', text: '#ef4444', label: 'Critical' },
-  high:     { dot: '#f97316', text: '#f97316', label: 'High' },
-  medium:   { dot: '#f59e0b', text: '#f59e0b', label: 'Medium' },
-  low:      { dot: '#10b981', text: '#10b981', label: 'Low' },
+  critical: { dot: '#0060a9', text: '#0060a9', label: 'Critical' },
+  high:     { dot: '#1995ff', text: '#1995ff', label: 'High' },
+  medium:   { dot: '#63b3ed', text: '#63b3ed', label: 'Medium' },
+  low:      { dot: '#90cdf4', text: '#90cdf4', label: 'Low' },
 }
 
 function KpiCard({ label, value, icon, loading }) {
@@ -106,7 +106,7 @@ function DonutChart({ changed, total }) {
       <div className="donut-chart">
         <svg viewBox="0 0 36 36" className="donut-svg">
           <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" strokeWidth="3" />
-          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#f59e0b" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${dash}, 1000`} />
+          <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1995ff" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${dash}, 1000`} />
         </svg>
         <div className="donut-center">
           <span className="donut-number">{changed}</span>
@@ -114,7 +114,7 @@ function DonutChart({ changed, total }) {
         </div>
       </div>
       <div className="donut-legend">
-        <div className="donut-legend-item"><span className="donut-dot" style={{ background: '#f59e0b' }} />Changed ({changed})</div>
+        <div className="donut-legend-item"><span className="donut-dot" style={{ background: '#1995ff' }} />Changed ({changed})</div>
         <div className="donut-legend-item"><span className="donut-dot" style={{ background: '#e2e8f0' }} />Unchanged ({Math.max(total - changed, 0)})</div>
       </div>
     </div>
@@ -164,7 +164,7 @@ function BarChart({ subscriptionId }) {
               <div className="bar-outer">
                 <div className="bar-inner" style={{
                   height: `${(d.count / max) * 100}%`,
-                  background: d.count > 10 ? '#ef4444' : d.count > 3 ? '#1995ff' : '#c2c7d0'
+                  background: d.count > 10 ? '#003359' : d.count > 3 ? '#1995ff' : '#c2c7d0'
                 }} title={`${d.label}: ${d.count} change${d.count !== 1 ? 's' : ''}`} />
               </div>
               {i % labelEvery === 0 && <span className="bar-label" style={mode === '24h' ? { transform: 'rotate(-25deg)', transformOrigin: 'top left', fontSize: 9, whiteSpace: 'nowrap' } : {}}>{d.label}</span>}
@@ -505,7 +505,7 @@ export default function DashboardHome() {
                               )
                             })()}
                             {changeEvent.severity && changeEvent.severity !== 'low' && (
-                              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: changeEvent.severity === 'critical' ? 'rgba(239,68,68,0.15)' : changeEvent.severity === 'high' ? 'rgba(249,115,22,0.15)' : 'rgba(245,158,11,0.15)', color: changeEvent.severity === 'critical' ? '#ef4444' : changeEvent.severity === 'high' ? '#f97316' : '#f59e0b' }}>
+                              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: changeEvent.severity === 'critical' ? 'rgba(0,51,89,0.15)' : changeEvent.severity === 'high' ? 'rgba(25,149,255,0.15)' : 'rgba(99,179,237,0.15)', color: changeEvent.severity === 'critical' ? '#003359' : changeEvent.severity === 'high' ? '#1995ff' : '#0060a9' }}>
                                 {changeEvent.severity}
                               </span>
                             )}
@@ -524,8 +524,8 @@ export default function DashboardHome() {
                           <td className="dh-td-rg">{changeEvent.resourceGroup || '—'}</td>
                           <td className="dh-td-operation" title={changeEvent.operationName}>{shortOperationName || '—'}</td>
                           <td>
-                            <span className={`dh-change-badge dh-change-badge--${isDeleteEvent ? 'deleted' : 'modified'}`} style={isDeleteEvent ? { background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 700 } : {}}>
-                              {isDeleteEvent ? '🗑 DELETED' : (changeEvent.changeType || 'modified')}
+                            <span className={`dh-change-badge dh-change-badge--${isDeleteEvent ? 'deleted' : 'modified'}`} style={isDeleteEvent ? { background: 'rgba(0,51,89,0.12)', color: '#003359', fontWeight: 700 } : {}}>
+                              {isDeleteEvent ? 'DELETED' : (changeEvent.changeType || 'modified')}
                             </span>
                           </td>
                         </tr>

@@ -62,7 +62,7 @@ export default function RgDriftPrediction({ subscriptionId, resourceGroup }) {
   if (loading) return (
     <div className="rgp-loading"><div className="rgp-spinner" />Loading predictions…</div>
   )
-  if (error) return <div className="rgp-empty" style={{ color: '#ef4444' }}>⚠ {error}</div>
+  if (error) return <div className="rgp-empty" style={{ color: '#ef4444' }}> {error}</div>
   if (!data) return null
 
   const { resourceStats = [], aiPredictions = [], totalResources, totalDriftEvents } = data

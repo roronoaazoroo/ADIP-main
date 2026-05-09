@@ -174,7 +174,7 @@ export default function LoginPage() {
           {error && (
             <div className="login-error" role="alert">
               <span>{error}</span>
-              <button className="login-error-dismiss" onClick={dismissError} aria-label="Dismiss">✕</button>
+              <button className="login-error-dismiss" onClick={dismissError} aria-label="Dismiss"></button>
             </div>
           )}
 

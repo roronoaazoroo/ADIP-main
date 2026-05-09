@@ -68,7 +68,7 @@ export default function ManualFixGuide({ resourceId, resourceType, displayName, 
           </div>
         )}
 
-        {error && <p className="mfg-error">⚠ Failed to generate guide: {error}</p>}
+        {error && <p className="mfg-error"> Failed to generate guide: {error}</p>}
 
         {!loading && !guide && !error && (
           <p className="mfg-empty">No changes to fix.</p>

@@ -12,7 +12,7 @@ const INTENT_OPTIONS = [
   { key: 'compliance', label: 'Compliance' },
 ]
 
-const PRIORITY_COLOR = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', keep: '#10b981' }
+const PRIORITY_COLOR = { critical: '#003359', high: '#0060a9', medium: '#1995ff', keep: '#63b3ed' }
 
 export default function AggregatedDriftView({ subscriptionId, resourceGroupId, resourceId, resourceType, fieldDifferences }) {
   const [intent, setIntent] = useState('security')
@@ -56,7 +56,7 @@ export default function AggregatedDriftView({ subscriptionId, resourceGroupId, r
   }
 
   if (!fieldDifferences?.length) {
-    return <div style={{ padding: 16, color: '#10b981', fontSize: 14 }}>✓ No net drift — resource is in sync with baseline.</div>
+    return <div style={{ padding: 16, color: '#1995ff', fontSize: 14 }}>No net drift — resource is in sync with baseline.</div>
   }
 
   return (
@@ -77,7 +77,7 @@ export default function AggregatedDriftView({ subscriptionId, resourceGroupId, r
       </div>
 
       {/* Loading */}
-      {loading && <div style={{ color: '#60a5fa', fontSize: 13, padding: '12px 0' }}>⏳ Generating AI recommendations...</div>}
+      {loading && <div style={{ color: '#60a5fa', fontSize: 13, padding: '12px 0' }}>Generating AI recommendations...</div>}
 
       {/* Recommendations */}
       {!loading && recommendations.length > 0 && (
@@ -132,7 +132,7 @@ export default function AggregatedDriftView({ subscriptionId, resourceGroupId, r
             } catch (err) { setFeedback(`Error: ${err.message}`) }
             finally { setApplyingTickets(false) }
           }} disabled={!selected.size || applyingTickets}
-            style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !selected.size ? 0.4 : 1 }}>
+            style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid rgba(0,96,169,0.3)', background: 'rgba(0,96,169,0.08)', color: '#0060a9', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !selected.size ? 0.4 : 1 }}>
             {applyingTickets ? 'Updating...' : `Keep Selected (${selected.size})`}
           </button>
           <button onClick={handleApplySelected} disabled={!selected.size || applyingTickets}
@@ -144,7 +144,7 @@ export default function AggregatedDriftView({ subscriptionId, resourceGroupId, r
 
       {/* Feedback */}
       {feedback && (
-        <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6, fontSize: 12, background: feedback.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: feedback.startsWith('Error') ? '#ef4444' : '#10b981' }}>
+        <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6, fontSize: 12, background: feedback.startsWith('Error') ? 'rgba(0,51,89,0.08)' : 'rgba(25,149,255,0.08)', color: feedback.startsWith('Error') ? '#003359' : '#1995ff' }}>
           {feedback}
         </div>
       )}

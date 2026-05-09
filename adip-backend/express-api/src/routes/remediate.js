@@ -63,6 +63,19 @@ router_remediate.post('/remediate', async (req, res) => {
       const { deployResources } = require('../services/deploymentEngine')
       const { getResourceConfig } = require('../services/azureResourceService')
       const dryRun = req.body.dryRun === true
+
+      // Revert resource group properties (tags, etc.) to baseline
+      const baselineRg = baseline.resourceState?.resourceGroup
+      if (baselineRg && !dryRun) {
+        try {
+          await armClient.resourceGroups.createOrUpdate(resourceGroupId, {
+            location: baselineRg.location,
+            tags: baselineRg.tags || {},
+          })
+          console.log('[remediate] RG properties reverted (tags, location)')
+        } catch (rgErr) { console.log('[remediate] RG property revert failed:', rgErr.message) }
+      }
+
       const deploymentResult = await deployResources(subscriptionId, resourceGroupId, rawBaselineResources, { dryRun })
 
       // Delete resources that exist in live but NOT in baseline (enforce exact state)

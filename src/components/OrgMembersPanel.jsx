@@ -9,8 +9,8 @@ import './OrgMembersPanel.css'
 
 const ROLE_COLOR = {
   admin:     '#1995ff',
-  approver:  '#10b981',
-  requestor: '#f59e0b',
+  approver:  '#0060a9',
+  requestor: '#003359',
 }
 
 export default function OrgMembersPanel() {
@@ -65,7 +65,7 @@ export default function OrgMembersPanel() {
     <div className="omp-root">
       {/* Header */}
       <div className="omp-header">
-        <span className="material-symbols-outlined omp-header-icon">group</span>
+        
         <h3 className="omp-org-name">
           {organization?.organizationName || 'Organization Members'}
         </h3>

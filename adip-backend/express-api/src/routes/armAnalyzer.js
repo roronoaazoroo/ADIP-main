@@ -57,7 +57,10 @@ router.post('/arm-analyze', async (req, res) => {
   }
   const cleanBaseline = summarizeArm(cleanForAI(baselineState))
   const cleanLive = summarizeArm(cleanForAI(liveState))
-  const diffSummary = (differences || []).slice(0, 30).map(d => `${d.type} ${d.path}: ${JSON.stringify(d.oldValue)?.slice(0,20)} → ${JSON.stringify(d.newValue)?.slice(0,20)}`).join('\n')
+  // Filter out volatile/noise fields before sending to AI
+  const NOISE = ['defaultSecurityRules', 'osProfile', 'vmId', 'resourceGuid', 'provisioningState', 'macAddress', 'ipAddress', 'dnsSettings', 'uniqueId', 'creationData', 'timeCreated', 'primary', 'virtualMachine', 'networkInterfaces', 'subnets']
+  const meaningfulDiffs = (differences || []).filter(d => !NOISE.some(n => (d.path || '').includes(n)))
+  const diffSummary = meaningfulDiffs.slice(0, 15).map(d => `${d.type} ${d.path}: ${JSON.stringify(d.oldValue)?.slice(0,20)} → ${JSON.stringify(d.newValue)?.slice(0,20)}`).join('\n')
 
   const systemPrompt = `You are an Azure infrastructure drift analysis engine.
 Compare baseline and live ARM templates directly. Do not rely only on provided diffs.
@@ -65,7 +68,8 @@ Compare baseline and live ARM templates directly. Do not rely only on provided d
 Rules:
 - List EVERY newly added resource: "New [resource type] created: [resource name]" — do not skip any
 - List EVERY deleted resource: "[resource name] was deleted"
-- For modified resources: mention every changed property clearly
+- For modified resources: only mention MEANINGFUL changes (skip volatile fields like vmId, osProfile, defaultSecurityRules, macAddress, provisioningState)
+- If no meaningful modifications exist, say "No significant configuration changes detected"
 - Infer dependent Azure resources created together (VM → NIC, IP, NSG, Disk)
 - Be concise but infrastructure-aware
 - Group related resources logically
@@ -129,7 +133,7 @@ ${diffSummary || 'none provided'}`
     res.json({
       summary: `${newResources.length} new, ${deletedResources.length} deleted, ${(differences || []).length} modifications`,
       newResources, deletedResources,
-      modifiedResources: (differences || []).slice(0, 10).map(d => ({ name: d.path?.split(' → ')[0] || '', field: d.path, from: String(d.oldValue ?? '').slice(0, 30), to: String(d.newValue ?? '').slice(0, 30), impact: d.type })),
+      modifiedResources: meaningfulDiffs.slice(0, 10).map(d => ({ name: d.path?.split(' → ')[0] || '', field: d.path, from: String(d.oldValue ?? '').slice(0, 30), to: String(d.newValue ?? '').slice(0, 30), impact: d.type })),
       risks: [],
     })
   }
