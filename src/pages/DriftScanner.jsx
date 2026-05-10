@@ -78,7 +78,9 @@ export default function DriftScanner() {
   const setScopes = setCtxScopes
   const isMultiScope = scopes.length > 1
   // Which scope is selected in the config/graph tab dropdown
-  const [selectedScopeId, setSelectedScopeId] = React.useState(null)
+  const [selectedScopeId, setSelectedScopeId] = React.useState(() => {
+    const s = scopes[0]; return s?.resourceId || s?.resourceGroupId || null
+  })
   const [expandedResourceIndex, setExpandedResourceIndex] = React.useState(null)
   const activeScope = scopes.find(s => (s.resourceId || s.resourceGroupId) === selectedScopeId) || scopes[0]
 
@@ -99,16 +101,21 @@ export default function DriftScanner() {
   // Otherwise re-fetch from ARM to keep the JSON tree current
   const handleLiveConfigUpdate = useCallback((incomingEvent) => {
     if (!incomingEvent.resourceId && !incomingEvent.resourceGroup) return
-    if (resource && incomingEvent.liveState) {
+    // Only update if event matches currently viewed scope (prevents snap-back)
+    const viewedRg = activeScope?.resourceGroupId || resourceGroup
+    const eventRg = incomingEvent.resourceGroup || incomingEvent.resourceId?.split('/')[4]
+    if (eventRg && viewedRg && eventRg.toLowerCase() !== viewedRg.toLowerCase()) return
+    const viewedRes = activeScope?.resourceId || resource
+    if (viewedRes && incomingEvent.liveState) {
       setConfigData(incomingEvent.liveState)
     } else if (!fetchingRef.current) {
       fetchingRef.current = true
-      fetchResourceConfiguration(subscription, resourceGroup, resource || null)
+      fetchResourceConfiguration(subscription, viewedRg, viewedRes || null)
         .then(freshConfig => { if (freshConfig) setConfigData(freshConfig) })
         .catch(() => {})
         .finally(() => { fetchingRef.current = false })
     }
-  }, [subscription, resourceGroup, resource, setConfigData])
+  }, [subscription, resourceGroup, resource, activeScope, setConfigData])
 
   // Connect to Socket.IO — receives real-time ARM change events for the selected scope
   // socketConnected: true when the WebSocket connection is active
@@ -119,10 +126,10 @@ export default function DriftScanner() {
   useEffect(() => () => { if (scanInterval.current) clearInterval(scanInterval.current) }, [])
 
   useEffect(() => {
-    const s = scopes[0]
+    const s = activeScope || scopes[0]
     if (!isSubmitted || !s?.subscriptionId || !s?.resourceGroupId) return
     const id = setInterval(() => {
-      if (fetchingRef.current) return
+      if (fetchingRef.current || document.visibilityState !== 'visible') return
       fetchingRef.current = true
       fetchResourceConfiguration(s.subscriptionId, s.resourceGroupId, s.resourceId || null)
         .then(cfg => { if (cfg) setConfigData(cfg) })
@@ -130,7 +137,7 @@ export default function DriftScanner() {
         .finally(() => { fetchingRef.current = false })
     }, 5000)
     return () => clearInterval(id)
-  }, [isSubmitted, scopes])
+  }, [isSubmitted, activeScope, scopes])
 
   // Returns hardcoded demo config when the backend is unreachable (isDemoMode = true)
   // Looks up the selected resource group in RESOURCE_CONFIGS, then finds the specific resource if one is selected
@@ -472,7 +479,7 @@ export default function DriftScanner() {
                                   {resource.kind && <div style={rowStyle}><span style={labelStyle}>Kind</span><span style={valueStyle}>{resource.kind}</span></div>}
                                   {Object.entries(resProps).map(([key, value]) => {
                                     if (key === 'provisioningState' || key === 'creationTime') return null
-                                    const displayValue = typeof value === 'boolean' ? (value ? '✅ Yes' : '❌ No')
+                                    const displayValue = typeof value === 'boolean' ? (value ? ' Yes' : ' No')
                                       : typeof value === 'object' ? JSON.stringify(value).slice(0, 60)
                                       : String(value).slice(0, 60)
                                     return <div key={key} style={rowStyle}><span style={labelStyle}>{key}</span><span style={valueStyle}>{displayValue}</span></div>

@@ -95,7 +95,7 @@ export default function ArmInfrastructureSummary({ subscriptionId, resourceGroup
 
         {/* Empty state */}
         {!analysis.newResources?.length && !analysis.deletedResources?.length && !analysis.modifiedResources?.length && (
-          <p style={{ color: '#10b981' }}>✓ No significant infrastructure changes detected.</p>
+          <p style={{ color: '#10b981' }}> No significant infrastructure changes detected.</p>
         )}
       </div>
     </div>

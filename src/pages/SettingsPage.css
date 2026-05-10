@@ -320,6 +320,12 @@
   cursor: not-allowed;
 }
 
+.sp-select option {
+  padding: 10px;
+  background-color: #fff;
+  color: #1a1c1e;
+}
+
 /*   Setting Row*/
 .sp-setting-row {
   display: flex;

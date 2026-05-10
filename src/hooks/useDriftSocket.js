@@ -16,7 +16,7 @@
 // Returns: { driftEvents, socketConnected, socketError, clearDriftEvents }
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { onResourceChange, subscribeScope, isConnected } from '../services/socketSingleton'
+import { onResourceChange, subscribeScope, isConnected, unsubscribeAllScopes } from '../services/socketSingleton'
  
  
  
@@ -80,7 +80,8 @@ export function useDriftSocket(scopeOrScopes, isSubmitted = false, onConfigUpdat
     const scopes = Array.isArray(scopeOrScopes) ? scopeOrScopes : [scopeOrScopes]
     const validScopes = scopes.filter(s => s?.subscriptionId)
     if (!validScopes.length) return
-    // Subscribe to all scope rooms
+    // Clear previous subscriptions and subscribe to all new scope rooms
+    unsubscribeAllScopes()
     validScopes.forEach(s => subscribeScope({ subscriptionId: s.subscriptionId, resourceGroup: s.resourceGroup || s.resourceGroupId, resourceId: s.resourceId || null }))
     setSocketConnected(isConnected())
 

@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react'
 import { fetchBestConfigs } from '../services/api'
 
 const CATEGORY_META = {
-  cost_optimized: { icon: '💰', label: 'Most Cost Optimized', color: '#f59e0b' },
-  most_secure: { icon: '🔒', label: 'Most Secure', color: '#10b981' },
-  best_networking: { icon: '🌐', label: 'Best Networking', color: '#1995ff' },
+  cost_optimized: { label: 'Most Cost Optimized', color: '#1995ff' },
+  most_secure:    { label: 'Most Secure',          color: '#003359' },
+  best_networking:{ label: 'Best Networking',      color: '#0060a9' },
 }
 
 export default function GenomeBestConfigs({ subscriptionId, resourceId, onViewConfig, onRollback }) {
@@ -27,7 +27,7 @@ export default function GenomeBestConfigs({ subscriptionId, resourceId, onViewCo
   return (
     <div>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span>🏆</span> AI Recommended Best Configurations
+        AI Recommended Best Configurations
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {loading && <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Analyzing configurations with AI...</div>}
@@ -37,7 +37,6 @@ export default function GenomeBestConfigs({ subscriptionId, resourceId, onViewCo
             return (
               <div key={i} style={{ padding: 12, border: `1px solid ${meta.color}30`, borderRadius: 8, background: `${meta.color}08` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span>{meta.icon}</span>
                   <strong style={{ fontSize: 12, color: meta.color }}>{meta.label}</strong>
                   <span style={{ marginLeft: 'auto', fontSize: 10, color: '#94a3b8' }}>
                     {rec.savedAt ? new Date(rec.savedAt).toLocaleString() : ''}

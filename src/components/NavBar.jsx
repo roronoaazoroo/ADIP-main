@@ -150,9 +150,10 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           onClick={() => { setNotificationPanelOpen(true); setUnreadCount(0); }}
           style={{ position: 'relative' }}
         >
+          
           <span className="material-symbols-outlined">notifications</span>
           {unreadCount > 0 && (
-            <span style={{ position: 'absolute', top: 2, right: 2, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
+            <span style={{ position: 'absolute', top: 2, right: 2, background: '#1995ff', color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount > 9 ? '9+' : unreadCount}</span>
           )}
         </button>
 
@@ -163,6 +164,7 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           aria-label="Settings"
           data-tooltip="Settings"
         >
+          
           <span className="material-symbols-outlined">settings</span>
         </button>
 
@@ -178,14 +180,15 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           aria-label="Sign out"
           data-tooltip="Sign out"
         >
+          
           <span className="material-symbols-outlined">logout</span>
         </button>
 
         {/* User chip — avatar + name + role */}
         {(() => {
           const role = liveRole || user?.role
-          const roleBg    = role === 'admin'    ? 'rgba(25,149,255,0.12)'   : role === 'approver' ? 'rgba(16,185,129,0.12)'  : 'rgba(245,158,11,0.12)'
-          const roleColor = role === 'admin'    ? '#1995ff'                 : role === 'approver' ? '#10b981'                : '#d97706'
+          const roleBg    = role === 'admin'    ? 'rgba(25,149,255,0.12)'   : role === 'approver' ? 'rgba(0,96,169,0.12)'  : 'rgba(0,51,89,0.08)'
+          const roleColor = role === 'admin'    ? '#1995ff'                 : role === 'approver' ? '#0060a9'                : '#003359'
           return (
             <div className="dh-user-chip" aria-label={`Signed in as ${user?.name || 'User'}, role: ${role || 'unknown'}`}>
               <div className="dh-avatar" aria-hidden="true">
@@ -210,9 +213,8 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
           aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={mobileMenuOpen}
         >
-          <span className="material-symbols-outlined">
-            {mobileMenuOpen ? 'close' : 'menu'}
-          </span>
+          
+          <span style={{ fontWeight: 600 }}>Menu</span>
         </button>
       </div>
 
@@ -228,7 +230,7 @@ const NavBar = ({ user, subscription, resourceGroup, resource, configData, scope
                 role="menuitem"
                 aria-current={isActive(item.path) ? 'page' : undefined}
               >
-                <span className="material-symbols-outlined">{item.icon}</span>
+                
                 {item.label}
               </button>
             ))}

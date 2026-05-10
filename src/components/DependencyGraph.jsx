@@ -125,7 +125,7 @@ function friendlyLabel(key) {
 //  Value formatter for human-readable display 
 function formatValue(val) {
   if (val === null || val === undefined) return '—'
-  if (typeof val === 'boolean') return val ? '✅ Yes' : '❌ No'
+  if (typeof val === 'boolean') return val ? 'Yes' : 'No'
   if (typeof val === 'number') return val.toLocaleString()
   if (typeof val === 'string') {
     if (val.length > 120) return val.slice(0, 117) + '…'

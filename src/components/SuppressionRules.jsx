@@ -134,7 +134,7 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
                 <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{rule.reason || '—'}</td>
                 <td>
                   <button className="cp-toolbar-btn" onClick={() => handleDelete(rule.rowKey)} aria-label={`Delete rule for ${rule.fieldPath}`}>
-                    <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#ef4444' }}>delete</span>
+                    
                   </button>
                 </td>
               </tr>
@@ -185,7 +185,7 @@ export default function SuppressionRules({ subscriptionId: propSubId }) {
  
       <button className="cp-btn cp-btn--secondary" style={{ marginTop: 12 }}
         onClick={handleAdd} disabled={saving || !fieldPath.trim() || !effectiveSubId}>
-        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+        
         {saving ? 'Saving...' : 'Add Rule'}
       </button>
     </div>

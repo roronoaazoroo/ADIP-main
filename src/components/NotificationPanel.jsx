@@ -10,10 +10,10 @@ import { getSocket } from '../services/socketSingleton'
 import './NotificationPanel.css'
 
 const SEVERITY_COLOR = {
-  critical: '#ef4444',
-  high:     '#f97316',
-  medium:   '#f59e0b',
-  low:      '#facc15',
+  critical: '#003359',
+  high:     '#0060a9',
+  medium:   '#1995ff',
+  low:      '#63b3ed',
 }
 
 export default function NotificationPanel({ isOpen, onClose }) {
@@ -107,7 +107,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
         {/* Header */}
         <div className="np-header">
           <span className="np-title">Notifications</span>
-          <button className="np-close-btn" onClick={onClose} aria-label="Close">✕</button>
+          <button className="np-close-btn" onClick={onClose} aria-label="Close">X</button>
         </div>
 
         {/* Tabs */}
@@ -153,7 +153,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
           {activeTab === 'approvals' && (
             pendingTickets.length === 0 ? (
               <div className="np-empty">
-                <div className="np-empty-icon">✅</div>
+                <div className="np-empty-icon">—</div>
                 No pending approvals
               </div>
             ) : pendingTickets.map(ticket => (
@@ -170,7 +170,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
                     {ticket.severity}
                   </span>
                   <span className="np-approval-count">
-                    {ticket.currentApprovals}/{ticket.requiredApprovals} ✓
+                    {ticket.currentApprovals}/{ticket.requiredApprovals} approved
                   </span>
                 </div>
 
@@ -220,14 +220,14 @@ export default function NotificationPanel({ isOpen, onClose }) {
                         onClick={() => handleApprove(ticket.ticketId)}
                         disabled={actionLoading === ticket.ticketId}
                       >
-                        ✓ Approve
+                        Approve
                       </button>
                       <button
                         className="np-btn np-btn--reject"
                         onClick={() => handleReject(ticket.ticketId)}
                         disabled={actionLoading === ticket.ticketId}
                       >
-                        ✗ Reject
+                        Reject
                       </button>
                     </>
                   )}
@@ -249,7 +249,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
 
             {notifications.length === 0 ? (
               <div className="np-empty">
-                <div className="np-empty-icon">🔔</div>
+                <div className="np-empty-icon">[ ]</div>
                 No notifications yet
               </div>
             ) : notifications.map(notification => (
@@ -271,7 +271,7 @@ export default function NotificationPanel({ isOpen, onClose }) {
           {activeTab === 'myRequests' && (
             myTickets.length === 0 ? (
               <div className="np-empty">
-                <div className="np-empty-icon">📋</div>
+                <div className="np-empty-icon">[ ]</div>
                 No requests submitted yet
               </div>
             ) : myTickets.map(ticket => (
@@ -286,10 +286,10 @@ export default function NotificationPanel({ isOpen, onClose }) {
                     }`}
                   >
                     {ticket.status === 'pending'
-                      ? `⏳ ${ticket.currentApprovals}/${ticket.requiredApprovals} approved`
+                      ? `${ticket.currentApprovals}/${ticket.requiredApprovals} approved`
                       : ticket.status === 'approved'
-                        ? '✓ Approved & Executed'
-                        : '✗ Rejected'}
+                        ? 'Approved & Executed'
+                        : 'Rejected'}
                   </span>
                 </div>
                 <div className="np-meta">{fmtDate(ticket.createdAt)}</div>

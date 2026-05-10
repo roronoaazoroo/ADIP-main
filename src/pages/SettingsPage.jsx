@@ -302,8 +302,8 @@ export default function SettingsPage() {
               {/* User chip — mirrors NavBar chip design */}
               {(() => {
                 const role = user?.role
-                const roleBg    = role === 'admin'    ? 'rgba(25,149,255,0.12)' : role === 'approver' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'
-                const roleColor = role === 'admin'    ? '#1995ff'               : role === 'approver' ? '#10b981'               : '#d97706'
+                const roleBg    = role === 'admin'    ? 'rgba(25,149,255,0.12)' : role === 'approver' ? 'rgba(0,96,169,0.12)' : 'rgba(0,51,89,0.08)'
+                const roleColor = role === 'admin'    ? '#1995ff'               : role === 'approver' ? '#0060a9'               : '#003359'
                 return (
                   <div className="sp-user-chip">
                     <div className="sp-avatar-large" aria-hidden="true">
