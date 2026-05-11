@@ -300,12 +300,7 @@ function ResourceDetailPanel({ nodeData, configData, configLoading, configError,
 
         {/* Footer actions */}
         <div className="dg-detail-footer">
-          {onCompare && (
-            <button className="dg-detail-btn dg-detail-btn--primary" onClick={() => onCompare(nodeData)}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>compare_arrows</span>
-              Compare Drift
-            </button>
-          )}
+        
           <button className="dg-detail-btn" onClick={onClose}>
             Close
           </button>
