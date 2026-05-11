@@ -88,7 +88,7 @@ async function getRemediationRecommendation(record) {
   const changes = (record.differences || record.changes || [])
     .map(c => c.sentence || `${c.type} ${c.path}`).slice(0, 10).join('\n')
   const result = await chat(
-    'You are an Azure cloud architect. Give a 2-3 sentence remediation recommendation. Explain what reverting to baseline will do and whether it is safe. No markdown.',
+    'You are an Azure cloud architect. Give a remediation recommendation in markdown format. Use **bold** for key actions, bullet points for steps, and a brief risk note. Keep it concise (4-6 lines max).',
     `Resource: ${record.resourceId?.split('/').pop()}\nChanges to revert:\n${changes}`
   )
   console.log('[getRemediationRecommendation] ends')

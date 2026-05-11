@@ -43,6 +43,7 @@ function CostDeltaBadge({ resourceType, location, fieldPath, oldValue, newValue 
     </span>
   )
 }
+import MarkdownRenderer from '../components/MarkdownRenderer'
 import { useDashboard } from '../context/DashboardContext'
 import { useViewMode } from '../context/ViewModeContext'
 import AggregatedDriftView from '../components/AggregatedDriftView'
@@ -520,7 +521,7 @@ export default function ComparisonPage() {
             <span className="material-symbols-outlined">smart_toy</span>
             <div>
               <div className="cp-ai-label">AI Security Analysis</div>
-              <div className="cp-ai-text">{isAiLoading ? 'Analysing drift with Azure OpenAI...' : aiDriftExplanation}</div>
+              <div className="cp-ai-text">{isAiLoading ? 'Analysing drift with Azure OpenAI...' : <MarkdownRenderer content={aiDriftExplanation} />}</div>
             </div>
           </div>
         )}
@@ -529,7 +530,7 @@ export default function ComparisonPage() {
             <span className="material-symbols-outlined">lightbulb</span>
             <div>
               <div className="cp-ai-label">AI Remediation Recommendation</div>
-              <div className="cp-ai-text">{aiRemediationRecommendation}</div>
+              <div className="cp-ai-text"><MarkdownRenderer content={aiRemediationRecommendation} /></div>
             </div>
           </div>
         )}
