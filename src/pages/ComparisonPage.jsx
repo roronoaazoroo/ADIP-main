@@ -467,7 +467,7 @@ export default function ComparisonPage() {
                 {remediationMode ? (
                 <button className={`cp-btn ${driftSeverity === 'low' ? 'cp-btn--green' : 'cp-btn--primary'}`} onClick={handleRemediate} disabled={isRemediating || fieldDifferences.length === 0}>
                   {isRemediating ? <><div className="cp-spinner" />{driftSeverity === 'low' ? 'Applying...' : 'Sending...'}</> :
-                   remediationSucceeded ? (driftSeverity === 'low' ? '✓ Remediated!' : '✓ Request Sent!') :
+                   remediationSucceeded ? (driftSeverity === 'low' ? ' Remediated!' : ' Request Sent!') :
                    driftSeverity === 'low' ? 'Apply Fix Now' : 'Request Approval'}
                 </button>
                 ) : (
@@ -492,7 +492,7 @@ export default function ComparisonPage() {
         {remediationSucceeded && remediationDiffSummary !== null && (
           <div className="cp-alert cp-alert--success" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <strong>{driftSeverity === 'low' ? '✓ Remediation applied.' : '✓ Approval request sent.'}</strong>
+              <strong>{driftSeverity === 'low' ? ' Remediation applied.' : ' Approval request sent.'}</strong>
               {remediationDiffSummary.length > 0 && <span> {remediationDiffSummary.length} field change(s) queued.</span>}
             </div>
             {/* Feature 8: Policy as Code Enforcement */}
@@ -544,7 +544,7 @@ export default function ComparisonPage() {
             <span className="material-symbols-outlined" style={{ fontSize: 48, color: '#c2c7d0' }}>layers</span>
             <p>No golden baseline found for <strong>{displayName}</strong>.</p>
             <button className="cp-btn cp-btn--primary" onClick={handleRemediate} disabled={isRemediating || fieldDifferences.length === 0}>
-              {isRemediating ? 'Seeding...' : remediationSucceeded ? '✓ Done!' : 'Promote Current State as Baseline'}
+              {isRemediating ? 'Seeding...' : remediationSucceeded ? ' Done!' : 'Promote Current State as Baseline'}
             </button>
           </div>
         )}
@@ -590,7 +590,7 @@ export default function ComparisonPage() {
             <div className="cp-card-header">
               <span className="material-symbols-outlined" style={{ color: '#0060a9' }}>info</span>
               <h3>{fieldDifferences.length === 0 ? 'In sync with baseline' : `${fieldDifferences.length} change(s) detected`}</h3>
-              {fieldDifferences.length === 0 && <span className="cp-sync-badge">✓ No drift</span>}
+              {fieldDifferences.length === 0 && <span className="cp-sync-badge"> No drift</span>}
             </div>
             {fieldDifferences.length > 0 && (
               <div className="cp-changes-list">
@@ -682,7 +682,7 @@ export default function ComparisonPage() {
                           <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                             <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0, marginRight: 12 }}>{key}</span>
                             <span style={{ color: 'var(--text-primary)', fontSize: 12, maxWidth: '60%', textAlign: 'right', wordBreak: 'break-all' }}>
-                              {typeof value === 'boolean' ? (value ? '✅' : '❌') : typeof value === 'object' ? JSON.stringify(value).slice(0, 80) : String(value).slice(0, 80)}
+                              {typeof value === 'boolean' ? (value ? '' : '') : typeof value === 'object' ? JSON.stringify(value).slice(0, 80) : String(value).slice(0, 80)}
                             </span>
                           </div>
                         ))}

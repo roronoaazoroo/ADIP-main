@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { fetchGenomeCtoSummary } from '../services/api'
 
-const RISK_COLOR = { critical: '#dc2626', high: '#f97316', medium: '#f59e0b', low: '#10b981' }
+const RISK_COLOR = { critical: '#003359', high: '#0060a9', medium: '#1995ff', low: '#63b3ed' }
 
 export default function GenomeCtoView({ subscriptionId, resourceId, resourceGroupId }) {
   const [data, setData] = useState(null)
@@ -22,7 +22,7 @@ export default function GenomeCtoView({ subscriptionId, resourceId, resourceGrou
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Loading executive summary...</div>
   if (!data) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No data available</div>
 
-  const scoreColor = data.healthScore >= 80 ? '#10b981' : data.healthScore >= 60 ? '#f59e0b' : '#dc2626'
+  const scoreColor = data.healthScore >= 80 ? '#1995ff' : data.healthScore >= 60 ? '#0060a9' : '#003359'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -49,8 +49,8 @@ export default function GenomeCtoView({ subscriptionId, resourceId, resourceGrou
             { label: 'Network Deny Default', ok: data.latestConfig?.networkDefault === 'Deny' },
             { label: 'Managed Identity', ok: data.latestConfig?.identity !== 'None' },
           ].map((item, i) => (
-            <span key={i} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: item.ok ? '#f0fdf4' : '#fef2f2', color: item.ok ? '#16a34a' : '#dc2626', border: `1px solid ${item.ok ? '#bbf7d0' : '#fecaca'}` }}>
-              {item.ok ? '✓' : '✗'} {item.label}
+            <span key={i} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: item.ok ? 'rgba(25,149,255,0.1)' : 'rgba(0,51,89,0.08)', color: item.ok ? '#1995ff' : '#003359', border: `1px solid ${item.ok ? 'rgba(25,149,255,0.3)' : 'rgba(0,51,89,0.2)'}` }}>
+              {item.ok ? 'PASS' : 'FAIL'} {item.label}
             </span>
           ))}
         </div>
@@ -58,8 +58,8 @@ export default function GenomeCtoView({ subscriptionId, resourceId, resourceGrou
 
       {/* Risks */}
       {data.risks?.length > 0 && (
-        <div style={{ padding: 14, borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#dc2626', marginBottom: 8 }}>⚠️ Active Risks</div>
+        <div style={{ padding: 14, borderRadius: 8, border: '1px solid rgba(0,51,89,0.2)', background: 'rgba(0,51,89,0.04)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#003359', marginBottom: 8 }}>Active Risks</div>
           {data.risks.map((r, i) => (
             <div key={i} style={{ fontSize: 12, color: RISK_COLOR[r.level] || '#64748b', marginBottom: 4 }}>
               • {r.message}

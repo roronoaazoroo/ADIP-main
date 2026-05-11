@@ -19,6 +19,10 @@ const VOLATILE = [
   'ipAddress', 'dnsSettings',
   'LastOwnershipUpdateTime', 'uniqueId', 'creationData', 'timeCreated',
   'diskSizeBytes', 'diskState', 'tier',
+  // Recreation-volatile: change on every resource recreation
+  'ipConfiguration', 'managedBy', 'networkInterfaces', 'subnets',
+  'primaryEndpoints', 'primaryLocation', 'statusOfPrimary', 'creationTime',
+  'keyCreationTime', 'exactVersion', 'hostedWorkloads', 'tapConfigurations',
 ]
 
 const CRITICAL_PATHS = [
