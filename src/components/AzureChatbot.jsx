@@ -24,6 +24,7 @@
 // bottomRef: ref to an empty div at the bottom of the message list
 //   scrollIntoView() is called on every new message to keep the latest visible
 
+import MarkdownRenderer from './MarkdownRenderer'
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import './AzureChatbot.css'
 
@@ -139,7 +140,7 @@ export default function AzureChatbot({ context }) {
             {messages.map((chatMessage, messageIndex) => (
               <div key={messageIndex} className={`chatbot-msg-row chatbot-msg-row--${chatMessage.role}`}>
                 <div className={`chatbot-msg-bubble chatbot-msg-bubble--${chatMessage.role} ${chatMessage.isError ? 'chatbot-msg-bubble--error' : ''}`}>
-                  {chatMessage.content}
+                  {chatMessage.role === 'assistant' ? <MarkdownRenderer content={chatMessage.content} /> : chatMessage.content}
                 </div>
                 <span className="chatbot-msg-time">{formatTime(chatMessage.timestamp)}</span>
               </div>

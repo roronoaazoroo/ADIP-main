@@ -24,7 +24,7 @@ router.post('/manual-guide', async (req, res) => {
     return `"${field}" changed from ${JSON.stringify(d.oldValue)?.slice(0, 25)} to ${JSON.stringify(d.newValue)?.slice(0, 25)}`
   }).join('\n')
 
-  const systemPrompt = `You are an Azure infrastructure expert helping a developer manually fix configuration drift.
+  const systemPrompt = `You are an Azure infrastructure expert helping a developer manually fix configuration drift. Format all text responses in markdown with bold, code blocks for CLI commands, and numbered steps.
 Generate a clear, simple, step-by-step guide to revert each change.
 Return a JSON array where each item has: { "title": "short action title", "description": "explain what this fixes and why", "portal": "exact Azure Portal navigation path with clicks", "cli": "exact az CLI command to run" }
 Be specific — include exact menu names, blade names, and setting labels for Portal steps.

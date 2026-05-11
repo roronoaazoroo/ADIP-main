@@ -62,7 +62,7 @@ router.post('/ai/explain', async (req, res) => {
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
       body: JSON.stringify({
         messages: [
-          { role: 'system', content: 'You are an Azure infrastructure expert. Compare the baseline and live state. Summarize EXACTLY what changed in bullet points. For new resources say "New [type] created: [name]". For deleted resources say "[name] was deleted". For modified resources list each changed field. Be concise — no definitions, no filler. Each bullet: what changed and the security/cost/compliance impact in one phrase.' },
+          { role: 'system', content: 'You are an Azure infrastructure expert. Respond in markdown format. Compare the baseline and live state. Use markdown bullet points with **bold field names** and `code` for values. Be concise. For new resources say "New [type] created: [name]". For deleted resources say "[name] was deleted". For modified resources list each changed field. Be concise — no definitions, no filler. Each bullet: what changed and the security/cost/compliance impact in one phrase.' },
           { role: 'user', content: userContent }
         ],
         max_tokens: 500, temperature: 0.3,

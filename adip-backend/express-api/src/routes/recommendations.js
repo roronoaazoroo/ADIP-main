@@ -21,7 +21,7 @@ router.post('/recommendations', async (req, res) => {
   const resourceName = (resourceId || resourceGroupId || '').split('/').pop()
   const resourceType = req.body.resourceType || ''
 
-  const systemPrompt = `You are an Azure infrastructure advisor. The user's priority is: ${intent.toUpperCase()}.
+  const systemPrompt = `You are an Azure infrastructure advisor. Use markdown in the reason field (bold for key terms, code for field paths). The user's priority is: ${intent.toUpperCase()}.
 Analyze the following configuration drift and return a JSON array of recommendations.
 Each item must have: { "priority": "critical|high|medium|keep", "field": "field path", "action": "revert|keep", "reason": "one sentence why", "autoFixAvailable": true/false, "manualGuide": { "portal": "step by step portal instructions", "cli": "az cli command" } }
 Sort by priority (critical first). Mark changes that ALIGN with the user's intent as "keep".

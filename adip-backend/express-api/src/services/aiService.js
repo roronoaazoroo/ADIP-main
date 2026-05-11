@@ -87,7 +87,7 @@ async function explainDrift(driftRecord) {
       .slice(0, 15).join('\n')
 
     const explanationText = await callAzureOpenAI(
-      'You are an Azure security expert. Explain this configuration drift in plain English in 3-4 sentences. Focus on security implications. No markdown, no bullet points.',
+      'You are an Azure security expert. Explain this configuration drift in markdown format. Use bullet points for each change, bold for field names, and a brief security impact summary. Keep it concise (4-6 lines max).',
       `Resource: ${driftRecord.resourceId?.split('/').pop()} (type: ${driftRecord.resourceId?.split('/')[7] || 'unknown'})\nResource Group: ${driftRecord.resourceGroup}\nChanges:\n${changesText}`
     )
     console.log('[explainDrift] ends')
@@ -131,7 +131,7 @@ async function getRemediationRecommendation(driftRecord) {
       .slice(0, 10).join('\n')
 
     const recommendationText = await callAzureOpenAI(
-      'You are an Azure cloud architect. Give a 2-3 sentence remediation recommendation. Explain what reverting to baseline will do and whether it is safe. No markdown.',
+      'You are an Azure cloud architect. Give a remediation recommendation in markdown format. Use **bold** for key actions, bullet points for steps, and a brief risk note. Keep it concise (4-6 lines max).',
       `Resource: ${driftRecord.resourceId?.split('/').pop()}\nChanges to revert:\n${changesText}`
     )
     console.log('[getRemediationRecommendation] ends')

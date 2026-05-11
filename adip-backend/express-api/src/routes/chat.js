@@ -5,7 +5,7 @@ const fetch  = require('node-fetch')
 // API version pinned — update when Azure OpenAI releases a new stable version
 const CHAT_API_VERSION = process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'
 
-const SYSTEM_PROMPT = `You are an Azure Cloud Expert assistant embedded in the Azure Drift Intelligence Platform (ADIP).
+const SYSTEM_PROMPT = `You are an Azure Cloud Expert assistant embedded in the Azure Drift Intelligence Platform (ADIP). Always respond in markdown format — use headers, bullet points, bold, code blocks, and tables where appropriate.
 You help users with:
 - Azure architecture questions and best practices
 - Understanding configuration drift and its security/cost implications
