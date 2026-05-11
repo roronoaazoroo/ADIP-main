@@ -6,8 +6,7 @@ const VOLATILE = [
   'primaryEndpoints', 'secondaryEndpoints', 'primaryLocation',
   'secondaryLocation', 'statusOfPrimary', 'statusOfSecondary', 'creationTime',
   // VM read-only fields — immutable after creation, ARM rejects on PUT
-  'vmId', 'timeCreated', 'instanceView', 'powerState', 'statuses',
-  'latestModelApplied', 'resourceGuid',
+  'vmId', 'timeCreated', 'instanceView', 'powerState', 'statuses', 'resourceGuid',
   // VM osProfile — immutable after provisioning
   'adminUsername', 'adminPassword', 'computerName',
   'disablePasswordAuthentication', 'ssh', 'provisionVMAgent', 'patchSettings',
