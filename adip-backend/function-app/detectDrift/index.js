@@ -15,7 +15,7 @@
 //   7. Calls classifySeverity() — Critical / High / Medium / Low
 //   8. Writes drift record to 'drift-records' blob + 'driftIndex' Table
 //   9. POSTs to EXPRESS_API_URL/internal/drift-event to push to Socket.IO
-//  10. Sends email alert via ACS for High/Critical severity
+
 
 // Deployed to: adip-func-001 (Azure Functions, West US 2, Consumption plan)
 // Auth level:  function (requires ?code= key in URL)
