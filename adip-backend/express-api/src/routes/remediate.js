@@ -210,14 +210,16 @@ router_remediate.post('/remediate', async (req, res) => {
     const monthlySavings = await recordRemediationSavings(subscriptionId, rgName, resourceId, differences, liveRaw?.location || process.env.DEFAULT_AZURE_LOCATION || 'eastus', liveRaw?.type).catch(() => 0)
 
     // Save genome snapshot after remediation
-    const { saveGenomeSnapshot, saveBaseline } = require('../services/blobService')
-    saveGenomeSnapshot(subscriptionId, resourceId, baselineState, `remediated-${new Date().toISOString().replace(/[:.]/g, '-')}`)
-      .catch(genomeErr => console.log('[POST /remediate] genome save non-fatal:', genomeErr.message))
-    // Re-save baseline from fresh live state to prevent false-positive drift
-    try {
-      const freshLive = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
-      await saveBaseline(subscriptionId, resourceGroupId, resourceId, freshLive)
-    } catch {}
+    // Save genome + baseline 20s after remediation (allows Azure to settle)
+    setTimeout(async () => {
+      try {
+        const { saveGenomeSnapshot, saveBaseline } = require('../services/blobService')
+        const freshLive = await getResourceConfig(subscriptionId, resourceGroupId, resourceId)
+        await saveGenomeSnapshot(subscriptionId, resourceId, freshLive, `remediated-${new Date().toISOString().replace(/[:.]/g, '-')}`)
+        await saveBaseline(subscriptionId, resourceGroupId, resourceId, freshLive)
+        console.log('[remediate] genome + baseline saved (20s post-remediation)')
+      } catch (e) { console.log('[remediate] post-remediation save failed:', e.message) }
+    }, 20000)
 
     res.json({ remediated: true, resourceId, changeCount: differences.length,
       policiesCreated, monthlySavings, appliedBaseline: baselineState, previousLiveState: liveState })

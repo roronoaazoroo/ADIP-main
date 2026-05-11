@@ -6,12 +6,7 @@
 
 ### routes/auth.js
 **Purpose:** User authentication with org-based multi-tenancy, email verification, JWT tokens
-- `organizationsTable()` — returns Table client for organizations
-- `orgAdminsTable()` — returns Table client for orgAdmins
-- `orgMembersTable()` — returns Table client for orgMembers
-- `generateAuthToken()` — generates JWT auth token with user claims
-- `isEmailVerified()` — checks if a user's email is verified
-- `POST /api/auth/send-otp` — sends OTP to email
+- `org/send-otp` — sends OTP to email
 - `POST /api/auth/verify-otp` — verifies OTP code
 - `POST /api/auth/create-org` — creates org + admin user
 - `POST /api/auth/join-org` — joins org via invite code
@@ -25,7 +20,12 @@
 - `notificationsTable()` — returns Table client for notifications
 - `getUser()` — fetches user entity from members table
 - `createNotification()` — creates a notification entity
-- `notifyAllMembers()` — sends notification to all org members
+- `notifyAllMembers()` — sends notification to all organizationsTable()` — returns Table client for organizations
+- `orgAdminsTable()` — returns Table client for orgAdmins
+- `orgMembersTable()` — returns Table client for orgMembers
+- `generateAuthToken()` — generates JWT auth token with user claims
+- `isEmailVerified()` — checks if a user's email is verified
+- `POST /api/authembers
 - `GET /api/org/members` — lists org members
 - `POST /api/org/invite` — invites a new member
 - `DELETE /api/org/members/:email` — removes a member
