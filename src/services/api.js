@@ -285,6 +285,12 @@ export async function deleteGenomeSnapshot(subscriptionId, blobKey) {
 
 
 
+
+export async function fetchRgDriftRisk(subscriptionId, resourceGroup = '') {
+  const params = new URLSearchParams({ subscriptionId })
+  if (resourceGroup) params.set('resourceGroup', resourceGroup)
+  return apiRequest(`/prediction/rg-risk?${params}`)
+}
 export async function fetchGenomeCtoSummary(subscriptionId, resourceId) {
   return apiRequest(`/genome/cto-summary?subscriptionId=${encodeURIComponent(subscriptionId)}&resourceId=${encodeURIComponent(resourceId)}`)
 }

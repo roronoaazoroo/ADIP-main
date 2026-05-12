@@ -115,6 +115,7 @@ app.use('/api', require('./routes/costEstimate'))
 app.use('/api', require('./routes/chat'))
 app.use('/api', require('./routes/rgPrediction'))
 app.use('/api', require('./routes/driftRiskTimeline'))
+app.use('/api', require('./routes/driftPrediction'))
 app.use('/api', require('./routes/recover'))
 app.use('/api', require('./routes/recommendations'))
 app.use('/api', require('./routes/manualGuide'))
@@ -174,6 +175,25 @@ app.post('/internal/drift-event', express.json(), (req, res) => {
   console.log('[POST /internal/drift-event] ends')
 })
 //  POST /internal/drift-event END 
+
+
+// ── XGBoost model retrain every 24 hours (background, non-blocking) ──────────
+const { execFile } = require('child_process')
+const retrainPath = require('path').resolve(__dirname, '../../../training/train_xgboost.py')
+function retrainModel() {
+  const pythonCmd = process.env.PYTHON_PATH || 'python'
+  execFile(pythonCmd, [retrainPath], {
+    env: { ...process.env },
+    timeout: 120000,
+  }, (err, stdout, stderr) => {
+    if (err) console.log('[retrain] failed (non-fatal):', err.message)
+    else console.log('[retrain] model retrained successfully')
+  })
+}
+// Retrain every 24 hours
+setInterval(retrainModel, 24 * 60 * 60 * 1000)
+// Also retrain 30s after startup (gives Express time to initialize)
+setTimeout(retrainModel, 30000)
 
 const PORT = process.env.PORT || 3001
 server.listen(PORT, () => {

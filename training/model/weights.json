@@ -1,0 +1,35 @@
+{
+  "feature_names": [
+    "change_frequency_7d",
+    "min_inter_arrival",
+    "drift_ratio",
+    "max_severity",
+    "current_drift_streak",
+    "days_since_last_drift",
+    "recency_hours",
+    "caller_entropy",
+    "caller_drift_rate",
+    "resource_type",
+    "rg_drift_density",
+    "days_since_baseline",
+    "delete_event_ratio"
+  ],
+  "weights": [
+    0.0228,
+    0.0476,
+    0.058,
+    0.013,
+    0.0163,
+    0.0501,
+    0.429,
+    0.0424,
+    0.0285,
+    0.2564,
+    0.0129,
+    0.0,
+    0.0229
+  ],
+  "trained_at": "2026-05-12T10:51:14Z",
+  "auc_roc": 0.8,
+  "samples": 1649
+}
