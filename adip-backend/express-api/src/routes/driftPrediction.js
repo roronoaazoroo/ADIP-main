@@ -1,6 +1,8 @@
 'use strict'
 const router = require('express').Router()
 const { getChangesIndexTableClient, getDriftIndexTableClient } = require('../services/blobService')
+const { buildFeatureVector } = require('../services/featureBuilder')
+const { predictDriftRisk } = require('../services/mlPredictionService')
 
 const CACHE_TTL = 5 * 60 * 1000
 const _cache = new Map()
@@ -71,6 +73,26 @@ router.get('/prediction/rg-risk', async (req, res) => {
       if (NOISE_TYPES.includes(rtype) || !rtype || rname.length > 50 || /^[a-f0-9-]{30,}/.test(rname)) delete resourceMap[rid]
     }
 
+    // Build feature vectors + call ML endpoint
+    const resourceKeys = []
+    let mlPredictions = null
+    const validEntries = Object.entries(resourceMap).filter(([rid, data]) => data && data.latestChangeType !== 'deleted' && data.changes.length >= 2)
+    const featureVectors = validEntries.map(([rid, data]) => {
+      resourceKeys.push(rid)
+      return buildFeatureVector({
+        resourceId: data.originalId || rid,
+        changes: data.changes,
+        drifts: [],
+        baselineDate: null,
+        callerDriftCounts: {},
+        rgDriftCount: 0,
+        rgResourceCount: validEntries.length,
+      })
+    })
+    if (featureVectors.length > 0) {
+      try { mlPredictions = await predictDriftRisk(featureVectors) } catch { /* fallback below */ }
+    }
+
     // Compute scores
     const results = []
     for (const [rid, data] of Object.entries(resourceMap)) {
@@ -97,7 +119,7 @@ router.get('/prediction/rg-risk', async (req, res) => {
         securityFields * WEIGHTS.securityFields +
         offHours * WEIGHTS.offHours
       )
-      const riskScore = Math.round(Math.min(rawScore * 100 / 0.6, 100)) // normalize so max realistic = 100
+      let riskScore = Math.round(Math.min(rawScore * 100 / 0.6, 100)) // normalize so max realistic = 100
 
       const factors = []
       if (changeFrequency > 0.4) factors.push(`${totalChanges} changes in 30 days`)
@@ -107,6 +129,12 @@ router.get('/prediction/rg-risk', async (req, res) => {
       if (offHours > 0.3) factors.push('frequent off-hours changes')
       if (recency > 0.8) factors.push('changed very recently')
       if (!factors.length) factors.push('low activity')
+
+      // Use ML prediction if available, otherwise use weighted score
+      const keyIdx = resourceKeys.indexOf(rid)
+      if (mlPredictions && keyIdx >= 0 && mlPredictions[keyIdx] !== undefined) {
+        riskScore = Math.round(mlPredictions[keyIdx] * 100)
+      }
 
       results.push({
         resourceId: data.originalId || rid,
@@ -121,39 +149,7 @@ router.get('/prediction/rg-risk', async (req, res) => {
 
     results.sort((a, b) => b.riskScore - a.riskScore)
 
-    // GPT-4o adjustment for top 10
-    const top10 = results.slice(0, 10)
-    const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/$/, '')
-    const apiKey = process.env.AZURE_OPENAI_KEY
-    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT || 'adip-gpt'
-
-    if (endpoint && apiKey && top10.length > 2) {
-      try {
-        const fetch = require('node-fetch')
-        const aiResp = await fetch(`${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${process.env.AZURE_OPENAI_API_VERSION || '2024-10-21'}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
-          body: JSON.stringify({
-            messages: [
-              { role: 'system', content: 'You adjust drift risk scores for Azure resources. Given resources with computed risk scores and factors, adjust scores 0-100 based on patterns. Resources with security changes by multiple callers during off-hours are higher risk. Resources with only tag changes are lower risk. Respond ONLY with JSON array: [{"index":0,"adjustedScore":N}, ...]' },
-              { role: 'user', content: JSON.stringify(top10.map((r, i) => ({ index: i, name: r.resourceName, type: r.resourceType, score: r.riskScore, factors: r.factors }))) },
-            ],
-            max_tokens: 200, temperature: 0.2,
-          }),
-        })
-        if (aiResp.ok) {
-          const aiData = await aiResp.json()
-          const adjustments = JSON.parse((aiData.choices?.[0]?.message?.content || '[]').replace(/```json|```/g, ''))
-          for (const adj of adjustments) {
-            if (top10[adj.index] && typeof adj.adjustedScore === 'number') {
-              top10[adj.index].riskScore = Math.round(Math.min(Math.max(adj.adjustedScore, 0), 100))
-            }
-          }
-        }
-      } catch { /* non-fatal — use original scores */ }
-    }
-
-    // Re-sort after AI adjustment
+    // ML model replaces GPT-4o adjustment
     results.sort((a, b) => b.riskScore - a.riskScore)
 
     _cache.set(cacheKey, { data: results, expiresAt: Date.now() + CACHE_TTL })

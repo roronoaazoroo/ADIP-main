@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react'
 import RgDriftPrediction from '../components/RgDriftPrediction'
-import RgDriftRiskMap from '../components/RgDriftRiskMap'
+import DriftPredictionPanel from '../components/DriftPredictionPanel'
 import DriftForecastChart from '../components/DriftForecastChart'
 import NavBar from '../components/NavBar'
 import { useDashboard } from '../context/DashboardContext'
@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
           <div className="an-tab-content" key="prediction">
             <div className="an-card an-card--full">
               <div className="an-card-body">
-                <RgDriftRiskMap subscriptionId={activeSubscriptionId} resourceGroup={resourceGroup || ''} />
+                <DriftPredictionPanel subscriptionId={activeSubscriptionId} resourceGroup={resourceGroup || ''} />
               </div>
             </div>
           </div>
