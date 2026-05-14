@@ -121,6 +121,7 @@ app.use('/api', require('./routes/recommendations'))
 app.use('/api', require('./routes/manualGuide'))
 app.use('/api', require('./routes/armAnalyzer'))
 app.use('/api', require('./routes/baselineValidation'))
+app.use('/api', require('./routes/orchestrator'))
 
 
 
@@ -196,6 +197,9 @@ setInterval(retrainModel, 24 * 60 * 60 * 1000)
 setTimeout(retrainModel, 30000)
 
 const PORT = process.env.PORT || 3001
+const { initOrchestrator } = require('./orchestrator')
+initOrchestrator().catch(e => console.error('[Orchestrator] Init failed:', e.message))
+
 server.listen(PORT, () => {
   console.log(`ADIP API running on port ${PORT}`)
   startQueuePoller()

@@ -21,6 +21,7 @@ export default function MarkdownRenderer({ content }) {
               ? <code style={styles.code}>{children}</code>
               : <pre style={styles.pre}><code>{children}</code></pre>
           },
+          p({ children }) { return <div style={{ marginBottom: 8 }}>{children}</div> },
           li({ children }) { return <li style={styles.li}>{children}</li> },
         }}
       >

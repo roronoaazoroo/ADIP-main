@@ -57,9 +57,16 @@ router.post('/arm-analyze', async (req, res) => {
   }
   const cleanBaseline = summarizeArm(cleanForAI(baselineState))
   const cleanLive = summarizeArm(cleanForAI(liveState))
-  // Filter out volatile/noise fields before sending to AI
-  const NOISE = ['defaultSecurityRules', 'osProfile', 'vmId', 'resourceGuid', 'provisioningState', 'macAddress', 'ipAddress', 'dnsSettings', 'uniqueId', 'creationData', 'timeCreated', 'primary', 'virtualMachine', 'networkInterfaces', 'subnets']
-  const meaningfulDiffs = (differences || []).filter(d => !NOISE.some(n => (d.path || '').includes(n)))
+  // Compute server-side diffs if frontend didn't provide meaningful ones
+  let effectiveDiffs = differences || []
+  if (!effectiveDiffs.length && baselineState && liveState) {
+    try {
+      const { diffObjects } = require('../../shared/diff')
+      effectiveDiffs = diffObjects(baselineState, liveState)
+    } catch {}
+  }
+  const NOISE = ['defaultSecurityRules', 'osProfile', 'vmId', 'resourceGuid', 'provisioningState', 'macAddress', 'ipAddress', 'dnsSettings', 'uniqueId', 'creationData', 'timeCreated', 'primary']
+  const meaningfulDiffs = effectiveDiffs.filter(d => !NOISE.some(n => (d.path || '').includes(n)))
   const diffSummary = meaningfulDiffs.slice(0, 15).map(d => `${d.type} ${d.path}: ${JSON.stringify(d.oldValue)?.slice(0,20)} → ${JSON.stringify(d.newValue)?.slice(0,20)}`).join('\n')
 
   const systemPrompt = `You are an Azure infrastructure drift analysis engine.
